@@ -78,9 +78,9 @@ const Index = () => {
     
     try {
       // Check if user is authenticated
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session: authSession } } = await supabase.auth.getSession();
       
-      if (!session) {
+      if (!authSession) {
         // Redirect to auth with plan info
         navigate('/auth', { state: { selectedPlan: plan } });
         return;
@@ -90,7 +90,7 @@ const Index = () => {
       const { data: sessionData, error: sessionError } = await supabase
         .from('sessions')
         .insert({
-          user_id: session.user.id,
+          user_id: authSession.user.id,
           plan_type: plan.id as 'standard' | 'pro' | 'elite',
           duration_minutes: plan.durationMinutes,
           price_cents: plan.priceCents,
@@ -103,7 +103,7 @@ const Index = () => {
         throw sessionError;
       }
 
-      // Redirect to payment (will implement Stripe integration)
+      // Redirect to payment
       navigate('/payment', { state: { sessionId: sessionData.id, plan } });
 
     } catch (error) {
