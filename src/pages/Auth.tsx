@@ -1,0 +1,217 @@
+
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Brain, Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+const Auth = () => {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
+  
+  const selectedPlan = location.state?.selectedPlan;
+
+  useEffect(() => {
+    // Check if user is already authenticated
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        if (selectedPlan) {
+          // Continue with session creation
+          navigate('/payment', { state: { plan: selectedPlan } });
+        } else {
+          navigate('/dashboard');
+        }
+      }
+    };
+    
+    checkUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        if (selectedPlan) {
+          // Create session and redirect to payment
+          setTimeout(() => {
+            navigate('/payment', { state: { plan: selectedPlan } });
+          }, 100);
+        } else {
+          navigate('/dashboard');
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, selectedPlan]);
+
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const redirectUrl = `${window.location.origin}/auth`;
+      
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: redirectUrl
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setEmailSent(true);
+      toast({
+        title: "Magic link sent!",
+        description: "Check your email for the login link.",
+      });
+
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send magic link. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (emailSent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <CheckCircle className="h-16 w-16 text-green-500" />
+            </div>
+            <CardTitle className="text-2xl">Check Your Email</CardTitle>
+            <CardDescription>
+              We've sent a magic link to <strong>{email}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600 text-center">
+              Click the link in your email to continue. The link will expire in 60 minutes.
+            </p>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => setEmailSent(false)}
+            >
+              Didn't receive it? Try again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <Button
+            variant="ghost"
+            className="mb-4"
+            onClick={() => navigate('/')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to pricing
+          </Button>
+          
+          <div className="flex items-center justify-center space-x-2 mb-4">
+            <Brain className="h-8 w-8 text-blue-600" />
+            <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Welcome Back</CardTitle>
+            <CardDescription>
+              {selectedPlan 
+                ? `Continue with your ${selectedPlan.name} plan`
+                : "Enter your email to get started"
+              }
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent>
+            {selectedPlan && (
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-medium text-blue-900">{selectedPlan.name} Plan</p>
+                    <p className="text-sm text-blue-700">{selectedPlan.duration} • {selectedPlan.price}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleMagicLink} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="h-12"
+                />
+              </div>
+
+              <Button 
+                type="submit" 
+                className="w-full h-12 text-lg"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Mail className="h-4 w-4 mr-2 animate-pulse" />
+                    Sending magic link...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Send magic link
+                  </>
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                No password required. We'll send you a secure login link.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="mt-8 text-center text-sm text-gray-500">
+          <p>By continuing, you agree to our</p>
+          <p>
+            <span className="underline cursor-pointer hover:text-gray-700">Terms of Service</span> and{' '}
+            <span className="underline cursor-pointer hover:text-gray-700">Privacy Policy</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Auth;
