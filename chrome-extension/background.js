@@ -1,4 +1,3 @@
-
 let captureStream = null;
 let audioContext = null;
 let processor = null;
@@ -212,6 +211,8 @@ function encodeAudioForAPI(float32Array) {
 async function forwardAudioToInterviewApp(audioData) {
   if (!audioData) return;
   
+  console.log('Forwarding audio data to interview app, size:', audioData.length);
+  
   if (!interviewAppTabId) {
     try {
       const tabs = await chrome.tabs.query({});
@@ -219,13 +220,15 @@ async function forwardAudioToInterviewApp(audioData) {
         tab.url && (
           tab.url.includes('lovable.app') || 
           tab.url.includes('localhost') ||
-          tab.url.includes('/interview')
+          tab.url.includes('/interview') ||
+          tab.url.includes('supabase.co')
         )
       );
       
       if (interviewTab) {
         interviewAppTabId = interviewTab.id;
         chrome.storage.local.set({ interviewAppTabId: interviewTab.id });
+        console.log('Found interview app tab:', interviewTab.url);
       } else {
         console.log('Interview app tab not found');
         return;
@@ -237,13 +240,17 @@ async function forwardAudioToInterviewApp(audioData) {
   }
   
   try {
+    console.log('Sending message to tab:', interviewAppTabId);
     await chrome.tabs.sendMessage(interviewAppTabId, {
       action: 'processAudio',
       audioData: audioData
     });
+    console.log('Audio forwarded successfully');
   } catch (error) {
     console.error('Error forwarding audio to interview app:', error);
+    // Reset tab ID if the tab is no longer valid
     interviewAppTabId = null;
+    chrome.storage.local.remove('interviewAppTabId');
   }
 }
 
