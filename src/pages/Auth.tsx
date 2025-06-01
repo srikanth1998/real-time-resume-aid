@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -25,10 +24,42 @@ const Auth = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         if (selectedPlan) {
-          // Continue with session creation
-          navigate('/payment', { state: { plan: selectedPlan } });
+          // Create a new session for the selected plan
+          try {
+            const { data: newSession, error } = await supabase
+              .from('sessions')
+              .insert({
+                user_id: session.user.id,
+                plan_type: selectedPlan.id,
+                duration_minutes: selectedPlan.duration === 'Weekly' ? 60 : 
+                               selectedPlan.duration === 'Monthly' ? 90 : 120,
+                status: 'pending_assets'
+              })
+              .select()
+              .single();
+
+            if (error) {
+              console.error('Error creating session:', error);
+              toast({
+                title: "Error",
+                description: "Failed to create session. Please try again.",
+                variant: "destructive"
+              });
+              return;
+            }
+
+            // Redirect to upload page with session ID
+            navigate(`/upload?session_id=${newSession.id}`);
+          } catch (error) {
+            console.error('Session creation error:', error);
+            toast({
+              title: "Error",
+              description: "Failed to create session. Please try again.",
+              variant: "destructive"
+            });
+          }
         } else {
-          navigate('/dashboard');
+          navigate('/');
         }
       }
     };
@@ -36,12 +67,39 @@ const Auth = () => {
     checkUser();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         if (selectedPlan) {
-          // Create session and redirect to payment
-          setTimeout(() => {
-            navigate('/payment', { state: { plan: selectedPlan } });
+          // Create session and redirect to upload
+          setTimeout(async () => {
+            try {
+              const { data: newSession, error } = await supabase
+                .from('sessions')
+                .insert({
+                  user_id: session.user.id,
+                  plan_type: selectedPlan.id,
+                  duration_minutes: selectedPlan.duration === 'Weekly' ? 60 : 
+                                 selectedPlan.duration === 'Monthly' ? 90 : 120,
+                  status: 'pending_assets'
+                })
+                .select()
+                .single();
+
+              if (error) {
+                console.error('Error creating session:', error);
+                toast({
+                  title: "Error",
+                  description: "Failed to create session. Please try again.",
+                  variant: "destructive"
+                });
+                return;
+              }
+
+              navigate(`/upload?session_id=${newSession.id}`);
+            } catch (error) {
+              console.error('Session creation error:', error);
+              navigate('/');
+            }
           }, 100);
         } else {
           navigate('/');
@@ -50,7 +108,7 @@ const Auth = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, selectedPlan]);
+  }, [navigate, selectedPlan, toast]);
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
