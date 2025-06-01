@@ -1,6 +1,6 @@
 
 /* global chrome */
-let audioCtx, source, worklet, ws;
+let audioCtx, source, worklet;
 let isStarting = false;
 let isStopping = false;
 
@@ -12,7 +12,7 @@ async function start (streamId) {
   }
   
   // Make sure any previous session is properly stopped
-  if (audioCtx || source || worklet || ws) {
+  if (audioCtx || source || worklet) {
     await stop(false);
     // Small delay to ensure cleanup is complete
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -33,20 +33,15 @@ async function start (streamId) {
 
     worklet = new AudioWorkletNode(audioCtx, 'pcm-worklet');
     
-    // For now, just process audio locally without WebSocket
+    // Send audio data to background script instead of directly to tabs
     worklet.port.onmessage = ({ data }) => {
-      // Send audio data to the web app instead of WebSocket
       try {
-        // Send message to content script which will forward to web app
-        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-          if (tabs[0]) {
-            chrome.tabs.sendMessage(tabs[0].id, {
-              action: 'audioData',
-              audioData: Array.from(new Float32Array(data))
-            }).catch(err => {
-              console.warn('Error sending audio to content script:', err);
-            });
-          }
+        // Send audio data to background script which will forward to content script
+        chrome.runtime.sendMessage({
+          type: 'audio-data',
+          audioData: Array.from(new Float32Array(data))
+        }).catch(err => {
+          console.warn('Error sending audio to background script:', err);
         });
       } catch (err) {
         console.warn('Error processing audio data:', err);

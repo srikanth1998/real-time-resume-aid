@@ -1,3 +1,4 @@
+
 /* global chrome */
 let isCapturing   = false;
 let currentTabId  = null;
@@ -143,6 +144,21 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
       }
     } catch (error) {
       console.error('Error handling toggle:', error);
+    }
+  }
+  
+  // Handle audio data from offscreen and forward to content script
+  if (msg.type === 'audio-data') {
+    console.log('Received audio data from offscreen, forwarding to content script');
+    if (currentTabId) {
+      try {
+        await chrome.tabs.sendMessage(currentTabId, {
+          action: 'audioData',
+          audioData: msg.audioData
+        });
+      } catch (err) {
+        console.warn('Error forwarding audio to content script:', err);
+      }
     }
   }
   
