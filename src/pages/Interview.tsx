@@ -28,6 +28,7 @@ const Interview = () => {
   const [inputMode, setInputMode] = useState<'voice' | 'text' | 'extension'>('voice');
   const [manualQuestion, setManualQuestion] = useState("");
   const [extensionConnected, setExtensionConnected] = useState(false);
+  const [extensionStatus, setExtensionStatus] = useState("Connecting...");
 
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,19 +108,21 @@ const Interview = () => {
     };
   }, [sessionId, navigate, inputMode]);
 
-  // Separate effect for extension initialization
+  // Extension initialization effect
   useEffect(() => {
     let cleanup: (() => void) | undefined;
 
     const initExtension = async () => {
       console.log('Initializing extension connector...');
+      setExtensionStatus("Connecting...");
+      
       cleanup = initializeExtensionConnector();
       
       // Listen for extension events
       const handleExtensionReady = () => {
         console.log('Extension ready event received');
         setExtensionConnected(true);
-        // Mark extension as ready globally
+        setExtensionStatus("Listening");
         (window as any).__extensionReady = true;
         
         // Auto-switch to extension mode if it becomes available
@@ -129,6 +132,7 @@ const Interview = () => {
       };
 
       const handleExtensionAudio = (event: CustomEvent) => {
+        console.log('Extension audio event received:', event.detail);
         if (event.detail?.audioData) {
           handleExtensionAudioData(event.detail.audioData);
         }
@@ -142,8 +146,11 @@ const Interview = () => {
       console.log('Initial extension check:', isAvailable);
       setExtensionConnected(isAvailable);
       
-      if (isAvailable && inputMode === 'voice') {
-        setInputMode('extension');
+      if (isAvailable) {
+        setExtensionStatus("Listening");
+        if (inputMode === 'voice') {
+          setInputMode('extension');
+        }
       }
 
       return () => {
@@ -163,7 +170,6 @@ const Interview = () => {
   }, [inputMode]);
 
   const checkAndInitializeExtension = () => {
-    // Check multiple times as extension might load after page
     const checks = [0, 500, 1000, 2000, 3000];
     
     checks.forEach(delay => {
@@ -173,6 +179,7 @@ const Interview = () => {
         
         if (isConnected && !extensionConnected) {
           setExtensionConnected(true);
+          setExtensionStatus("Listening");
           if (inputMode === 'voice') {
             setInputMode('extension');
           }
@@ -189,13 +196,13 @@ const Interview = () => {
       
       if (timeLeft <= 0) {
         handleSessionExpired();
-      } else if (timeLeft === 300) { // 5 minutes warning
+      } else if (timeLeft === 300) {
         toast({
           title: "5 minutes remaining",
           description: "Your session will end in 5 minutes.",
           variant: "destructive"
         });
-      } else if (timeLeft === 60) { // 1 minute warning
+      } else if (timeLeft === 60) {
         toast({
           title: "1 minute remaining",
           description: "Your session will end in 1 minute.",
@@ -214,7 +221,6 @@ const Interview = () => {
       recognitionRef.current.stop();
     }
 
-    // Update session status
     await supabase
       .from('sessions')
       .update({
@@ -232,53 +238,64 @@ const Interview = () => {
     navigate(`/complete?session_id=${sessionId}`);
   };
 
-  const handleExtensionAudioData = (audioData: string) => {
-    console.log('Received audio from extension');
+  const handleExtensionAudioData = async (audioData: string) => {
+    console.log('Processing audio from extension, length:', audioData?.length);
     
-    // Buffer audio data
-    audioBufferRef.current += audioData;
-    
-    // Process audio when we have enough data (adjust threshold as needed)
-    if (audioBufferRef.current.length > 10000) {
-      processAudioBuffer();
+    if (processingRef.current) {
+      console.log('Already processing audio, skipping...');
+      return;
     }
-  };
-
-  const processAudioBuffer = async () => {
-    if (processingRef.current || !audioBufferRef.current) return;
     
     processingRef.current = true;
+    setExtensionStatus("Processing audio...");
     setCurrentTranscript("Processing audio from meeting...");
     
     try {
-      // Send audio to speech-to-text
+      console.log('Sending audio to speech-to-text function');
+      
       const { data, error } = await supabase.functions.invoke('speech-to-text', {
         body: {
-          audio: audioBufferRef.current
+          audio: audioData
         }
       });
 
+      console.log('Speech-to-text response:', { data, error });
+
       if (error) {
         console.error('Speech to text error:', error);
+        setCurrentTranscript("Error processing audio");
+        setExtensionStatus("Error");
         return;
       }
 
-      const transcript = data.text;
+      const transcript = data?.text || "";
+      console.log('Transcript received:', transcript);
+      
       if (transcript && transcript.trim().length > 10) {
         setCurrentTranscript(transcript);
+        setExtensionStatus("Listening");
         
         // Auto-generate answer if this looks like a question
-        if (transcript.includes('?') || transcript.toLowerCase().includes('tell me') || 
-            transcript.toLowerCase().includes('describe') || transcript.toLowerCase().includes('explain')) {
+        if (transcript.includes('?') || 
+            transcript.toLowerCase().includes('tell me') || 
+            transcript.toLowerCase().includes('describe') || 
+            transcript.toLowerCase().includes('explain') ||
+            transcript.toLowerCase().includes('what') ||
+            transcript.toLowerCase().includes('how') ||
+            transcript.toLowerCase().includes('why')) {
+          console.log('Detected question, generating answer...');
           generateAnswer(transcript);
         }
+      } else {
+        console.log('Transcript too short or empty');
+        setCurrentTranscript("No clear speech detected");
+        setExtensionStatus("Listening");
       }
-      
-      // Clear buffer
-      audioBufferRef.current = "";
       
     } catch (error) {
       console.error('Audio processing error:', error);
+      setCurrentTranscript("Error processing audio");
+      setExtensionStatus("Error");
     } finally {
       processingRef.current = false;
     }
@@ -317,7 +334,6 @@ const Interview = () => {
       const fullTranscript = finalTranscript + interimTranscript;
       setCurrentTranscript(fullTranscript);
 
-      // Process questions automatically when final transcript is received
       if (finalTranscript && finalTranscript.trim().length > 10 && !processingRef.current) {
         const newQuestion = finalTranscript.trim();
         if (newQuestion !== lastTranscriptRef.current) {
@@ -390,7 +406,6 @@ const Interview = () => {
       const aiAnswer = data.answer;
       setCurrentAnswer(aiAnswer);
       
-      // Save to conversation history
       const newEntry = {
         question,
         answer: aiAnswer,
@@ -399,7 +414,6 @@ const Interview = () => {
       
       setConversationHistory(prev => [...prev, newEntry]);
       
-      // Save to database
       await supabase
         .from('transcripts')
         .insert({
@@ -417,7 +431,6 @@ const Interview = () => {
       console.error('Answer generation error:', error);
       let errorMessage = "Sorry, there was an error generating the answer. Please try again.";
       
-      // Check for specific error types
       if (error.message && error.message.includes('quota')) {
         errorMessage = "OpenAI API quota exceeded. Please check your OpenAI account billing and usage limits.";
       } else if (error.message && error.message.includes('API key')) {
@@ -462,7 +475,7 @@ const Interview = () => {
     );
   }
 
-  const isLowTime = timeRemaining <= 300; // 5 minutes or less
+  const isLowTime = timeRemaining <= 300;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -499,7 +512,7 @@ const Interview = () => {
       </div>
 
       <div className={`max-w-7xl mx-auto p-3 md:p-4 ${isMobile ? 'space-y-4' : 'grid lg:grid-cols-2 gap-6'} ${isMobile ? 'h-auto' : 'h-[calc(100vh-80px)]'}`}>
-        {/* Main Panel - Controls and Current Session */}
+        {/* Main Panel */}
         <div className="space-y-4 md:space-y-6">
           {/* Input Mode Selection */}
           <Card className="bg-gray-800 border-gray-700">
@@ -548,7 +561,7 @@ const Interview = () => {
             </CardContent>
           </Card>
 
-          {/* Input Control Based on Mode */}
+          {/* Extension Mode UI */}
           {inputMode === 'extension' && (
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader className="pb-3">
@@ -556,7 +569,7 @@ const Interview = () => {
                   <span>Meeting Audio Capture</span>
                   <div className="flex items-center space-x-2 text-green-400">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-xs">Listening</span>
+                    <span className="text-xs">{extensionStatus}</span>
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -573,6 +586,7 @@ const Interview = () => {
             </Card>
           )}
 
+          {/* Voice Mode UI */}
           {inputMode === 'voice' && (
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader className="pb-3">
@@ -605,6 +619,7 @@ const Interview = () => {
             </Card>
           )}
 
+          {/* Text Mode UI */}
           {inputMode === 'text' && (
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader className="pb-3">
@@ -684,7 +699,7 @@ const Interview = () => {
           </Card>
         </div>
 
-        {/* History Panel - Collapsible on mobile */}
+        {/* History Panel */}
         {(!isMobile || showHistory) && (
           <div className={isMobile ? 'mt-4' : ''}>
             <Card className="bg-gray-800 border-gray-700 h-full">
