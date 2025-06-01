@@ -5,13 +5,13 @@
   "version": "1.0.2",
   "description": "Silently relays Google-Meet audio to your AI interview coach.",
   "icons": {
-    "16":  "icons/icon16.png",
-    "48":  "icons/icon48.png",
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-
-  "action": { "default_title": "Start / Stop Capture" },
-
+  "action": {
+    "default_title": "Start / Stop Capture"
+  },
   "permissions": [
     "activeTab",
     "tabCapture",
@@ -20,7 +20,6 @@
     "tabs",
     "scripting"
   ],
-
   "host_permissions": [
     "https://api.interviewace.com/*",
     "https://meet.google.com/*",
@@ -30,25 +29,22 @@
     "https://*.lovableproject.com/*",
     "http://localhost:*"
   ],
-
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-
   "content_scripts": [
-    { 
+    {
       "matches": [
         "https://meet.google.com/*",
         "https://www.youtube.com/*",
         "https://youtube.com/*",
         "https://*.lovableproject.com/*",
         "http://localhost:*"
-      ], 
-      "js": ["content.js"] 
+      ],
+      "js": ["content.js"]
     }
   ],
-
   "web_accessible_resources": [
     {
       "resources": ["pcm-worklet.js"],
