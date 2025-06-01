@@ -180,8 +180,8 @@ const Interview = () => {
       const fullTranscript = finalTranscript + interimTranscript;
       setCurrentTranscript(fullTranscript);
 
-      // Only process questions when in question mode
-      if (finalTranscript && finalTranscript.trim().length > 10 && !processingRef.current && listeningMode === 'question') {
+      // Process questions automatically when final transcript is received
+      if (finalTranscript && finalTranscript.trim().length > 10 && !processingRef.current) {
         const newQuestion = finalTranscript.trim();
         if (newQuestion !== lastTranscriptRef.current) {
           processingRef.current = true;
