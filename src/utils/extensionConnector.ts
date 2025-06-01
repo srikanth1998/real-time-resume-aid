@@ -39,8 +39,9 @@ export const initializeExtensionConnector = () => {
   window.addEventListener('message', handleExtensionMessage);
   
   // Add Chrome extension message listener if available
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-    chrome.runtime.onMessage.addListener(handleChromeExtensionMessage);
+  const chromeAPI = (window as any).chrome;
+  if (typeof chromeAPI !== 'undefined' && chromeAPI.runtime && chromeAPI.runtime.onMessage) {
+    chromeAPI.runtime.onMessage.addListener(handleChromeExtensionMessage);
   }
   
   // Notify extension that interview app is ready
@@ -53,18 +54,20 @@ export const initializeExtensionConnector = () => {
 
   return () => {
     window.removeEventListener('message', handleExtensionMessage);
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-      chrome.runtime.onMessage.removeListener(handleChromeExtensionMessage);
+    const chromeAPI = (window as any).chrome;
+    if (typeof chromeAPI !== 'undefined' && chromeAPI.runtime && chromeAPI.runtime.onMessage) {
+      chromeAPI.runtime.onMessage.removeListener(handleChromeExtensionMessage);
     }
   };
 };
 
 // Check if extension is available
 export const checkExtensionAvailability = (): boolean => {
+  const chromeAPI = (window as any).chrome;
   const isAvailable = typeof window !== 'undefined' && 
-         typeof window.chrome !== 'undefined' && 
-         window.chrome?.runtime !== undefined && 
-         window.chrome?.runtime?.id !== undefined;
+         typeof chromeAPI !== 'undefined' && 
+         chromeAPI?.runtime !== undefined && 
+         chromeAPI?.runtime?.id !== undefined;
   
   console.log('Extension availability check:', isAvailable);
   return isAvailable;
