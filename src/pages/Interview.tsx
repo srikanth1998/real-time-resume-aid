@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Brain, Mic, MicOff, Copy, RotateCcw, Clock, AlertTriangle, MessageSquare, User } from "lucide-react";
+import { Brain, Mic, MicOff, Copy, RotateCcw, Clock, AlertTriangle, MessageSquare, User, Menu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Interview = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   const sessionId = searchParams.get('session_id');
   const [session, setSession] = useState<any>(null);
@@ -21,6 +23,7 @@ const Interview = () => {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isGeneratingAnswer, setIsGeneratingAnswer] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{question: string, answer: string, timestamp: string}>>([]);
+  const [showHistory, setShowHistory] = useState(!isMobile);
 
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -333,49 +336,62 @@ const Interview = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Header with Timer */}
-      <div className="border-b border-gray-800 p-4">
+      <div className="border-b border-gray-800 p-3 md:p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Brain className="h-6 w-6 text-blue-400" />
-            <span className="font-semibold">InterviewAce</span>
+            <Brain className="h-5 w-5 md:h-6 md:w-6 text-blue-400" />
+            <span className="font-semibold text-sm md:text-base">InterviewAce</span>
           </div>
           
-          <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${isLowTime ? 'bg-red-900 text-red-200' : 'bg-gray-800'}`}>
-            <Clock className="h-4 w-4" />
-            <span className="font-mono text-lg">{formatTime(timeRemaining)}</span>
-            {isLowTime && <AlertTriangle className="h-4 w-4 text-red-400" />}
+          {isMobile && (
+            <Button
+              onClick={() => setShowHistory(!showHistory)}
+              variant="ghost"
+              size="sm"
+              className="p-2"
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+          )}
+          
+          <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm md:text-base ${isLowTime ? 'bg-red-900 text-red-200' : 'bg-gray-800'}`}>
+            <Clock className="h-3 w-3 md:h-4 md:w-4" />
+            <span className="font-mono">{formatTime(timeRemaining)}</span>
+            {isLowTime && <AlertTriangle className="h-3 w-3 md:h-4 md:w-4 text-red-400" />}
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-4 grid lg:grid-cols-2 gap-6 h-[calc(100vh-80px)]">
-        {/* Left Panel - Current Question & Controls */}
-        <div className="space-y-6">
+      <div className={`max-w-7xl mx-auto p-3 md:p-4 ${isMobile ? 'space-y-4' : 'grid lg:grid-cols-2 gap-6'} ${isMobile ? 'h-auto' : 'h-[calc(100vh-80px)]'}`}>
+        {/* Main Panel - Controls and Current Session */}
+        <div className="space-y-4 md:space-y-6">
           {/* Mode Toggle */}
           <Card className="bg-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white">Listening Mode</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-white text-base md:text-lg">Listening Mode</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex space-x-2">
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                 <Button
                   onClick={() => switchMode('question')}
                   variant={listeningMode === 'question' ? "default" : "outline"}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-2 text-sm w-full sm:w-auto"
+                  size={isMobile ? "sm" : "default"}
                 >
-                  <MessageSquare className="h-4 w-4" />
+                  <MessageSquare className="h-3 w-3 md:h-4 md:w-4" />
                   <span>Question Mode</span>
                 </Button>
                 <Button
                   onClick={() => switchMode('answer')}
                   variant={listeningMode === 'answer' ? "default" : "outline"}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-2 text-sm w-full sm:w-auto"
+                  size={isMobile ? "sm" : "default"}
                 >
-                  <User className="h-4 w-4" />
+                  <User className="h-3 w-3 md:h-4 md:w-4" />
                   <span>Answer Mode</span>
                 </Button>
               </div>
-              <p className="text-gray-400 text-sm mt-2">
+              <p className="text-gray-400 text-xs md:text-sm mt-2">
                 {listeningMode === 'question' 
                   ? "AI will listen for interviewer questions and generate responses automatically"
                   : "Use this mode when you're speaking your answer (no AI generation)"
@@ -386,41 +402,36 @@ const Interview = () => {
 
           {/* Microphone Control */}
           <Card className="bg-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between text-white">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
                 <span>Voice Recognition</span>
                 <Button
                   onClick={toggleListening}
                   variant={isListening ? "destructive" : "default"}
-                  size="lg"
+                  size={isMobile ? "sm" : "lg"}
                   className="flex items-center space-x-2"
                 >
-                  {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                  <span>{isListening ? "Stop Listening" : "Start Listening"}</span>
+                  {isListening ? <MicOff className="h-4 w-4 md:h-5 md:w-5" /> : <Mic className="h-4 w-4 md:h-5 md:w-5" />}
+                  <span className="text-xs md:text-sm">{isListening ? "Stop" : "Start"}</span>
                 </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-gray-900 p-4 rounded-lg min-h-[100px]">
-                <p className="text-gray-400 text-sm mb-2">
+              <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[80px] md:min-h-[100px]">
+                <p className="text-gray-400 text-xs md:text-sm mb-2">
                   Current transcript ({listeningMode === 'question' ? 'Question' : 'Answer'} mode):
                 </p>
-                <p className="text-white">
+                <p className="text-white text-sm md:text-base leading-relaxed">
                   {currentTranscript || (isListening 
                     ? (listeningMode === 'question' 
                       ? "Listening for interviewer question... AI will generate response instantly." 
                       : "Listening to your answer... (No AI generation in this mode)")
-                    : `Click 'Start Listening' to begin ${listeningMode} mode`
+                    : `Tap 'Start' to begin ${listeningMode} mode`
                   )}
                 </p>
-                {isListening && listeningMode === 'question' && (
-                  <p className="text-blue-400 text-sm mt-2">
-                    💡 Question Mode: Speak your question clearly. AI will generate a response automatically.
-                  </p>
-                )}
-                {isListening && listeningMode === 'answer' && (
-                  <p className="text-green-400 text-sm mt-2">
-                    💡 Answer Mode: Practice speaking your answer. No AI generation will occur.
+                {isListening && (
+                  <p className={`text-xs md:text-sm mt-2 ${listeningMode === 'question' ? 'text-blue-400' : 'text-green-400'}`}>
+                    💡 {listeningMode === 'question' ? 'Question Mode: Speak your question clearly. AI will generate a response automatically.' : 'Answer Mode: Practice speaking your answer. No AI generation will occur.'}
                   </p>
                 )}
               </div>
@@ -430,38 +441,40 @@ const Interview = () => {
           {/* Current Answer - Only show in question mode */}
           {listeningMode === 'question' && (
             <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between text-white">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
                   <span>AI-Generated Answer</span>
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-1 md:space-x-2">
                     <Button
                       onClick={() => copyToClipboard(currentAnswer)}
                       variant="outline"
                       size="sm"
                       disabled={!currentAnswer || isGeneratingAnswer}
+                      className="p-2"
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-3 w-3 md:h-4 md:w-4" />
                     </Button>
                     <Button
                       onClick={() => generateAnswer(currentTranscript)}
                       variant="outline"
                       size="sm"
                       disabled={!currentTranscript || isGeneratingAnswer}
+                      className="p-2"
                     >
-                      <RotateCcw className="h-4 w-4" />
+                      <RotateCcw className="h-3 w-3 md:h-4 md:w-4" />
                     </Button>
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-900 p-4 rounded-lg min-h-[200px]">
-                  <p className="text-white leading-relaxed">
+                <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[120px] md:min-h-[200px] max-h-60 md:max-h-none overflow-y-auto">
+                  <p className="text-white leading-relaxed text-sm md:text-base">
                     {currentAnswer || "Switch to Question Mode and ask a question. The AI will automatically analyze your resume and job description to provide a tailored response instantly."}
                   </p>
                   {isGeneratingAnswer && (
                     <div className="flex items-center space-x-2 mt-4 text-blue-400">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                      <span className="text-sm">Analyzing documents and generating personalized answer...</span>
+                      <div className="animate-spin rounded-full h-3 w-3 md:h-4 md:w-4 border-b-2 border-blue-400"></div>
+                      <span className="text-xs md:text-sm">Analyzing documents and generating personalized answer...</span>
                     </div>
                   )}
                 </div>
@@ -470,48 +483,62 @@ const Interview = () => {
           )}
         </div>
 
-        {/* Right Panel - Conversation History */}
-        <div>
-          <Card className="bg-gray-800 border-gray-700 h-full">
-            <CardHeader>
-              <CardTitle className="text-white">Conversation History</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[calc(100%-80px)] overflow-y-auto">
-              <div className="space-y-4">
-                {conversationHistory.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-400 mb-4">
-                      Your conversation history will appear here as you ask questions in Question Mode.
-                    </p>
-                    <div className="text-sm text-blue-400 bg-blue-900/20 p-4 rounded-lg">
-                      <p className="font-medium mb-2">🤖 AI Interview Assistant Active</p>
-                      <p>• Use Question Mode to get AI responses</p>
-                      <p>• Use Answer Mode to practice speaking</p>
-                      <p>• Switch modes as needed during interview</p>
-                      <p>• Powered by your resume and job description</p>
-                    </div>
-                  </div>
-                ) : (
-                  conversationHistory.map((entry, index) => (
-                    <div key={index} className="border-b border-gray-700 pb-4">
-                      <div className="mb-2">
-                        <p className="text-gray-400 text-sm">Question:</p>
-                        <p className="text-white">{entry.question}</p>
-                      </div>
-                      <div className="mb-2">
-                        <p className="text-gray-400 text-sm">AI Answer:</p>
-                        <p className="text-gray-200 text-sm leading-relaxed">{entry.answer}</p>
-                      </div>
-                      <p className="text-gray-500 text-xs">
-                        {new Date(entry.timestamp).toLocaleTimeString()}
+        {/* History Panel - Collapsible on mobile */}
+        {(!isMobile || showHistory) && (
+          <div className={isMobile ? 'mt-4' : ''}>
+            <Card className="bg-gray-800 border-gray-700 h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-white text-base md:text-lg flex items-center justify-between">
+                  <span>Conversation History</span>
+                  {isMobile && (
+                    <Button
+                      onClick={() => setShowHistory(false)}
+                      variant="ghost"
+                      size="sm"
+                      className="p-2"
+                    >
+                      ✕
+                    </Button>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className={`${isMobile ? 'max-h-96' : 'h-[calc(100%-80px)]'} overflow-y-auto`}>
+                <div className="space-y-3 md:space-y-4">
+                  {conversationHistory.length === 0 ? (
+                    <div className="text-center py-6 md:py-8">
+                      <p className="text-gray-400 mb-4 text-sm md:text-base">
+                        Your conversation history will appear here as you ask questions in Question Mode.
                       </p>
+                      <div className="text-xs md:text-sm text-blue-400 bg-blue-900/20 p-3 md:p-4 rounded-lg">
+                        <p className="font-medium mb-2">🤖 AI Interview Assistant Active</p>
+                        <p>• Use Question Mode to get AI responses</p>
+                        <p>• Use Answer Mode to practice speaking</p>
+                        <p>• Switch modes as needed during interview</p>
+                        <p>• Powered by your resume and job description</p>
+                      </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                  ) : (
+                    conversationHistory.map((entry, index) => (
+                      <div key={index} className="border-b border-gray-700 pb-3 md:pb-4">
+                        <div className="mb-2">
+                          <p className="text-gray-400 text-xs md:text-sm">Question:</p>
+                          <p className="text-white text-sm md:text-base">{entry.question}</p>
+                        </div>
+                        <div className="mb-2">
+                          <p className="text-gray-400 text-xs md:text-sm">AI Answer:</p>
+                          <p className="text-gray-200 text-xs md:text-sm leading-relaxed">{entry.answer}</p>
+                        </div>
+                        <p className="text-gray-500 text-xs">
+                          {new Date(entry.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
