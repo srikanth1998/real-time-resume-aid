@@ -14,40 +14,52 @@ serve(async (req) => {
 
   try {
     const { sessionId, planType, priceAmount, planName, duration } = await req.json()
+    console.log('Received request:', { sessionId, planType, priceAmount, planName, duration })
 
-    // Initialize Supabase client
+    // Initialize Supabase client with anon key for auth
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        auth: {
-          persistSession: false,
-        },
-      }
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
 
-    // Get the auth header
+    // Get the auth header and extract the JWT token
     const authHeader = req.headers.get('authorization')
     if (!authHeader) {
+      console.error('No authorization header')
       throw new Error('No authorization header')
     }
 
-    // Set the auth header for the client
-    supabaseClient.auth.setSession({
-      access_token: authHeader.replace('Bearer ', ''),
-      refresh_token: '',
-    } as any)
+    // Get user from JWT token
+    const jwt = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt)
+    
+    if (userError || !user) {
+      console.error('Authentication error:', userError)
+      throw new Error('User not authenticated')
+    }
+
+    console.log('Authenticated user:', user.id)
+
+    // Use service role key to verify session
+    const supabaseService = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
     // Verify the session exists and belongs to the user
-    const { data: session, error: sessionError } = await supabaseClient
+    const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .select('*')
       .eq('id', sessionId)
+      .eq('user_id', user.id)
       .single()
 
     if (sessionError || !session) {
+      console.error('Session not found:', sessionError)
       throw new Error('Session not found')
     }
+
+    console.log('Found session:', session.id)
 
     // Initialize Stripe
     const stripe = new (await import('https://esm.sh/stripe@13.0.0')).default(
@@ -82,8 +94,10 @@ serve(async (req) => {
       },
     })
 
+    console.log('Created Stripe session:', checkoutSession.id)
+
     // Update session with Stripe session ID
-    const { error: updateError } = await supabaseClient
+    const { error: updateError } = await supabaseService
       .from('sessions')
       .update({ 
         stripe_session_id: checkoutSession.id,
