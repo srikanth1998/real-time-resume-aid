@@ -39,44 +39,101 @@ async function startAudioCapture(tabId, sendResponse) {
   try {
     console.log('Starting audio capture for tab:', tabId);
     
-    // Get media stream ID for the tab
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: tabId
-    });
-    
-    if (!streamId) {
-      throw new Error('Failed to get media stream ID');
+    // Check if tabCapture API is available
+    if (!chrome.tabCapture) {
+      throw new Error('Tab capture API not available');
     }
     
-    // Get the media stream using the stream ID
-    captureStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        mandatory: {
-          chromeMediaSource: 'tab',
-          chromeMediaSourceId: streamId
-        }
+    // Check if tab is audible
+    const tab = await chrome.tabs.get(tabId);
+    console.log('Tab info:', tab);
+    
+    if (!tab.audible) {
+      console.warn('Tab is not audible, capture may not work');
+    }
+    
+    // Try the newer API first
+    if (chrome.tabCapture.getMediaStreamId) {
+      console.log('Using getMediaStreamId API');
+      
+      const streamId = await new Promise((resolve, reject) => {
+        chrome.tabCapture.getMediaStreamId({
+          targetTabId: tabId
+        }, (streamId) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(streamId);
+          }
+        });
+      });
+      
+      if (!streamId) {
+        throw new Error('Failed to get media stream ID');
       }
-    });
+      
+      console.log('Got stream ID:', streamId);
+      
+      // Get the media stream using the stream ID
+      captureStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          mandatory: {
+            chromeMediaSource: 'tab',
+            chromeMediaSourceId: streamId
+          }
+        }
+      });
+    } else {
+      // Fallback to older API
+      console.log('Using legacy capture API');
+      
+      captureStream = await new Promise((resolve, reject) => {
+        chrome.tabCapture.capture({
+          audio: true,
+          video: false
+        }, (stream) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(stream);
+          }
+        });
+      });
+    }
     
     if (!captureStream) {
       throw new Error('Failed to capture audio stream');
     }
     
+    console.log('Audio stream captured successfully');
+    
     // Set up audio processing
-    audioContext = new AudioContext({ sampleRate: 24000 });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({ 
+      sampleRate: 16000 
+    });
+    
     const source = audioContext.createMediaStreamSource(captureStream);
     
     // Create processor for real-time audio processing
-    processor = audioContext.createScriptProcessor(4096, 1, 1);
+    if (audioContext.createScriptProcessor) {
+      processor = audioContext.createScriptProcessor(4096, 1, 1);
+    } else {
+      // Fallback for newer browsers
+      processor = audioContext.createScriptProcessor(4096, 1, 1);
+    }
     
     processor.onaudioprocess = (event) => {
       if (!isCapturing) return;
       
-      const inputData = event.inputBuffer.getChannelData(0);
-      const audioData = encodeAudioForAPI(new Float32Array(inputData));
-      
-      // Forward audio to interview app
-      forwardAudioToInterviewApp(audioData);
+      try {
+        const inputData = event.inputBuffer.getChannelData(0);
+        const audioData = encodeAudioForAPI(new Float32Array(inputData));
+        
+        // Forward audio to interview app
+        forwardAudioToInterviewApp(audioData);
+      } catch (error) {
+        console.error('Error processing audio:', error);
+      }
     };
     
     source.connect(processor);
@@ -96,7 +153,23 @@ async function startAudioCapture(tabId, sendResponse) {
     
   } catch (error) {
     console.error('Error starting audio capture:', error);
-    sendResponse({ success: false, error: error.message });
+    
+    // Clean up on error
+    if (captureStream) {
+      captureStream.getTracks().forEach(track => track.stop());
+      captureStream = null;
+    }
+    
+    if (audioContext) {
+      audioContext.close();
+      audioContext = null;
+    }
+    
+    sendResponse({ 
+      success: false, 
+      error: error.message,
+      details: error.stack 
+    });
   }
 }
 
@@ -126,41 +199,53 @@ function stopAudioCapture() {
 }
 
 function encodeAudioForAPI(float32Array) {
-  const int16Array = new Int16Array(float32Array.length);
-  for (let i = 0; i < float32Array.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32Array[i]));
-    int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  try {
+    const int16Array = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+      const s = Math.max(-1, Math.min(1, float32Array[i]));
+      int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    
+    const uint8Array = new Uint8Array(int16Array.buffer);
+    let binary = '';
+    const chunkSize = 0x8000;
+    
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    
+    return btoa(binary);
+  } catch (error) {
+    console.error('Error encoding audio:', error);
+    return '';
   }
-  
-  const uint8Array = new Uint8Array(int16Array.buffer);
-  let binary = '';
-  const chunkSize = 0x8000;
-  
-  for (let i = 0; i < uint8Array.length; i += chunkSize) {
-    const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-    binary += String.fromCharCode.apply(null, Array.from(chunk));
-  }
-  
-  return btoa(binary);
 }
 
 async function forwardAudioToInterviewApp(audioData) {
+  if (!audioData) return;
+  
   if (!interviewAppTabId) {
     // Try to find interview app tab
-    const tabs = await chrome.tabs.query({});
-    const interviewTab = tabs.find(tab => 
-      tab.url && (
-        tab.url.includes('lovable.app') || 
-        tab.url.includes('localhost') ||
-        tab.url.includes('/interview')
-      )
-    );
-    
-    if (interviewTab) {
-      interviewAppTabId = interviewTab.id;
-      chrome.storage.local.set({ interviewAppTabId: interviewTab.id });
-    } else {
-      console.log('Interview app tab not found');
+    try {
+      const tabs = await chrome.tabs.query({});
+      const interviewTab = tabs.find(tab => 
+        tab.url && (
+          tab.url.includes('lovable.app') || 
+          tab.url.includes('localhost') ||
+          tab.url.includes('/interview')
+        )
+      );
+      
+      if (interviewTab) {
+        interviewAppTabId = interviewTab.id;
+        chrome.storage.local.set({ interviewAppTabId: interviewTab.id });
+      } else {
+        console.log('Interview app tab not found');
+        return;
+      }
+    } catch (error) {
+      console.error('Error finding interview app tab:', error);
       return;
     }
   }

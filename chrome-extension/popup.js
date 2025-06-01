@@ -7,7 +7,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Get current status
   chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
-    updateUI(response.isCapturing);
+    if (response) {
+      updateUI(response.isCapturing);
+    }
   });
   
   startBtn.addEventListener('click', async () => {
@@ -15,30 +17,41 @@ document.addEventListener('DOMContentLoaded', async () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
       if (!isMeetingTab(tab.url)) {
-        alert('Please switch to your video meeting tab first (Google Meet, Zoom, Teams, etc.)');
+        showError('Please switch to your video meeting tab first (Google Meet, Zoom, Teams, YouTube, etc.)');
         return;
       }
+      
+      // Show loading state
+      statusDiv.textContent = '⏳ Starting capture...';
+      statusDiv.className = 'status loading';
       
       chrome.runtime.sendMessage(
         { action: 'startCapture', tabId: tab.id },
         (response) => {
-          if (response.success) {
+          if (response && response.success) {
             updateUI(true);
-            window.close();
+            showSuccess('✅ Audio capture started successfully!');
+            setTimeout(() => window.close(), 1500);
           } else {
-            alert('Failed to start capture: ' + response.error);
+            const errorMsg = response?.error || 'Unknown error occurred';
+            showError('❌ Failed to start capture: ' + errorMsg);
+            updateUI(false);
           }
         }
       );
     } catch (error) {
-      alert('Error: ' + error.message);
+      showError('❌ Error: ' + error.message);
+      updateUI(false);
     }
   });
   
   stopBtn.addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'stopCapture' }, (response) => {
-      if (response.success) {
+      if (response && response.success) {
         updateUI(false);
+        showSuccess('✅ Audio capture stopped');
+      } else {
+        showError('❌ Failed to stop capture');
       }
     });
   });
@@ -58,16 +71,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         chrome.runtime.sendMessage(
           { action: 'setInterviewApp', tabId: interviewTab.id },
           (response) => {
-            if (response.success) {
-              alert('✅ Connected to Interview App!\n\nNow go to your meeting tab and start capturing.');
+            if (response && response.success) {
+              showSuccess('✅ Connected to Interview App!\n\nNow go to your meeting tab and start capturing.');
+            } else {
+              showError('❌ Failed to connect to Interview App');
             }
           }
         );
       } else {
-        alert('❌ Interview app not found!\n\nPlease open your InterviewAce app first.');
+        showError('❌ Interview app not found!\n\nPlease open your InterviewAce app first.');
       }
     } catch (error) {
-      alert('Error finding interview app: ' + error.message);
+      showError('❌ Error finding interview app: ' + error.message);
     }
   });
   
@@ -85,6 +100,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   
+  function showSuccess(message) {
+    statusDiv.textContent = message;
+    statusDiv.className = 'status success';
+  }
+  
+  function showError(message) {
+    statusDiv.textContent = message;
+    statusDiv.className = 'status error';
+  }
+  
   function isMeetingTab(url) {
     if (!url) return false;
     
@@ -92,7 +117,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       'meet.google.com',
       'zoom.us',
       'teams.microsoft.com',
-      'webex.com'
+      'webex.com',
+      'youtube.com'
     ];
     
     return meetingDomains.some(domain => url.includes(domain));
