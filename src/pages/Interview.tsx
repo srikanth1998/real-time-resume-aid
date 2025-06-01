@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,8 +24,8 @@ const Interview = () => {
 
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTranscriptRef = useRef("");
+  const processingRef = useRef(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -90,9 +91,6 @@ const Interview = () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
     };
   }, [sessionId, navigate]);
 
@@ -127,10 +125,6 @@ const Interview = () => {
     
     if (recognitionRef.current) {
       recognitionRef.current.stop();
-    }
-
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
     }
 
     // Update session status
@@ -184,29 +178,26 @@ const Interview = () => {
       const fullTranscript = finalTranscript + interimTranscript;
       setCurrentTranscript(fullTranscript);
 
-      // Clear existing silence timer
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
-
-      // Set new silence timer - auto-generate answer after 3 seconds of silence
-      if (fullTranscript.trim() && fullTranscript !== lastTranscriptRef.current) {
-        silenceTimerRef.current = setTimeout(() => {
-          if (fullTranscript.trim().length > 10) { // Only process substantial questions
-            generateAnswer(fullTranscript.trim());
-            lastTranscriptRef.current = fullTranscript.trim();
-          }
-        }, 3000); // 3 seconds of silence
+      // Process final transcript immediately
+      if (finalTranscript && finalTranscript.trim().length > 10 && !processingRef.current) {
+        const newQuestion = finalTranscript.trim();
+        if (newQuestion !== lastTranscriptRef.current) {
+          processingRef.current = true;
+          generateAnswer(newQuestion);
+          lastTranscriptRef.current = newQuestion;
+        }
       }
     };
 
     recognitionRef.current.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
+      processingRef.current = false;
     };
 
     recognitionRef.current.onend = () => {
       setIsListening(false);
+      processingRef.current = false;
     };
   };
 
@@ -216,15 +207,14 @@ const Interview = () => {
     if (isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
+      processingRef.current = false;
     } else {
       recognitionRef.current.start();
       setIsListening(true);
       setCurrentTranscript("");
       setCurrentAnswer("");
       lastTranscriptRef.current = "";
+      processingRef.current = false;
     }
   };
 
@@ -278,16 +268,25 @@ const Interview = () => {
 
     } catch (error: any) {
       console.error('Answer generation error:', error);
-      const errorMessage = "Sorry, there was an error generating the answer. Please try again.";
+      let errorMessage = "Sorry, there was an error generating the answer. Please try again.";
+      
+      // Check for specific error types
+      if (error.message && error.message.includes('quota')) {
+        errorMessage = "OpenAI API quota exceeded. Please check your OpenAI account billing and usage limits.";
+      } else if (error.message && error.message.includes('API key')) {
+        errorMessage = "OpenAI API key issue. Please check your API key configuration.";
+      }
+      
       setCurrentAnswer(errorMessage);
       
       toast({
         title: "Error generating response",
-        description: "Please check your connection and try again.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
       setIsGeneratingAnswer(false);
+      processingRef.current = false;
     }
   };
 
@@ -359,11 +358,11 @@ const Interview = () => {
               <div className="bg-gray-900 p-4 rounded-lg min-h-[100px]">
                 <p className="text-gray-400 text-sm mb-2">Current transcript:</p>
                 <p className="text-white">
-                  {currentTranscript || (isListening ? "Listening... Ask your question and pause for 3 seconds to get an AI response." : "Click 'Start Listening' to begin hands-free interview mode")}
+                  {currentTranscript || (isListening ? "Listening... Ask your question and the AI will automatically generate a response instantly." : "Click 'Start Listening' to begin hands-free interview mode")}
                 </p>
                 {isListening && (
                   <p className="text-blue-400 text-sm mt-2">
-                    💡 Tip: Speak your question clearly and pause for 3 seconds. The AI will automatically generate a response.
+                    💡 Tip: Speak your question clearly. The AI will automatically generate a response as soon as you finish speaking.
                   </p>
                 )}
               </div>
@@ -398,7 +397,7 @@ const Interview = () => {
             <CardContent>
               <div className="bg-gray-900 p-4 rounded-lg min-h-[200px]">
                 <p className="text-white leading-relaxed">
-                  {currentAnswer || "Start listening and ask a question. The AI will automatically analyze your resume and job description to provide a tailored response after you finish speaking."}
+                  {currentAnswer || "Start listening and ask a question. The AI will automatically analyze your resume and job description to provide a tailored response instantly after you finish speaking."}
                 </p>
                 {isGeneratingAnswer && (
                   <div className="flex items-center space-x-2 mt-4 text-blue-400">
@@ -427,9 +426,9 @@ const Interview = () => {
                     <div className="text-sm text-blue-400 bg-blue-900/20 p-4 rounded-lg">
                       <p className="font-medium mb-2">🤖 AI Interview Assistant Active</p>
                       <p>• Ask questions naturally</p>
-                      <p>• Pause for 3 seconds after speaking</p>
-                      <p>• Get instant, tailored responses</p>
+                      <p>• Get instant responses when you finish speaking</p>
                       <p>• No manual interaction needed</p>
+                      <p>• Powered by your resume and job description</p>
                     </div>
                   </div>
                 ) : (
