@@ -44,7 +44,7 @@ const Auth = () => {
             navigate('/payment', { state: { plan: selectedPlan } });
           }, 100);
         } else {
-          navigate('/dashboard');
+          navigate('/');
         }
       }
     });
@@ -57,6 +57,7 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      // Use the current origin for redirect URL
       const redirectUrl = `${window.location.origin}/auth`;
       
       const { error } = await supabase.auth.signInWithOtp({
