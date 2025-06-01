@@ -28,7 +28,8 @@ export const initializeExtensionConnector = () => {
 
 // Check if extension is available
 export const checkExtensionAvailability = (): boolean => {
-  return typeof chrome !== 'undefined' && 
-         chrome.runtime && 
-         chrome.runtime.id !== undefined;
+  return typeof window !== 'undefined' && 
+         typeof window.chrome !== 'undefined' && 
+         window.chrome?.runtime !== undefined && 
+         window.chrome?.runtime?.id !== undefined;
 };

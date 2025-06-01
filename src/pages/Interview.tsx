@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { Brain, Mic, MicOff, Copy, RotateCcw, Clock, AlertTriangle, Menu, Type, 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { checkExtensionAvailability, initializeExtensionConnector } from "@/utils/extensionConnector";
 
 const Interview = () => {
   const [searchParams] = useSearchParams();
@@ -24,7 +26,7 @@ const Interview = () => {
   const [isGeneratingAnswer, setIsGeneratingAnswer] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{question: string, answer: string, timestamp: string}>>([]);
   const [showHistory, setShowHistory] = useState(!isMobile);
-  const [inputMode, setInputMode] = useState<'voice' | 'text' | 'extension'>('extension');
+  const [inputMode, setInputMode] = useState<'voice' | 'text' | 'extension'>('voice');
   const [manualQuestion, setManualQuestion] = useState("");
   const [extensionConnected, setExtensionConnected] = useState(false);
 
@@ -92,20 +94,23 @@ const Interview = () => {
       
       // Check for extension
       checkExtensionConnection();
+      
+      // Initialize extension connector
+      const cleanup = initializeExtensionConnector();
+      
+      return cleanup;
     };
 
     checkSession();
 
-    // Listen for messages from Chrome extension
-    const handleExtensionMessage = (event: MessageEvent) => {
-      if (event.source !== window) return;
-      
-      if (event.data.action === 'processAudio') {
-        handleExtensionAudio(event.data.audioData);
+    // Listen for extension audio events
+    const handleExtensionAudio = (event: CustomEvent) => {
+      if (event.detail?.audioData) {
+        handleExtensionAudioData(event.detail.audioData);
       }
     };
 
-    window.addEventListener('message', handleExtensionMessage);
+    window.addEventListener('extensionAudio', handleExtensionAudio as EventListener);
 
     return () => {
       if (timerRef.current) {
@@ -114,7 +119,7 @@ const Interview = () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
-      window.removeEventListener('message', handleExtensionMessage);
+      window.removeEventListener('extensionAudio', handleExtensionAudio as EventListener);
     };
   }, [sessionId, navigate, inputMode]);
 
@@ -170,16 +175,14 @@ const Interview = () => {
   };
 
   const checkExtensionConnection = () => {
-    // Check if Chrome extension is available
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      setExtensionConnected(true);
+    const isConnected = checkExtensionAvailability();
+    setExtensionConnected(isConnected);
+    if (isConnected) {
       setInputMode('extension');
-    } else {
-      setExtensionConnected(false);
     }
   };
 
-  const handleExtensionAudio = (audioData: string) => {
+  const handleExtensionAudioData = (audioData: string) => {
     console.log('Received audio from extension');
     
     // Buffer audio data
