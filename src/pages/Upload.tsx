@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,7 @@ const Upload = () => {
   const { toast } = useToast();
   
   const sessionId = searchParams.get('session_id');
+  const paymentSuccess = searchParams.get('payment_success');
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -59,14 +59,51 @@ const Upload = () => {
         return;
       }
 
-      if (sessionData.status !== 'pending_assets') {
-        toast({
-          title: "Session already processed",
-          description: "This session has already been set up.",
-          variant: "destructive"
-        });
-        navigate('/');
-        return;
+      // If coming from successful payment, allow pending_assets status
+      // Otherwise, check for proper status flow
+      if (paymentSuccess === 'true') {
+        // Coming from successful payment - allow if status is pending_assets or pending_payment
+        if (sessionData.status !== 'pending_assets' && sessionData.status !== 'pending_payment') {
+          toast({
+            title: "Session not ready",
+            description: "This session is not ready for document upload.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
+        
+        // If still pending_payment after successful payment, update to pending_assets
+        if (sessionData.status === 'pending_payment') {
+          const { error: updateError } = await supabase
+            .from('sessions')
+            .update({
+              status: 'pending_assets',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sessionId);
+
+          if (updateError) {
+            console.error('Error updating session status:', updateError);
+          } else {
+            sessionData.status = 'pending_assets';
+          }
+        }
+      } else {
+        // Normal flow - must be pending_assets
+        if (sessionData.status !== 'pending_assets') {
+          if (sessionData.status === 'assets_received') {
+            navigate(`/lobby?session_id=${sessionId}`);
+            return;
+          }
+          toast({
+            title: "Session not ready",
+            description: "Please complete payment first.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
       }
 
       setSession(sessionData);
@@ -74,7 +111,7 @@ const Upload = () => {
     };
 
     checkSession();
-  }, [sessionId, navigate, toast]);
+  }, [sessionId, paymentSuccess, navigate, toast]);
 
   const validateFile = (file: File, type: string) => {
     const maxSize = 5 * 1024 * 1024; // 5MB
