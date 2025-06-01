@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Brain, Mic, MicOff, Copy, RotateCcw, Clock, AlertTriangle, MessageSquare, User, Menu } from "lucide-react";
+import { Brain, Mic, MicOff, Copy, RotateCcw, Clock, AlertTriangle, Menu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -17,7 +17,6 @@ const Interview = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isListening, setIsListening] = useState(false);
-  const [listeningMode, setListeningMode] = useState<'question' | 'answer'>('question');
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -215,23 +214,10 @@ const Interview = () => {
       recognitionRef.current.start();
       setIsListening(true);
       setCurrentTranscript("");
-      if (listeningMode === 'question') {
-        setCurrentAnswer("");
-      }
+      setCurrentAnswer("");
       lastTranscriptRef.current = "";
       processingRef.current = false;
     }
-  };
-
-  const switchMode = (mode: 'question' | 'answer') => {
-    // Stop current listening session when switching modes
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
-    setListeningMode(mode);
-    setCurrentTranscript("");
-    processingRef.current = false;
   };
 
   const generateAnswer = async (question: string) => {
@@ -365,41 +351,6 @@ const Interview = () => {
       <div className={`max-w-7xl mx-auto p-3 md:p-4 ${isMobile ? 'space-y-4' : 'grid lg:grid-cols-2 gap-6'} ${isMobile ? 'h-auto' : 'h-[calc(100vh-80px)]'}`}>
         {/* Main Panel - Controls and Current Session */}
         <div className="space-y-4 md:space-y-6">
-          {/* Mode Toggle */}
-          <Card className="bg-gray-800 border-gray-700">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-white text-base md:text-lg">Listening Mode</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                <Button
-                  onClick={() => switchMode('question')}
-                  variant={listeningMode === 'question' ? "default" : "outline"}
-                  className="flex items-center justify-center space-x-2 text-sm w-full sm:w-auto"
-                  size={isMobile ? "sm" : "default"}
-                >
-                  <MessageSquare className="h-3 w-3 md:h-4 md:w-4" />
-                  <span>Question Mode</span>
-                </Button>
-                <Button
-                  onClick={() => switchMode('answer')}
-                  variant={listeningMode === 'answer' ? "default" : "outline"}
-                  className="flex items-center justify-center space-x-2 text-sm w-full sm:w-auto"
-                  size={isMobile ? "sm" : "default"}
-                >
-                  <User className="h-3 w-3 md:h-4 md:w-4" />
-                  <span>Answer Mode</span>
-                </Button>
-              </div>
-              <p className="text-gray-400 text-xs md:text-sm mt-2">
-                {listeningMode === 'question' 
-                  ? "AI will listen for interviewer questions and generate responses automatically"
-                  : "Use this mode when you're speaking your answer (no AI generation)"
-                }
-              </p>
-            </CardContent>
-          </Card>
-
           {/* Microphone Control */}
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader className="pb-3">
@@ -419,68 +370,64 @@ const Interview = () => {
             <CardContent>
               <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[80px] md:min-h-[100px]">
                 <p className="text-gray-400 text-xs md:text-sm mb-2">
-                  Current transcript ({listeningMode === 'question' ? 'Question' : 'Answer'} mode):
+                  Current transcript:
                 </p>
                 <p className="text-white text-sm md:text-base leading-relaxed">
                   {currentTranscript || (isListening 
-                    ? (listeningMode === 'question' 
-                      ? "Listening for interviewer question... AI will generate response instantly." 
-                      : "Listening to your answer... (No AI generation in this mode)")
-                    : `Tap 'Start' to begin ${listeningMode} mode`
+                    ? "Listening for interviewer question... AI will generate response instantly." 
+                    : "Tap 'Start' to begin listening for questions"
                   )}
                 </p>
                 {isListening && (
-                  <p className={`text-xs md:text-sm mt-2 ${listeningMode === 'question' ? 'text-blue-400' : 'text-green-400'}`}>
-                    💡 {listeningMode === 'question' ? 'Question Mode: Speak your question clearly. AI will generate a response automatically.' : 'Answer Mode: Practice speaking your answer. No AI generation will occur.'}
+                  <p className="text-xs md:text-sm mt-2 text-blue-400">
+                    💡 Speak your question clearly. AI will generate a response automatically.
                   </p>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Current Answer - Only show in question mode */}
-          {listeningMode === 'question' && (
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
-                  <span>AI-Generated Answer</span>
-                  <div className="flex space-x-1 md:space-x-2">
-                    <Button
-                      onClick={() => copyToClipboard(currentAnswer)}
-                      variant="outline"
-                      size="sm"
-                      disabled={!currentAnswer || isGeneratingAnswer}
-                      className="p-2"
-                    >
-                      <Copy className="h-3 w-3 md:h-4 md:w-4" />
-                    </Button>
-                    <Button
-                      onClick={() => generateAnswer(currentTranscript)}
-                      variant="outline"
-                      size="sm"
-                      disabled={!currentTranscript || isGeneratingAnswer}
-                      className="p-2"
-                    >
-                      <RotateCcw className="h-3 w-3 md:h-4 md:w-4" />
-                    </Button>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[120px] md:min-h-[200px] max-h-60 md:max-h-none overflow-y-auto">
-                  <p className="text-white leading-relaxed text-sm md:text-base">
-                    {currentAnswer || "Switch to Question Mode and ask a question. The AI will automatically analyze your resume and job description to provide a tailored response instantly."}
-                  </p>
-                  {isGeneratingAnswer && (
-                    <div className="flex items-center space-x-2 mt-4 text-blue-400">
-                      <div className="animate-spin rounded-full h-3 w-3 md:h-4 md:w-4 border-b-2 border-blue-400"></div>
-                      <span className="text-xs md:text-sm">Analyzing documents and generating personalized answer...</span>
-                    </div>
-                  )}
+          {/* Current Answer */}
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
+                <span>AI-Generated Answer</span>
+                <div className="flex space-x-1 md:space-x-2">
+                  <Button
+                    onClick={() => copyToClipboard(currentAnswer)}
+                    variant="outline"
+                    size="sm"
+                    disabled={!currentAnswer || isGeneratingAnswer}
+                    className="p-2"
+                  >
+                    <Copy className="h-3 w-3 md:h-4 md:w-4" />
+                  </Button>
+                  <Button
+                    onClick={() => generateAnswer(currentTranscript)}
+                    variant="outline"
+                    size="sm"
+                    disabled={!currentTranscript || isGeneratingAnswer}
+                    className="p-2"
+                  >
+                    <RotateCcw className="h-3 w-3 md:h-4 md:w-4" />
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[120px] md:min-h-[200px] max-h-60 md:max-h-none overflow-y-auto">
+                <p className="text-white leading-relaxed text-sm md:text-base">
+                  {currentAnswer || "Ask a question to get an AI-generated response tailored to your resume and job description."}
+                </p>
+                {isGeneratingAnswer && (
+                  <div className="flex items-center space-x-2 mt-4 text-blue-400">
+                    <div className="animate-spin rounded-full h-3 w-3 md:h-4 md:w-4 border-b-2 border-blue-400"></div>
+                    <span className="text-xs md:text-sm">Analyzing documents and generating personalized answer...</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* History Panel - Collapsible on mobile */}
@@ -507,13 +454,12 @@ const Interview = () => {
                   {conversationHistory.length === 0 ? (
                     <div className="text-center py-6 md:py-8">
                       <p className="text-gray-400 mb-4 text-sm md:text-base">
-                        Your conversation history will appear here as you ask questions in Question Mode.
+                        Your conversation history will appear here as you ask questions.
                       </p>
                       <div className="text-xs md:text-sm text-blue-400 bg-blue-900/20 p-3 md:p-4 rounded-lg">
                         <p className="font-medium mb-2">🤖 AI Interview Assistant Active</p>
-                        <p>• Use Question Mode to get AI responses</p>
-                        <p>• Use Answer Mode to practice speaking</p>
-                        <p>• Switch modes as needed during interview</p>
+                        <p>• Click Start to begin voice recognition</p>
+                        <p>• Ask questions and get AI responses</p>
                         <p>• Powered by your resume and job description</p>
                       </div>
                     </div>
