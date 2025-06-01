@@ -30,9 +30,9 @@ const Auth = () => {
               .from('sessions')
               .insert({
                 user_id: session.user.id,
-                plan_type: selectedPlan.id,
-                duration_minutes: selectedPlan.duration === 'Weekly' ? 60 : 
-                               selectedPlan.duration === 'Monthly' ? 90 : 120,
+                plan_type: selectedPlan.id as 'standard' | 'pro' | 'elite',
+                duration_minutes: selectedPlan.durationMinutes,
+                price_cents: selectedPlan.priceCents,
                 status: 'pending_assets'
               })
               .select()
@@ -77,9 +77,9 @@ const Auth = () => {
                 .from('sessions')
                 .insert({
                   user_id: session.user.id,
-                  plan_type: selectedPlan.id,
-                  duration_minutes: selectedPlan.duration === 'Weekly' ? 60 : 
-                                 selectedPlan.duration === 'Monthly' ? 90 : 120,
+                  plan_type: selectedPlan.id as 'standard' | 'pro' | 'elite',
+                  duration_minutes: selectedPlan.durationMinutes,
+                  price_cents: selectedPlan.priceCents,
                   status: 'pending_assets'
                 })
                 .select()
