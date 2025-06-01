@@ -50,7 +50,7 @@ serve(async (req) => {
 
       console.log('Processing payment for session:', sessionId)
 
-      // Update session status to pending_assets
+      // Update session status to pending_assets (ready for upload)
       const { error: updateError } = await supabaseClient
         .from('sessions')
         .update({
@@ -65,7 +65,7 @@ serve(async (req) => {
         throw updateError
       }
 
-      console.log('Session updated successfully:', sessionId)
+      console.log('Session updated successfully to pending_assets:', sessionId)
     }
 
     return new Response(
