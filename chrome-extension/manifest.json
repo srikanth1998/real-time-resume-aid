@@ -25,6 +25,8 @@
     "https://api.interviewace.com/*",
     "https://meet.google.com/*",
     "https://zoom.us/*",
+    "https://www.youtube.com/*",
+    "https://youtube.com/*",
     "https://*.lovableproject.com/*",
     "http://localhost:*"
   ],
@@ -38,6 +40,8 @@
     { 
       "matches": [
         "https://meet.google.com/*",
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
         "https://*.lovableproject.com/*",
         "http://localhost:*"
       ], 
