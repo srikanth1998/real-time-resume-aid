@@ -1,3 +1,4 @@
+
 /* global chrome */
 let audioCtx, source, worklet, ws;
 let isStarting = false;
@@ -31,50 +32,32 @@ async function start (streamId) {
     await audioCtx.audioWorklet.addModule(chrome.runtime.getURL('pcm-worklet.js'));
 
     worklet = new AudioWorkletNode(audioCtx, 'pcm-worklet');
+    
+    // For now, just process audio locally without WebSocket
     worklet.port.onmessage = ({ data }) => {
-      if (ws?.readyState === 1) {
-        try {
-          ws.send(data); // raw PCM → backend
-        } catch (err) {
-          console.warn('Error sending audio data:', err);
-        }
+      // Send audio data to the web app instead of WebSocket
+      try {
+        // Send message to content script which will forward to web app
+        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+          if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'audioData',
+              audioData: Array.from(new Float32Array(data))
+            }).catch(err => {
+              console.warn('Error sending audio to content script:', err);
+            });
+          }
+        });
+      } catch (err) {
+        console.warn('Error processing audio data:', err);
       }
     };
 
     source = audioCtx.createMediaStreamSource(stream);
     source.connect(worklet);
 
-    // Setup WebSocket with timeout and better error handling
-    return new Promise((resolve, reject) => {
-      // Set a timeout for WebSocket connection
-      const wsTimeout = setTimeout(() => {
-        reject(new Error('WebSocket connection timeout'));
-      }, 5000);
-      
-      ws = new WebSocket('wss://api.interviewace.com/audio');
-      ws.binaryType = 'arraybuffer';
-      
-      ws.onopen = () => {
-        clearTimeout(wsTimeout);
-        console.log('WebSocket connection established');
-        resolve();
-      };
-      
-      ws.onclose = (event) => {
-        clearTimeout(wsTimeout);
-        console.warn(`WebSocket closed with code ${event.code}: ${event.reason}`);
-        stop(true);
-        if (!event.wasClean) reject(new Error(`WebSocket closed unexpectedly: ${event.reason}`));
-        else resolve();
-      };
-      
-      ws.onerror = (error) => {
-        clearTimeout(wsTimeout);
-        console.error('WebSocket error:', error);
-        stop(true);
-        reject(new Error('WebSocket connection error'));
-      };
-    });
+    console.log('Audio capture started successfully');
+    
   } catch (error) {
     console.error('Error in start function:', error);
     await stop(true);
@@ -122,14 +105,7 @@ async function stop (report = false) {
     }
     audioCtx = null;
     
-    if (ws && ws.readyState !== WebSocket.CLOSED) {
-      try { 
-        ws.close(); 
-      } catch (err) { 
-        console.warn('Error closing WebSocket:', err); 
-      }
-    }
-    ws = null;
+    console.log('Audio capture stopped');
     
     // Report back to background script if requested
     if (report) {
@@ -146,6 +122,8 @@ async function stop (report = false) {
 
 /* ---------- message bridge ---------- */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log('Offscreen received message:', msg);
+  
   if (msg.type === 'offscreen-start') {
     console.log('Received offscreen-start command');
     start(msg.streamId).then(() => {

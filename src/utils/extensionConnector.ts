@@ -12,6 +12,9 @@ export const initializeExtensionConnector = () => {
     console.log('=== Received window message ===', event);
     if (event.source !== window) return;
     
+    // Only process messages from our extension
+    if (event.data.source !== 'interviewace-extension') return;
+    
     if (event.data.action === 'processAudio') {
       console.log('Received audio data from extension:', event.data.audioData?.length);
       // Dispatch custom event that the Interview component can listen to
@@ -29,37 +32,8 @@ export const initializeExtensionConnector = () => {
     }
   };
 
-  // Listen for direct Chrome extension messages
-  const handleChromeExtensionMessage = (request: any, sender: any, sendResponse: any) => {
-    console.log('=== Received Chrome extension message ===', request, sender);
-    
-    if (request.action === 'processAudio') {
-      console.log('Processing audio from Chrome extension');
-      // Dispatch custom event that the Interview component can listen to
-      const audioEvent = new CustomEvent('extensionAudio', {
-        detail: { audioData: request.audioData }
-      });
-      window.dispatchEvent(audioEvent);
-      
-      if (sendResponse) {
-        sendResponse({ success: true });
-      }
-    }
-    
-    return true; // Keep message channel open
-  };
-
-  // Add both listeners
+  // Add window message listener
   window.addEventListener('message', handleExtensionMessage);
-  
-  // Add Chrome extension message listener if available
-  const chromeAPI = (window as any).chrome;
-  if (typeof chromeAPI !== 'undefined' && chromeAPI.runtime && chromeAPI.runtime.onMessage) {
-    console.log('Adding Chrome runtime message listener');
-    chromeAPI.runtime.onMessage.addListener(handleChromeExtensionMessage);
-  } else {
-    console.log('Chrome runtime message listener not available');
-  }
   
   // Notify extension that interview app is ready
   console.log('Posting message: interviewAppReady');
@@ -68,29 +42,10 @@ export const initializeExtensionConnector = () => {
     timestamp: Date.now()
   }, '*');
 
-  // Try to ping the extension directly
-  if (typeof chromeAPI !== 'undefined' && chromeAPI.runtime && chromeAPI.runtime.sendMessage) {
-    console.log('Attempting to ping extension directly...');
-    try {
-      chromeAPI.runtime.sendMessage('your-extension-id', { action: 'ping' }, (response: any) => {
-        console.log('Extension ping response:', response);
-        if (chromeAPI.runtime.lastError) {
-          console.log('Extension ping error:', chromeAPI.runtime.lastError);
-        }
-      });
-    } catch (error) {
-      console.log('Failed to ping extension:', error);
-    }
-  }
-
   console.log('Extension connector initialized');
 
   return () => {
     window.removeEventListener('message', handleExtensionMessage);
-    const chromeAPI = (window as any).chrome;
-    if (typeof chromeAPI !== 'undefined' && chromeAPI.runtime && chromeAPI.runtime.onMessage) {
-      chromeAPI.runtime.onMessage.removeListener(handleChromeExtensionMessage);
-    }
   };
 };
 
