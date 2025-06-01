@@ -1,10 +1,11 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Brain, Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { Brain, Mail, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,6 +20,33 @@ const Auth = () => {
   const selectedPlan = location.state?.selectedPlan;
 
   useEffect(() => {
+    // Check for auth errors in URL hash
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const error = hashParams.get('error');
+    const errorDescription = hashParams.get('error_description');
+
+    if (error) {
+      console.log('Auth error detected:', error, errorDescription);
+      
+      // Clear the hash from URL
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      
+      if (error === 'access_denied' && errorDescription?.includes('expired')) {
+        toast({
+          title: "Magic link expired",
+          description: "The magic link has expired. Please request a new one.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Authentication error",
+          description: errorDescription || "There was an error with authentication. Please try again.",
+          variant: "destructive"
+        });
+      }
+      return;
+    }
+
     // Check if user is already authenticated
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -68,6 +96,8 @@ const Auth = () => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.email);
+      
       if (event === 'SIGNED_IN' && session) {
         if (selectedPlan) {
           // Create session and redirect to upload
@@ -104,6 +134,8 @@ const Auth = () => {
         } else {
           navigate('/');
         }
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log('Token refreshed');
       }
     });
 
@@ -115,13 +147,17 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      // Clear any existing auth state
+      await supabase.auth.signOut();
+      
       // Use the current origin for redirect URL
       const redirectUrl = `${window.location.origin}/auth`;
       
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: redirectUrl
+          emailRedirectTo: redirectUrl,
+          shouldCreateUser: true
         }
       });
 
@@ -132,7 +168,7 @@ const Auth = () => {
       setEmailSent(true);
       toast({
         title: "Magic link sent!",
-        description: "Check your email for the login link.",
+        description: "Check your email for the login link. The link will expire in 60 minutes.",
       });
 
     } catch (error: any) {
@@ -161,15 +197,24 @@ const Auth = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-gray-600 text-center">
-              Click the link in your email to continue. The link will expire in 60 minutes.
-            </p>
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium">Important:</p>
+                  <p>Click the link in your email within 60 minutes. If you don't see the email, check your spam folder.</p>
+                </div>
+              </div>
+            </div>
             <Button 
               variant="outline" 
               className="w-full"
-              onClick={() => setEmailSent(false)}
+              onClick={() => {
+                setEmailSent(false);
+                setEmail("");
+              }}
             >
-              Didn't receive it? Try again
+              Send another link
             </Button>
           </CardContent>
         </Card>
@@ -255,7 +300,7 @@ const Auth = () => {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
-                No password required. We'll send you a secure login link.
+                No password required. We'll send you a secure login link that expires in 60 minutes.
               </p>
             </div>
           </CardContent>
