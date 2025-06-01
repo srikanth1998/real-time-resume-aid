@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,25 +91,11 @@ const Interview = () => {
         initializeSpeechRecognition();
       }
       
-      // Check for extension
-      checkExtensionConnection();
-      
-      // Initialize extension connector
-      const cleanup = initializeExtensionConnector();
-      
-      return cleanup;
+      // Check for extension and initialize
+      checkAndInitializeExtension();
     };
 
     checkSession();
-
-    // Listen for extension audio events
-    const handleExtensionAudio = (event: CustomEvent) => {
-      if (event.detail?.audioData) {
-        handleExtensionAudioData(event.detail.audioData);
-      }
-    };
-
-    window.addEventListener('extensionAudio', handleExtensionAudio as EventListener);
 
     return () => {
       if (timerRef.current) {
@@ -119,9 +104,82 @@ const Interview = () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
-      window.removeEventListener('extensionAudio', handleExtensionAudio as EventListener);
     };
   }, [sessionId, navigate, inputMode]);
+
+  // Separate effect for extension initialization
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const initExtension = async () => {
+      console.log('Initializing extension connector...');
+      cleanup = initializeExtensionConnector();
+      
+      // Listen for extension events
+      const handleExtensionReady = () => {
+        console.log('Extension ready event received');
+        setExtensionConnected(true);
+        // Mark extension as ready globally
+        (window as any).__extensionReady = true;
+        
+        // Auto-switch to extension mode if it becomes available
+        if (inputMode === 'voice') {
+          setInputMode('extension');
+        }
+      };
+
+      const handleExtensionAudio = (event: CustomEvent) => {
+        if (event.detail?.audioData) {
+          handleExtensionAudioData(event.detail.audioData);
+        }
+      };
+
+      window.addEventListener('extensionReady', handleExtensionReady);
+      window.addEventListener('extensionAudio', handleExtensionAudio as EventListener);
+
+      // Initial check
+      const isAvailable = checkExtensionAvailability();
+      console.log('Initial extension check:', isAvailable);
+      setExtensionConnected(isAvailable);
+      
+      if (isAvailable && inputMode === 'voice') {
+        setInputMode('extension');
+      }
+
+      return () => {
+        window.removeEventListener('extensionReady', handleExtensionReady);
+        window.removeEventListener('extensionAudio', handleExtensionAudio as EventListener);
+        if (cleanup) cleanup();
+      };
+    };
+
+    const cleanupPromise = initExtension();
+    
+    return () => {
+      cleanupPromise.then(cleanupFn => {
+        if (cleanupFn) cleanupFn();
+      });
+    };
+  }, [inputMode]);
+
+  const checkAndInitializeExtension = () => {
+    // Check multiple times as extension might load after page
+    const checks = [0, 500, 1000, 2000, 3000];
+    
+    checks.forEach(delay => {
+      setTimeout(() => {
+        const isConnected = checkExtensionAvailability();
+        console.log(`Extension check at ${delay}ms:`, isConnected);
+        
+        if (isConnected && !extensionConnected) {
+          setExtensionConnected(true);
+          if (inputMode === 'voice') {
+            setInputMode('extension');
+          }
+        }
+      }, delay);
+    });
+  };
 
   const startTimer = (expiresAt: Date) => {
     timerRef.current = setInterval(() => {
@@ -172,14 +230,6 @@ const Interview = () => {
     });
 
     navigate(`/complete?session_id=${sessionId}`);
-  };
-
-  const checkExtensionConnection = () => {
-    const isConnected = checkExtensionAvailability();
-    setExtensionConnected(isConnected);
-    if (isConnected) {
-      setInputMode('extension');
-    }
   };
 
   const handleExtensionAudioData = (audioData: string) => {

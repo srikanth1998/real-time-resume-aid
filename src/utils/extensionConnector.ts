@@ -49,40 +49,54 @@ export const initializeExtensionConnector = () => {
   };
 };
 
-// Check if extension is available
+// Check if extension is available - improved detection
 export const checkExtensionAvailability = (): boolean => {
   console.log('=== Checking Extension Availability ===');
+  
+  // First check if we're in a browser environment
+  if (typeof window === 'undefined') {
+    console.log('Not in browser environment');
+    return false;
+  }
+  
+  // Check for Chrome API
   const chromeAPI = (window as any).chrome;
+  const hasChromeAPI = typeof chromeAPI !== 'undefined' && chromeAPI?.runtime !== undefined;
   
-  console.log('Window available:', typeof window !== 'undefined');
-  console.log('Chrome API available:', typeof chromeAPI !== 'undefined');
-  console.log('Chrome runtime available:', chromeAPI?.runtime !== undefined);
-  console.log('Chrome runtime ID available:', chromeAPI?.runtime?.id !== undefined);
+  console.log('Chrome API available:', hasChromeAPI);
   
-  const isAvailable = typeof window !== 'undefined' && 
-         typeof chromeAPI !== 'undefined' && 
-         chromeAPI?.runtime !== undefined && 
-         chromeAPI?.runtime?.id !== undefined;
+  if (!hasChromeAPI) {
+    // If no Chrome API, check if we received extension messages
+    const extensionMessageReceived = (window as any).__extensionReady || false;
+    console.log('Extension message received:', extensionMessageReceived);
+    return extensionMessageReceived;
+  }
   
-  console.log('Final extension availability:', isAvailable);
-  return isAvailable;
+  // Check if extension ID is available
+  const hasExtensionId = chromeAPI?.runtime?.id !== undefined;
+  console.log('Extension ID available:', hasExtensionId);
+  
+  return hasExtensionId;
 };
 
 // Manual test function for extension connectivity
 export const testExtensionConnection = () => {
   console.log('=== Manual Extension Test ===');
-  const chromeAPI = (window as any).chrome;
   
-  if (!chromeAPI?.runtime) {
-    console.log('Chrome runtime not available');
-    return { success: false, error: 'Chrome runtime not available' };
-  }
+  // Set a flag to indicate we're testing
+  (window as any).__extensionTest = true;
   
   console.log('Sending test message to extension...');
   window.postMessage({
     action: 'testConnection',
     timestamp: Date.now()
   }, '*');
+  
+  // Wait for response
+  setTimeout(() => {
+    const received = (window as any).__extensionReady;
+    console.log('Extension test result:', received ? 'SUCCESS' : 'FAILED');
+  }, 1000);
   
   return { success: true, message: 'Test message sent' };
 };
