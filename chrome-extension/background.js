@@ -39,10 +39,23 @@ async function startAudioCapture(tabId, sendResponse) {
   try {
     console.log('Starting audio capture for tab:', tabId);
     
-    // Capture tab audio
-    captureStream = await chrome.tabCapture.capture({
-      audio: true,
-      video: false
+    // Get media stream ID for the tab
+    const streamId = await chrome.tabCapture.getMediaStreamId({
+      targetTabId: tabId
+    });
+    
+    if (!streamId) {
+      throw new Error('Failed to get media stream ID');
+    }
+    
+    // Get the media stream using the stream ID
+    captureStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        mandatory: {
+          chromeMediaSource: 'tab',
+          chromeMediaSourceId: streamId
+        }
+      }
     });
     
     if (!captureStream) {
