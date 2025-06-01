@@ -1,7 +1,8 @@
-
 /* global chrome */
 let isCapturing   = false;
 let currentTabId  = null;
+let audioBuffer = [];
+let maxBufferSize = 1000; // Limit buffer size
 
 console.log('InterviewAce background script loaded');
 
@@ -147,18 +148,54 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     }
   }
   
-  // Handle audio data from offscreen and forward to content script
+  // Handle audio data from offscreen
   if (msg.type === 'audio-data') {
-    console.log('Received audio data from offscreen, forwarding to content script');
+    console.log('Received audio data from offscreen, length:', msg.audioData?.length);
+    
+    // Try to send to current tab's content script
     if (currentTabId) {
       try {
         await chrome.tabs.sendMessage(currentTabId, {
           action: 'audioData',
           audioData: msg.audioData
         });
+        console.log('Audio data forwarded to content script successfully');
       } catch (err) {
-        console.warn('Error forwarding audio to content script:', err);
+        console.warn('Content script not available, buffering audio data:', err.message);
+        
+        // Buffer audio data if content script isn't available
+        audioBuffer.push(msg.audioData);
+        
+        // Keep buffer size manageable
+        if (audioBuffer.length > maxBufferSize) {
+          audioBuffer = audioBuffer.slice(-maxBufferSize);
+        }
+        
+        // Try to inject content script if it's not loaded
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: currentTabId },
+            files: ['content.js']
+          });
+          console.log('Content script injected');
+          
+          // Try sending buffered audio data
+          if (audioBuffer.length > 0) {
+            console.log('Sending buffered audio data, items:', audioBuffer.length);
+            for (const bufferedAudio of audioBuffer) {
+              await chrome.tabs.sendMessage(currentTabId, {
+                action: 'audioData',
+                audioData: bufferedAudio
+              });
+            }
+            audioBuffer = []; // Clear buffer after sending
+          }
+        } catch (injectErr) {
+          console.warn('Could not inject content script:', injectErr.message);
+        }
       }
+    } else {
+      console.warn('No current tab ID available for audio forwarding');
     }
   }
   

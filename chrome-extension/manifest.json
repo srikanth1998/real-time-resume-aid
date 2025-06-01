@@ -1,3 +1,4 @@
+
 {
   "manifest_version": 3,
   "name": "InterviewAce Voice Capture",
@@ -14,15 +15,18 @@
   "permissions": [
     "activeTab",
     "tabCapture",
-    "offscreen",          // ⬅ needed for hidden doc
+    "offscreen",
     "storage",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
 
   "host_permissions": [
     "https://api.interviewace.com/*",
     "https://meet.google.com/*",
-    "https://zoom.us/*"
+    "https://zoom.us/*",
+    "https://*.lovableproject.com/*",
+    "http://localhost:*"
   ],
 
   "background": {
@@ -31,7 +35,14 @@
   },
 
   "content_scripts": [
-    { "matches": ["https://meet.google.com/*"], "js": ["content.js"] }
+    { 
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.lovableproject.com/*",
+        "http://localhost:*"
+      ], 
+      "js": ["content.js"] 
+    }
   ],
 
   "web_accessible_resources": [
