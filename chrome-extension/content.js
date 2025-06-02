@@ -10,7 +10,7 @@ function ensureBanner() {
     'position:fixed;bottom:24px;right:24px;max-width:340px;padding:12px 16px;'
   + 'font:14px/1.4 sans-serif;color:#fff;background:#34a853;border-radius:12px;'
   + 'box-shadow:0 4px 12px rgba(0,0,0,.35);z-index:2147483647;transition:all 0.3s ease;';
-  banner.textContent = '🔴 InterviewAce is capturing audio…';
+  banner.textContent = '🎤 InterviewAce - Ready for transcription';
   banner.hidden = true;
   document.documentElement.appendChild(banner);
   return banner;
@@ -21,78 +21,63 @@ function updateBannerStatus(status) {
   extensionStatus = status;
   
   switch (status) {
-    case 'capturing':
+    case 'transcribing':
       b.style.background = '#34a853';
-      b.textContent = '🔴 InterviewAce - Real-time audio capture active';
+      b.textContent = '🎤 InterviewAce - Transcribing locally...';
       break;
     case 'processing':
       b.style.background = '#1976d2';
-      b.textContent = '🎵 InterviewAce - Processing audio...';
+      b.textContent = '🧠 InterviewAce - Processing speech...';
       break;
     case 'stopped':
       b.style.background = '#757575';
-      b.textContent = '⏹️ InterviewAce - Capture stopped';
+      b.textContent = '⏹️ InterviewAce - Transcription stopped';
       break;
   }
 }
 
-chrome.runtime.onMessage.addListener(({ action, audioData, timestamp, realTime, buffered }) => {
-  console.log('=== CONTENT SCRIPT RECEIVED MESSAGE ===', { 
-    action, 
-    audioDataLength: audioData?.length,
-    timestamp,
-    realTime,
-    buffered,
-    timeSinceCapture: timestamp ? Date.now() - timestamp : 'N/A'
-  });
+chrome.runtime.onMessage.addListener(({ action, text, timestamp }) => {
+  console.log('=== CONTENT SCRIPT RECEIVED MESSAGE ===', { action, text, timestamp });
   
   const b = ensureBanner();
   
-  if (action === 'captureStarted') {
-    console.log('Showing REAL-TIME capture banner');
-    updateBannerStatus('capturing');
+  if (action === 'transcriptionStarted') {
+    console.log('Showing transcription banner');
+    updateBannerStatus('transcribing');
     b.hidden = false;
   }
   
-  if (action === 'captureStopped') {
-    console.log('Hiding capture banner');
+  if (action === 'transcriptionStopped') {
+    console.log('Hiding transcription banner');
     updateBannerStatus('stopped');
     setTimeout(() => {
       b.hidden = true;
-    }, 2000); // Hide after 2 seconds
+    }, 2000);
   }
   
-  // Forward audio data to the web application with real-time priority
-  if (action === 'audioData' && audioData && audioData.length > 0) {
-    const processingDelay = timestamp ? Date.now() - timestamp : 0;
-    
-    console.log('=== FORWARDING REAL-TIME AUDIO TO WEB APP ===');
-    console.log('Audio data length:', audioData.length);
-    console.log('Processing delay:', processingDelay, 'ms');
-    console.log('Real-time flag:', realTime);
-    console.log('Buffered flag:', buffered);
+  // Forward transcription results to the web application
+  if (action === 'transcriptionResult' && text && text.trim()) {
+    console.log('=== FORWARDING TRANSCRIPTION TO WEB APP ===');
+    console.log('Transcribed text:', text);
+    console.log('Timestamp:', timestamp);
     
     // Show processing status briefly
-    if (!buffered) {
-      updateBannerStatus('processing');
-      setTimeout(() => {
-        if (extensionStatus === 'processing') {
-          updateBannerStatus('capturing');
-        }
-      }, 500);
-    }
+    updateBannerStatus('processing');
+    setTimeout(() => {
+      if (extensionStatus === 'processing') {
+        updateBannerStatus('transcribing');
+      }
+    }, 1000);
     
-    // Send to any open InterviewAce tabs with real-time metadata
+    // Send transcription to web application
     window.postMessage({
-      action: 'processAudio',
-      audioData: audioData,
+      action: 'processTranscription',
+      text: text,
       source: 'interviewace-extension',
       timestamp: timestamp || Date.now(),
-      realTime: realTime || false,
-      buffered: buffered || false,
-      processingDelay: processingDelay
+      type: 'real-time-transcription'
     }, '*');
-    console.log('✅ REAL-TIME audio data posted to window');
+    console.log('✅ Transcription data posted to window');
   }
 });
 
@@ -102,15 +87,14 @@ window.addEventListener('message', (event) => {
   
   if (event.data.action === 'interviewAppReady') {
     console.log('=== INTERVIEW APP READY MESSAGE RECEIVED ===');
-    console.log('Notifying that extension is ready for REAL-TIME processing...');
-    // Notify that the app is ready
+    console.log('Notifying that extension is ready for transcription...');
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
-      capabilities: ['realTimeAudio', 'meetingCapture'],
+      capabilities: ['localTranscription', 'privacyFocused'],
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Extension ready message posted with real-time capabilities');
+    console.log('✅ Extension ready message posted with transcription capabilities');
   }
   
   if (event.data.action === 'testConnection') {
@@ -118,20 +102,20 @@ window.addEventListener('message', (event) => {
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
-      capabilities: ['realTimeAudio', 'meetingCapture'],
+      capabilities: ['localTranscription', 'privacyFocused'],
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Test connection response sent with capabilities');
+    console.log('✅ Test connection response sent with transcription capabilities');
   }
 });
 
-// Notify web app that extension is loaded with real-time capabilities
-console.log('=== INTERVIEWACE EXTENSION CONTENT SCRIPT LOADED (REAL-TIME) ===');
+// Notify web app that extension is loaded with transcription capabilities
+console.log('=== INTERVIEWACE TRANSCRIPTION EXTENSION LOADED ===');
 console.log('Page URL:', window.location.href);
 window.postMessage({
   action: 'extensionReady',
   source: 'interviewace-extension',
-  capabilities: ['realTimeAudio', 'meetingCapture'],
+  capabilities: ['localTranscription', 'privacyFocused'],
   timestamp: Date.now()
 }, '*');
-console.log('✅ Initial extension ready message posted with real-time capabilities');
+console.log('✅ Initial extension ready message posted with transcription capabilities');

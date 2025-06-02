@@ -1,11 +1,8 @@
 
 // Listen for messages from Chrome extension
 export const initializeExtensionConnector = () => {
-  console.log('=== Extension Connector Initialization ===');
+  console.log('=== Extension Connector Initialization (Transcription Mode) ===');
   console.log('Window object:', typeof window !== 'undefined');
-  console.log('Chrome object:', typeof (window as any).chrome !== 'undefined');
-  console.log('Chrome runtime:', (window as any).chrome?.runtime);
-  console.log('Chrome runtime ID:', (window as any).chrome?.runtime?.id);
   
   // Listen for messages from Chrome extension content script
   const handleExtensionMessage = (event: MessageEvent) => {
@@ -15,19 +12,25 @@ export const initializeExtensionConnector = () => {
     // Only process messages from our extension
     if (event.data.source !== 'interviewace-extension') return;
     
-    if (event.data.action === 'processAudio') {
-      console.log('Received audio data from extension:', event.data.audioData?.length);
+    if (event.data.action === 'processTranscription') {
+      console.log('Received transcription from extension:', event.data.text);
       // Dispatch custom event that the Interview component can listen to
-      const audioEvent = new CustomEvent('extensionAudio', {
-        detail: { audioData: event.data.audioData }
+      const transcriptionEvent = new CustomEvent('extensionTranscription', {
+        detail: { 
+          text: event.data.text,
+          timestamp: event.data.timestamp,
+          type: event.data.type
+        }
       });
-      window.dispatchEvent(audioEvent);
+      window.dispatchEvent(transcriptionEvent);
     }
     
     if (event.data.action === 'extensionReady') {
-      console.log('Extension reported as ready');
+      console.log('Extension reported as ready with capabilities:', event.data.capabilities);
       // Dispatch event to update UI
-      const readyEvent = new CustomEvent('extensionReady');
+      const readyEvent = new CustomEvent('extensionReady', {
+        detail: { capabilities: event.data.capabilities }
+      });
       window.dispatchEvent(readyEvent);
     }
   };
@@ -42,7 +45,7 @@ export const initializeExtensionConnector = () => {
     timestamp: Date.now()
   }, '*');
 
-  console.log('Extension connector initialized');
+  console.log('Extension connector initialized for transcription mode');
 
   return () => {
     window.removeEventListener('message', handleExtensionMessage);

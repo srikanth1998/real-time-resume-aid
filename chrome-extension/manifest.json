@@ -1,16 +1,16 @@
 
 {
   "manifest_version": 3,
-  "name": "InterviewAce Voice Capture",
-  "version": "1.0.2",
-  "description": "Silently relays Google-Meet audio to your AI interview coach.",
+  "name": "InterviewAce Voice Transcriptor",
+  "version": "2.0.0",
+  "description": "Privacy-focused Chrome extension that transcribes audio from browser tabs locally using transformers.js",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Start / Stop Capture"
+    "default_title": "Start / Stop Transcription"
   },
   "permissions": [
     "activeTab",
@@ -21,7 +21,6 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://api.interviewace.com/*",
     "https://meet.google.com/*",
     "https://zoom.us/*",
     "https://www.youtube.com/*",
@@ -47,7 +46,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["pcm-worklet.js"],
+      "resources": ["models/*", "audio-worklet.js"],
       "matches": ["<all_urls>"]
     }
   ]
