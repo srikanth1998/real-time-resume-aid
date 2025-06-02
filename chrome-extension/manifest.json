@@ -3,7 +3,7 @@
   "manifest_version": 3,
   "name": "InterviewAce Voice Transcriptor",
   "version": "2.0.0",
-  "description": "Privacy-focused Chrome extension that transcribes audio from browser tabs locally using transformers.js",
+  "description": "Privacy-focused Chrome extension that transcribes audio from browser tabs locally using Web Speech API",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -44,9 +44,6 @@
       "js": ["content.js"]
     }
   ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; object-src 'self';"
-  },
   "web_accessible_resources": [
     {
       "resources": ["audio-worklet.js"],
