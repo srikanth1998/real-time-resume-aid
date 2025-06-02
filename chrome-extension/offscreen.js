@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 let audioContext = null;
@@ -28,13 +27,22 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         sendResponse({ success: true });
       } catch (startError) {
         console.error('❌ Failed to start transcription:', startError);
+        
+        // Properly serialize the error
+        const errorDetails = {
+          message: startError.message,
+          name: startError.name,
+          stack: startError.stack,
+          code: startError.code,
+          constraint: startError.constraint
+        };
+        
+        console.log('📤 Sending detailed error:', errorDetails);
         sendResponse({ 
           success: false, 
           error: startError.message,
-          details: {
-            name: startError.name,
-            stack: startError.stack
-          }
+          errorName: startError.name,
+          errorDetails: errorDetails
         });
       }
       return true;
@@ -52,31 +60,42 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     
   } catch (error) {
     console.error('💥 Error handling message:', error);
+    
+    // Properly serialize the error
+    const errorDetails = {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    };
+    
     sendResponse({ 
       success: false, 
       error: error.message,
-      details: {
-        name: error.name,
-        stack: error.stack
-      }
+      errorName: error.name,
+      errorDetails: errorDetails
     });
   }
   
-  return true; // Keep message channel open
+  return true;
 });
 
 async function startAudioProcessing(streamId) {
+  console.log('🎵 Starting audio processing with stream ID:', streamId);
+  
   if (isProcessing) {
     console.log('⚠️ Already processing, stopping first...');
     await stopAudioProcessing();
   }
   
-  console.log('🎵 Starting audio processing with stream ID:', streamId);
+  if (!streamId) {
+    throw new Error('No stream ID provided');
+  }
   
   try {
-    // Get user media with the stream ID for tab capture
-    console.log('📡 Requesting getUserMedia with tab capture...');
-    const stream = await navigator.mediaDevices.getUserMedia({
+    console.log('📡 Requesting getUserMedia with constraints...');
+    console.log('Stream ID type:', typeof streamId, 'Value:', streamId);
+    
+    const constraints = {
       audio: {
         mandatory: {
           chromeMediaSource: 'tab',
@@ -84,20 +103,34 @@ async function startAudioProcessing(streamId) {
         }
       },
       video: false
-    });
+    };
+    
+    console.log('🎛️ Media constraints:', JSON.stringify(constraints, null, 2));
+    
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     
     console.log('✅ Got tab audio stream, active:', stream.active);
     console.log('🔊 Audio tracks:', stream.getAudioTracks().length);
     
-    // Verify we have audio tracks
+    if (!stream.active) {
+      throw new Error('Stream is not active');
+    }
+    
     if (stream.getAudioTracks().length === 0) {
       throw new Error('No audio tracks found in stream');
     }
     
-    // Get the best supported MIME type
+    const audioTrack = stream.getAudioTracks()[0];
+    console.log('🎵 Audio track settings:', audioTrack.getSettings());
+    console.log('🎵 Audio track state:', audioTrack.readyState);
+    
+    if (audioTrack.readyState !== 'live') {
+      throw new Error(`Audio track is not live, state: ${audioTrack.readyState}`);
+    }
+    
+    // Test MediaRecorder support
     const mimeTypes = [
       'audio/webm;codecs=opus',
-      'audio/webm;codecs=vp8,opus', 
       'audio/webm',
       'audio/mp4',
       'audio/ogg;codecs=opus'
@@ -107,12 +140,13 @@ async function startAudioProcessing(streamId) {
     for (const mimeType of mimeTypes) {
       if (MediaRecorder.isTypeSupported(mimeType)) {
         selectedMimeType = mimeType;
+        console.log('✅ Supported MIME type found:', mimeType);
         break;
       }
     }
     
     if (!selectedMimeType) {
-      throw new Error('No supported audio MIME types found');
+      throw new Error('No supported audio MIME types found. Available types: ' + mimeTypes.join(', '));
     }
     
     console.log('🎭 Using MIME type:', selectedMimeType);
@@ -120,10 +154,10 @@ async function startAudioProcessing(streamId) {
     // Create MediaRecorder
     mediaRecorder = new MediaRecorder(stream, {
       mimeType: selectedMimeType,
-      audioBitsPerSecond: 64000 // Lower bitrate for better performance
+      audioBitsPerSecond: 64000
     });
     
-    console.log('🎙️ MediaRecorder created successfully');
+    console.log('🎙️ MediaRecorder created successfully, state:', mediaRecorder.state);
     
     // Setup event handlers
     audioChunks = [];
@@ -133,7 +167,6 @@ async function startAudioProcessing(streamId) {
         console.log('📦 Audio chunk received, size:', event.data.size, 'bytes');
         audioChunks.push(event.data);
         
-        // Process chunks every 2 seconds worth of data
         if (audioChunks.length >= 2) {
           processAudioChunks();
         }
@@ -142,6 +175,7 @@ async function startAudioProcessing(streamId) {
     
     mediaRecorder.onerror = (event) => {
       console.error('🔴 MediaRecorder error:', event.error);
+      throw new Error(`MediaRecorder error: ${event.error?.message || 'Unknown error'}`);
     };
     
     mediaRecorder.onstop = () => {
@@ -155,9 +189,24 @@ async function startAudioProcessing(streamId) {
       console.log('▶️ MediaRecorder started recording');
     };
     
-    // Start recording in 1-second chunks
+    // Start recording
+    console.log('🎬 Starting MediaRecorder...');
     mediaRecorder.start(1000);
-    console.log('🎬 MediaRecorder started with 1s intervals');
+    
+    // Wait for it to actually start
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('MediaRecorder failed to start within 2 seconds'));
+      }, 2000);
+      
+      mediaRecorder.onstart = () => {
+        clearTimeout(timeout);
+        console.log('▶️ MediaRecorder confirmed started');
+        resolve(true);
+      };
+    });
+    
+    console.log('🎬 MediaRecorder started with 1s intervals, state:', mediaRecorder.state);
     
     // Create audio context for monitoring
     audioContext = new AudioContext({ sampleRate: 16000 });
@@ -170,6 +219,11 @@ async function startAudioProcessing(streamId) {
     
   } catch (error) {
     console.error('💥 Error in startAudioProcessing:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     await stopAudioProcessing();
     throw error;
   }
@@ -181,23 +235,18 @@ function processAudioChunks() {
   console.log('🔄 Processing', audioChunks.length, 'audio chunks');
   
   try {
-    // Combine chunks into single blob
     const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
     const chunkCount = audioChunks.length;
-    audioChunks = []; // Clear processed chunks
+    audioChunks = [];
     
     console.log('🎵 Audio blob created, size:', audioBlob.size, 'bytes from', chunkCount, 'chunks');
     
-    // Convert blob to base64
     const reader = new FileReader();
     reader.onload = function() {
       try {
-        const base64Audio = reader.result.split(',')[1]; // Remove data URL prefix
+        const base64Audio = reader.result.split(',')[1];
         console.log('📝 Base64 audio created, length:', base64Audio.length);
-        
-        // Simulate transcription for now
         simulateTranscription(base64Audio);
-        
       } catch (readerError) {
         console.error('💥 Error processing base64:', readerError);
       }
@@ -214,7 +263,6 @@ function processAudioChunks() {
   }
 }
 
-// Simulate transcription - replace with real service later
 function simulateTranscription(base64Audio) {
   const testPhrases = [
     "Can you tell me about yourself?",
@@ -226,11 +274,9 @@ function simulateTranscription(base64Audio) {
   
   const randomPhrase = testPhrases[Math.floor(Math.random() * testPhrases.length)];
   
-  // Simulate processing delay
   setTimeout(() => {
     console.log('🎤 Simulated transcription:', randomPhrase);
     
-    // Send result to background
     try {
       chrome.runtime.sendMessage({
         type: 'transcription-result',
@@ -243,7 +289,7 @@ function simulateTranscription(base64Audio) {
     } catch (sendError) {
       console.error('💥 Error sending transcription result:', sendError);
     }
-  }, 200 + Math.random() * 500); // Random delay 200-700ms
+  }, 200 + Math.random() * 500);
 }
 
 async function stopAudioProcessing() {
@@ -251,7 +297,6 @@ async function stopAudioProcessing() {
   
   isProcessing = false;
   
-  // Stop MediaRecorder
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     try {
       mediaRecorder.stop();
@@ -262,7 +307,6 @@ async function stopAudioProcessing() {
     mediaRecorder = null;
   }
   
-  // Disconnect audio source
   if (source) {
     try {
       source.disconnect();
@@ -273,7 +317,6 @@ async function stopAudioProcessing() {
     source = null;
   }
   
-  // Close audio context
   if (audioContext && audioContext.state !== 'closed') {
     try {
       await audioContext.close();
@@ -284,13 +327,10 @@ async function stopAudioProcessing() {
     audioContext = null;
   }
   
-  // Clear remaining chunks
   audioChunks = [];
-  
   console.log('✅ Audio processing stopped completely');
 }
 
-// Handle page unload
 window.addEventListener('beforeunload', () => {
   console.log('🔄 Offscreen document unloading, cleaning up...');
   stopAudioProcessing();

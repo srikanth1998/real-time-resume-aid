@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 console.log('InterviewAce transcription background script loaded');
@@ -24,47 +23,59 @@ async function startTranscription(tab) {
   console.log('Starting transcription...');
   
   try {
-    // First, ensure we have a clean slate
     await cleanupOffscreen();
-    
-    // Create offscreen document
     await createOffscreen();
-    
-    // Wait a bit for offscreen to initialize
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Test communication
     const pingSuccess = await testOffscreenCommunication();
     if (!pingSuccess) {
       throw new Error('Failed to establish communication with offscreen document');
     }
     
-    // Get stream ID using the correct API
+    console.log('🎯 Getting stream ID for tab:', tab.id);
     const streamId = await chrome.tabCapture.getMediaStreamId({
       targetTabId: tab.id
     });
     
     if (!streamId) {
-      throw new Error('Failed to get media stream ID');
+      throw new Error('Failed to get media stream ID - tab may not have audio or permission denied');
     }
     
-    console.log('Got stream ID:', streamId);
+    console.log('✅ Got stream ID:', streamId);
     
-    // Send start message to offscreen with stream ID
     const response = await sendMessageToOffscreen({
       type: 'start-transcription',
       streamId: streamId
     });
     
-    console.log('Offscreen response:', response);
+    console.log('📨 Offscreen response:', response);
     
     if (!response?.success) {
       const errorMessage = response?.error || 'Unknown error from offscreen';
-      console.error('Offscreen error details:', response?.details);
-      throw new Error(`Offscreen error: ${errorMessage}`);
+      const errorName = response?.errorName || 'UnknownError';
+      const errorDetails = response?.errorDetails || {};
+      
+      console.error('❌ Offscreen error details:', errorDetails);
+      console.error('❌ Error name:', errorName);
+      console.error('❌ Error message:', errorMessage);
+      
+      // Show more specific error messages
+      let userFriendlyMessage = '';
+      if (errorMessage.includes('Permission denied') || errorMessage.includes('not-allowed')) {
+        userFriendlyMessage = 'Permission denied. Please allow microphone access and try again.';
+      } else if (errorMessage.includes('No audio tracks')) {
+        userFriendlyMessage = 'No audio found on this tab. Make sure the tab is playing audio.';
+      } else if (errorMessage.includes('Stream is not active')) {
+        userFriendlyMessage = 'Tab audio stream is not active. Try refreshing the tab.';
+      } else if (errorMessage.includes('MediaRecorder')) {
+        userFriendlyMessage = 'Audio recording not supported. Try updating your browser.';
+      } else {
+        userFriendlyMessage = `Transcription failed: ${errorMessage}`;
+      }
+      
+      throw new Error(userFriendlyMessage);
     }
     
-    // Notify content script
     try {
       await chrome.tabs.sendMessage(tab.id, {
         action: 'transcriptionStarted'
@@ -82,6 +93,16 @@ async function startTranscription(tab) {
     console.error('❌ Error starting transcription:', error);
     isCapturing = false;
     await cleanupOffscreen();
+    
+    // Show user-friendly error in content script
+    try {
+      await chrome.tabs.sendMessage(tab.id, {
+        action: 'transcriptionError',
+        error: error.message
+      });
+    } catch (e) {
+      console.warn('Could not notify content script of error:', e.message);
+    }
   }
 }
 
@@ -89,12 +110,10 @@ async function stopTranscription(tab) {
   console.log('Stopping transcription...');
   
   try {
-    // Send stop message to offscreen
     await sendMessageToOffscreen({
       type: 'stop-transcription'
     });
     
-    // Notify content script
     try {
       await chrome.tabs.sendMessage(tab.id, {
         action: 'transcriptionStopped'
@@ -116,7 +135,6 @@ async function stopTranscription(tab) {
 
 async function createOffscreen() {
   try {
-    // Check if offscreen document already exists
     const existingContexts = await chrome.runtime.getContexts({
       contextTypes: ['OFFSCREEN_DOCUMENT']
     });
@@ -124,7 +142,6 @@ async function createOffscreen() {
     if (existingContexts.length > 0) {
       console.log('Offscreen document already exists, closing it first');
       await chrome.offscreen.closeDocument();
-      // Wait for cleanup
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -174,7 +191,7 @@ async function testOffscreenCommunication() {
 async function sendMessageToOffscreen(message) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      reject(new Error('Message timeout'));
+      reject(new Error('Message timeout after 5 seconds'));
     }, 5000);
     
     chrome.runtime.sendMessage(message, (response) => {
@@ -195,7 +212,6 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('Background received message:', message);
   
   if (message.type === 'transcription-result') {
-    // Forward transcription to content script
     if (message.text && message.text.trim()) {
       console.log('Forwarding transcription:', message.text);
       
