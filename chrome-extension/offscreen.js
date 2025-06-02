@@ -1,101 +1,68 @@
+
 /* global chrome */
 
-let audioContext = null;
-let source = null;
 let mediaRecorder = null;
 let audioChunks = [];
-let isProcessing = false;
+let isRecording = false;
 
-console.log('🔵 Offscreen document loaded and ready');
+console.log('🔵 Offscreen document loaded');
 
 // Handle messages from background script
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  console.log('📨 Offscreen received message:', message);
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('📨 Offscreen received message:', message.type);
   
-  try {
-    if (message.type === 'ping') {
-      console.log('🏓 Ping received, sending pong');
-      sendResponse({ success: true, message: 'pong' });
-      return true;
-    }
-    
-    if (message.type === 'start-transcription') {
-      console.log('🎬 Starting transcription with stream ID:', message.streamId);
-      try {
-        await startAudioProcessing(message.streamId);
-        console.log('✅ Transcription started successfully');
+  if (message.type === 'ping') {
+    console.log('🏓 Responding to ping');
+    sendResponse({ success: true, message: 'pong' });
+    return;
+  }
+  
+  if (message.type === 'start-transcription') {
+    console.log('🎬 Starting transcription with stream ID:', message.streamId);
+    startAudioCapture(message.streamId)
+      .then(() => {
+        console.log('✅ Audio capture started successfully');
         sendResponse({ success: true });
-      } catch (startError) {
-        console.error('❌ Failed to start transcription:', startError);
-        
-        // Properly serialize the error
-        const errorDetails = {
-          message: startError.message,
-          name: startError.name,
-          stack: startError.stack,
-          code: startError.code,
-          constraint: startError.constraint
-        };
-        
-        console.log('📤 Sending detailed error:', errorDetails);
+      })
+      .catch(error => {
+        console.error('❌ Failed to start audio capture:', error);
         sendResponse({ 
           success: false, 
-          error: startError.message,
-          errorName: startError.name,
-          errorDetails: errorDetails
+          error: error.message,
+          errorType: error.name
         });
-      }
-      return true;
-    } 
-    
-    if (message.type === 'stop-transcription') {
-      console.log('🛑 Stopping transcription');
-      await stopAudioProcessing();
-      sendResponse({ success: true });
-      return true;
-    }
-    
-    console.warn('❓ Unknown message type:', message.type);
-    sendResponse({ success: false, error: 'Unknown message type: ' + message.type });
-    
-  } catch (error) {
-    console.error('💥 Error handling message:', error);
-    
-    // Properly serialize the error
-    const errorDetails = {
-      message: error.message,
-      name: error.name,
-      stack: error.stack
-    };
-    
-    sendResponse({ 
-      success: false, 
-      error: error.message,
-      errorName: error.name,
-      errorDetails: errorDetails
-    });
+      });
+    return true; // Keep message channel open for async response
   }
   
-  return true;
+  if (message.type === 'stop-transcription') {
+    console.log('🛑 Stopping transcription');
+    stopAudioCapture()
+      .then(() => {
+        console.log('✅ Audio capture stopped');
+        sendResponse({ success: true });
+      })
+      .catch(error => {
+        console.error('❌ Error stopping audio capture:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+  
+  console.warn('❓ Unknown message type:', message.type);
+  sendResponse({ success: false, error: 'Unknown message type' });
 });
 
-async function startAudioProcessing(streamId) {
-  console.log('🎵 Starting audio processing with stream ID:', streamId);
-  
-  if (isProcessing) {
-    console.log('⚠️ Already processing, stopping first...');
-    await stopAudioProcessing();
-  }
-  
-  if (!streamId) {
-    throw new Error('No stream ID provided');
+async function startAudioCapture(streamId) {
+  if (isRecording) {
+    console.log('Already recording, stopping first...');
+    await stopAudioCapture();
   }
   
   try {
-    console.log('📡 Requesting getUserMedia with constraints...');
-    console.log('Stream ID type:', typeof streamId, 'Value:', streamId);
+    console.log('📡 Getting user media with stream ID:', streamId);
     
-    const constraints = {
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         mandatory: {
           chromeMediaSource: 'tab',
@@ -103,32 +70,15 @@ async function startAudioProcessing(streamId) {
         }
       },
       video: false
-    };
+    });
     
-    console.log('🎛️ Media constraints:', JSON.stringify(constraints, null, 2));
-    
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    
-    console.log('✅ Got tab audio stream, active:', stream.active);
-    console.log('🔊 Audio tracks:', stream.getAudioTracks().length);
-    
-    if (!stream.active) {
-      throw new Error('Stream is not active');
-    }
+    console.log('✅ Got media stream, tracks:', stream.getAudioTracks().length);
     
     if (stream.getAudioTracks().length === 0) {
       throw new Error('No audio tracks found in stream');
     }
     
-    const audioTrack = stream.getAudioTracks()[0];
-    console.log('🎵 Audio track settings:', audioTrack.getSettings());
-    console.log('🎵 Audio track state:', audioTrack.readyState);
-    
-    if (audioTrack.readyState !== 'live') {
-      throw new Error(`Audio track is not live, state: ${audioTrack.readyState}`);
-    }
-    
-    // Test MediaRecorder support
+    // Find best supported MIME type
     const mimeTypes = [
       'audio/webm;codecs=opus',
       'audio/webm',
@@ -140,34 +90,30 @@ async function startAudioProcessing(streamId) {
     for (const mimeType of mimeTypes) {
       if (MediaRecorder.isTypeSupported(mimeType)) {
         selectedMimeType = mimeType;
-        console.log('✅ Supported MIME type found:', mimeType);
         break;
       }
     }
     
     if (!selectedMimeType) {
-      throw new Error('No supported audio MIME types found. Available types: ' + mimeTypes.join(', '));
+      throw new Error('No supported audio MIME types found');
     }
     
     console.log('🎭 Using MIME type:', selectedMimeType);
     
-    // Create MediaRecorder
     mediaRecorder = new MediaRecorder(stream, {
       mimeType: selectedMimeType,
       audioBitsPerSecond: 64000
     });
     
-    console.log('🎙️ MediaRecorder created successfully, state:', mediaRecorder.state);
-    
-    // Setup event handlers
     audioChunks = [];
     
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
-        console.log('📦 Audio chunk received, size:', event.data.size, 'bytes');
+        console.log('📦 Audio chunk received:', event.data.size, 'bytes');
         audioChunks.push(event.data);
         
-        if (audioChunks.length >= 2) {
+        // Process chunks when we have enough
+        if (audioChunks.length >= 3) {
           processAudioChunks();
         }
       }
@@ -175,7 +121,6 @@ async function startAudioProcessing(streamId) {
     
     mediaRecorder.onerror = (event) => {
       console.error('🔴 MediaRecorder error:', event.error);
-      throw new Error(`MediaRecorder error: ${event.error?.message || 'Unknown error'}`);
     };
     
     mediaRecorder.onstop = () => {
@@ -185,46 +130,13 @@ async function startAudioProcessing(streamId) {
       }
     };
     
-    mediaRecorder.onstart = () => {
-      console.log('▶️ MediaRecorder started recording');
-    };
+    mediaRecorder.start(1000); // 1 second intervals
+    isRecording = true;
     
-    // Start recording
-    console.log('🎬 Starting MediaRecorder...');
-    mediaRecorder.start(1000);
-    
-    // Wait for it to actually start
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('MediaRecorder failed to start within 2 seconds'));
-      }, 2000);
-      
-      mediaRecorder.onstart = () => {
-        clearTimeout(timeout);
-        console.log('▶️ MediaRecorder confirmed started');
-        resolve(true);
-      };
-    });
-    
-    console.log('🎬 MediaRecorder started with 1s intervals, state:', mediaRecorder.state);
-    
-    // Create audio context for monitoring
-    audioContext = new AudioContext({ sampleRate: 16000 });
-    source = audioContext.createMediaStreamSource(stream);
-    
-    console.log('🎛️ AudioContext created for monitoring');
-    
-    isProcessing = true;
-    console.log('✅ Audio processing started successfully');
+    console.log('🎬 MediaRecorder started');
     
   } catch (error) {
-    console.error('💥 Error in startAudioProcessing:', error);
-    console.error('Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
-    await stopAudioProcessing();
+    console.error('💥 Error in startAudioCapture:', error);
     throw error;
   }
 }
@@ -232,108 +144,80 @@ async function startAudioProcessing(streamId) {
 function processAudioChunks() {
   if (audioChunks.length === 0) return;
   
-  console.log('🔄 Processing', audioChunks.length, 'audio chunks');
-  
   try {
-    const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-    const chunkCount = audioChunks.length;
+    const audioBlob = new Blob(audioChunks, { 
+      type: mediaRecorder ? mediaRecorder.mimeType : 'audio/webm' 
+    });
+    
+    console.log('🎵 Processing audio blob, size:', audioBlob.size, 'bytes');
+    
+    // Clear chunks
     audioChunks = [];
     
-    console.log('🎵 Audio blob created, size:', audioBlob.size, 'bytes from', chunkCount, 'chunks');
-    
-    const reader = new FileReader();
-    reader.onload = function() {
-      try {
-        const base64Audio = reader.result.split(',')[1];
-        console.log('📝 Base64 audio created, length:', base64Audio.length);
-        simulateTranscription(base64Audio);
-      } catch (readerError) {
-        console.error('💥 Error processing base64:', readerError);
-      }
-    };
-    
-    reader.onerror = function(error) {
-      console.error('💥 FileReader error:', error);
-    };
-    
-    reader.readAsDataURL(audioBlob);
+    // Simulate transcription for now
+    simulateTranscription();
     
   } catch (error) {
-    console.error('💥 Error in processAudioChunks:', error);
+    console.error('💥 Error processing audio chunks:', error);
   }
 }
 
-function simulateTranscription(base64Audio) {
-  const testPhrases = [
-    "Can you tell me about yourself?",
-    "What are your greatest strengths?", 
+function simulateTranscription() {
+  const phrases = [
+    "What are your greatest strengths?",
+    "Tell me about yourself",
     "Why do you want to work here?",
-    "Where do you see yourself in 5 years?",
-    "Tell me about a challenging project you worked on."
+    "Describe a challenging project",
+    "Where do you see yourself in 5 years?"
   ];
   
-  const randomPhrase = testPhrases[Math.floor(Math.random() * testPhrases.length)];
+  const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
   
   setTimeout(() => {
-    console.log('🎤 Simulated transcription:', randomPhrase);
+    console.log('🎤 Sending simulated transcription:', randomPhrase);
     
     try {
       chrome.runtime.sendMessage({
         type: 'transcription-result',
         text: randomPhrase,
-        timestamp: Date.now(),
-        simulated: true,
-        audioSize: base64Audio.length
+        timestamp: Date.now()
       });
-      console.log('📤 Transcription result sent to background');
-    } catch (sendError) {
-      console.error('💥 Error sending transcription result:', sendError);
+    } catch (error) {
+      console.error('💥 Error sending transcription:', error);
     }
-  }, 200 + Math.random() * 500);
+  }, 500 + Math.random() * 1000);
 }
 
-async function stopAudioProcessing() {
-  console.log('🛑 Stopping audio processing...');
+async function stopAudioCapture() {
+  console.log('🛑 Stopping audio capture...');
   
-  isProcessing = false;
+  isRecording = false;
   
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     try {
       mediaRecorder.stop();
-      console.log('⏹️ MediaRecorder stopped');
-    } catch (e) {
-      console.warn('⚠️ Error stopping MediaRecorder:', e.message);
+      
+      // Get all tracks and stop them
+      if (mediaRecorder.stream) {
+        mediaRecorder.stream.getTracks().forEach(track => {
+          track.stop();
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ Error stopping MediaRecorder:', error);
     }
-    mediaRecorder = null;
   }
   
-  if (source) {
-    try {
-      source.disconnect();
-      console.log('🔌 Audio source disconnected');
-    } catch (e) {
-      console.warn('⚠️ Error disconnecting source:', e.message);
-    }
-    source = null;
-  }
-  
-  if (audioContext && audioContext.state !== 'closed') {
-    try {
-      await audioContext.close();
-      console.log('🎛️ AudioContext closed');
-    } catch (e) {
-      console.warn('⚠️ Error closing AudioContext:', e.message);
-    }
-    audioContext = null;
-  }
-  
+  mediaRecorder = null;
   audioChunks = [];
-  console.log('✅ Audio processing stopped completely');
+  
+  console.log('✅ Audio capture stopped completely');
 }
 
+// Cleanup on unload
 window.addEventListener('beforeunload', () => {
-  console.log('🔄 Offscreen document unloading, cleaning up...');
-  stopAudioProcessing();
+  console.log('🔄 Offscreen unloading, cleaning up...');
+  stopAudioCapture();
 });
 
-console.log('✅ Offscreen document initialization complete');
+console.log('✅ Offscreen script ready');

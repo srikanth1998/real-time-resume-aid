@@ -1,8 +1,10 @@
+
 /* global chrome */
 
 console.log('InterviewAce transcription background script loaded');
 
 let isCapturing = false;
+let offscreenCreated = false;
 
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
@@ -16,23 +18,33 @@ chrome.action.onClicked.addListener(async (tab) => {
     }
   } catch (error) {
     console.error('Error toggling transcription:', error);
+    // Show error to user
+    try {
+      await chrome.tabs.sendMessage(tab.id, {
+        action: 'transcriptionError',
+        error: error.message
+      });
+    } catch (e) {
+      console.warn('Could not notify content script of error:', e.message);
+    }
   }
 });
 
 async function startTranscription(tab) {
-  console.log('Starting transcription...');
+  console.log('Starting transcription for tab:', tab.id);
   
   try {
+    // Clean up any existing offscreen first
     await cleanupOffscreen();
+    
+    // Create new offscreen document
     await createOffscreen();
-    await new Promise(resolve => setTimeout(resolve, 500));
     
-    const pingSuccess = await testOffscreenCommunication();
-    if (!pingSuccess) {
-      throw new Error('Failed to establish communication with offscreen document');
-    }
+    // Wait for offscreen to be ready
+    await waitForOffscreenReady();
     
-    console.log('🎯 Getting stream ID for tab:', tab.id);
+    // Get stream ID
+    console.log('Getting stream ID for tab:', tab.id);
     const streamId = await chrome.tabCapture.getMediaStreamId({
       targetTabId: tab.id
     });
@@ -41,41 +53,19 @@ async function startTranscription(tab) {
       throw new Error('Failed to get media stream ID - tab may not have audio or permission denied');
     }
     
-    console.log('✅ Got stream ID:', streamId);
+    console.log('Got stream ID:', streamId);
     
+    // Start transcription in offscreen
     const response = await sendMessageToOffscreen({
       type: 'start-transcription',
       streamId: streamId
     });
     
-    console.log('📨 Offscreen response:', response);
-    
     if (!response?.success) {
-      const errorMessage = response?.error || 'Unknown error from offscreen';
-      const errorName = response?.errorName || 'UnknownError';
-      const errorDetails = response?.errorDetails || {};
-      
-      console.error('❌ Offscreen error details:', errorDetails);
-      console.error('❌ Error name:', errorName);
-      console.error('❌ Error message:', errorMessage);
-      
-      // Show more specific error messages
-      let userFriendlyMessage = '';
-      if (errorMessage.includes('Permission denied') || errorMessage.includes('not-allowed')) {
-        userFriendlyMessage = 'Permission denied. Please allow microphone access and try again.';
-      } else if (errorMessage.includes('No audio tracks')) {
-        userFriendlyMessage = 'No audio found on this tab. Make sure the tab is playing audio.';
-      } else if (errorMessage.includes('Stream is not active')) {
-        userFriendlyMessage = 'Tab audio stream is not active. Try refreshing the tab.';
-      } else if (errorMessage.includes('MediaRecorder')) {
-        userFriendlyMessage = 'Audio recording not supported. Try updating your browser.';
-      } else {
-        userFriendlyMessage = `Transcription failed: ${errorMessage}`;
-      }
-      
-      throw new Error(userFriendlyMessage);
+      throw new Error(response?.error || 'Failed to start transcription in offscreen');
     }
     
+    // Notify content script
     try {
       await chrome.tabs.sendMessage(tab.id, {
         action: 'transcriptionStarted'
@@ -87,22 +77,13 @@ async function startTranscription(tab) {
     isCapturing = true;
     chrome.action.setBadgeText({ text: 'ON' });
     chrome.action.setBadgeBackgroundColor({ color: '#34a853' });
-    console.log('✅ Transcription started');
+    console.log('✅ Transcription started successfully');
     
   } catch (error) {
     console.error('❌ Error starting transcription:', error);
     isCapturing = false;
     await cleanupOffscreen();
-    
-    // Show user-friendly error in content script
-    try {
-      await chrome.tabs.sendMessage(tab.id, {
-        action: 'transcriptionError',
-        error: error.message
-      });
-    } catch (e) {
-      console.warn('Could not notify content script of error:', e.message);
-    }
+    throw error;
   }
 }
 
@@ -110,9 +91,11 @@ async function stopTranscription(tab) {
   console.log('Stopping transcription...');
   
   try {
-    await sendMessageToOffscreen({
-      type: 'stop-transcription'
-    });
+    if (offscreenCreated) {
+      await sendMessageToOffscreen({
+        type: 'stop-transcription'
+      });
+    }
     
     try {
       await chrome.tabs.sendMessage(tab.id, {
@@ -135,64 +118,66 @@ async function stopTranscription(tab) {
 
 async function createOffscreen() {
   try {
-    const existingContexts = await chrome.runtime.getContexts({
-      contextTypes: ['OFFSCREEN_DOCUMENT']
-    });
-    
-    if (existingContexts.length > 0) {
-      console.log('Offscreen document already exists, closing it first');
-      await chrome.offscreen.closeDocument();
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-
-    console.log('Creating new offscreen document...');
+    console.log('Creating offscreen document...');
     await chrome.offscreen.createDocument({
       url: 'offscreen.html',
       reasons: ['USER_MEDIA'],
       justification: 'Recording audio from tab for local transcription'
     });
     
+    offscreenCreated = true;
     console.log('✅ Offscreen document created');
   } catch (error) {
     console.error('Error creating offscreen document:', error);
+    offscreenCreated = false;
     throw error;
   }
 }
 
 async function cleanupOffscreen() {
   try {
-    const existingContexts = await chrome.runtime.getContexts({
-      contextTypes: ['OFFSCREEN_DOCUMENT']
-    });
-    
-    if (existingContexts.length > 0) {
-      console.log('Cleaning up existing offscreen document...');
+    if (offscreenCreated) {
+      console.log('Cleaning up offscreen document...');
       await chrome.offscreen.closeDocument();
       console.log('✅ Offscreen document closed');
     }
   } catch (error) {
     console.warn('Error cleaning up offscreen:', error);
+  } finally {
+    offscreenCreated = false;
   }
 }
 
-async function testOffscreenCommunication() {
-  try {
-    console.log('Testing offscreen communication...');
-    const response = await sendMessageToOffscreen({ type: 'ping' });
-    const success = response?.success === true;
-    console.log('Ping test result:', success);
-    return success;
-  } catch (error) {
-    console.error('Ping test failed:', error);
-    return false;
+async function waitForOffscreenReady() {
+  console.log('Waiting for offscreen to be ready...');
+  
+  for (let i = 0; i < 10; i++) {
+    try {
+      const response = await sendMessageToOffscreen({ type: 'ping' }, 1000);
+      if (response?.success) {
+        console.log('✅ Offscreen is ready');
+        return;
+      }
+    } catch (error) {
+      console.log(`Ping attempt ${i + 1} failed:`, error.message);
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
+  
+  throw new Error('Offscreen document failed to become ready after 10 attempts');
 }
 
-async function sendMessageToOffscreen(message) {
+async function sendMessageToOffscreen(message, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
+    if (!offscreenCreated) {
+      reject(new Error('Offscreen document not created'));
+      return;
+    }
+    
     const timeout = setTimeout(() => {
-      reject(new Error('Message timeout after 5 seconds'));
-    }, 5000);
+      reject(new Error(`Message timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
     
     chrome.runtime.sendMessage(message, (response) => {
       clearTimeout(timeout);
