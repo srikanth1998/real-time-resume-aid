@@ -238,7 +238,7 @@ const Interview = () => {
     navigate(`/complete?session_id=${sessionId}`);
   };
 
-  const handleExtensionAudioData = async (audioData: string) => {
+  const handleExtensionAudioData = async (audioData: number[]) => {
     console.log('Processing audio from extension, length:', audioData?.length);
     
     if (processingRef.current) {
@@ -255,7 +255,7 @@ const Interview = () => {
       
       const { data, error } = await supabase.functions.invoke('speech-to-text', {
         body: {
-          audio: audioData
+          audioData: audioData  // Send raw audio data instead of base64
         }
       });
 
@@ -271,7 +271,8 @@ const Interview = () => {
       const transcript = data?.text || "";
       console.log('Transcript received:', transcript);
       
-      if (transcript && transcript.trim().length > 10) {
+      // Show transcript even if it's short or doesn't contain a question
+      if (transcript && transcript.trim().length > 3) {
         setCurrentTranscript(transcript);
         setExtensionStatus("Listening");
         
@@ -287,8 +288,8 @@ const Interview = () => {
           generateAnswer(transcript);
         }
       } else {
-        console.log('Transcript too short or empty');
-        setCurrentTranscript("No clear speech detected");
+        console.log('Transcript too short or empty, showing anyway');
+        setCurrentTranscript(transcript || "No clear speech detected");
         setExtensionStatus("Listening");
       }
       
