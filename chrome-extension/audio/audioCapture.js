@@ -11,6 +11,7 @@ export class AudioCapture {
     this.isStarting = false;
     this.isStopping = false;
     this.audioBufferManager = new AudioBuffer();
+    console.log('AudioCapture instance created');
   }
 
   async start(streamId) {
@@ -37,7 +38,12 @@ export class AudioCapture {
       console.log('Requesting user media with stream ID:', streamId);
       // grab tab-audio via getUserMedia
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } },
+        audio: { 
+          mandatory: { 
+            chromeMediaSource: 'tab', 
+            chromeMediaSourceId: streamId 
+          } 
+        },
         video: false
       });
       console.log('✅ Got media stream:', stream);
@@ -81,6 +87,8 @@ export class AudioCapture {
   }
 
   setupAudioProcessing() {
+    console.log('Setting up audio processing...');
+    
     // Accumulate audio data with better filtering
     this.worklet.port.onmessage = ({ data }) => {
       const samples = new Float32Array(data);
@@ -114,6 +122,8 @@ export class AudioCapture {
         }
       }
     };
+    
+    console.log('Audio processing setup complete');
   }
 
   async stop(report = false) {

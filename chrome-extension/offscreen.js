@@ -2,6 +2,8 @@
 /* global chrome */
 import { AudioCapture } from './audio/audioCapture.js';
 
+console.log('=== OFFSCREEN DOCUMENT LOADED ===');
+
 // Global audio capture instance
 let audioCapture = new AudioCapture();
 
@@ -34,3 +36,5 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // Indicates async response
   }
 });
+
+console.log('=== OFFSCREEN MESSAGE LISTENER READY ===');

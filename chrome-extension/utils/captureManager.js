@@ -1,3 +1,4 @@
+
 /* global chrome */
 import { OffscreenManager } from './offscreenManager.js';
 import { UIManager } from './uiManager.js';
@@ -11,6 +12,7 @@ export class CaptureManager {
     this.currentTabId = null;
     this.audioBuffer = [];
     this.maxBufferSize = 1000;
+    console.log('CaptureManager initialized');
   }
 
   async startCapture(tabId) {
@@ -26,6 +28,7 @@ export class CaptureManager {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
+      console.log('Ensuring offscreen document...');
       await OffscreenManager.ensureOffscreen();
 
       // ask Chrome for a stream-ID for that tab
@@ -35,7 +38,10 @@ export class CaptureManager {
 
       // kick the off-screen page
       console.log('Sending offscreen-start message with streamId:', streamId);
-      const response = await chrome.runtime.sendMessage({ type: 'offscreen-start', streamId });
+      const response = await chrome.runtime.sendMessage({ 
+        type: 'offscreen-start', 
+        streamId: streamId 
+      });
       console.log('Offscreen start response:', response);
 
       if (!response?.success) {
@@ -45,7 +51,7 @@ export class CaptureManager {
       this.isCapturing = true;
       this.currentTabId = tabId;
       
-      // Notify content script
+      console.log('Notifying content script of capture start...');
       await UIManager.notifyContentScript(tabId, 'captureStarted');
       
       UIManager.setRecordingBadge();
@@ -101,7 +107,7 @@ export class CaptureManager {
     console.log('Is capturing:', this.isCapturing);
     
     // Try to send to current tab's content script
-    if (this.currentTabId && this.isCapturing) {
+    if (this.currentTabId && this.isCapturing && audioData && audioData.length > 0) {
       try {
         console.log('Attempting to forward audio to content script...');
         await chrome.tabs.sendMessage(this.currentTabId, {
@@ -126,17 +132,21 @@ export class CaptureManager {
         if (injected && this.audioBuffer.length > 0) {
           console.log('Sending buffered audio data, items:', this.audioBuffer.length);
           for (const bufferedAudio of this.audioBuffer) {
-            await chrome.tabs.sendMessage(this.currentTabId, {
-              action: 'audioData',
-              audioData: bufferedAudio
-            });
+            try {
+              await chrome.tabs.sendMessage(this.currentTabId, {
+                action: 'audioData',
+                audioData: bufferedAudio
+              });
+            } catch (bufferErr) {
+              console.warn('Error sending buffered audio:', bufferErr);
+            }
           }
           this.audioBuffer = []; // Clear buffer after sending
           console.log('✅ Buffered audio data sent successfully');
         }
       }
     } else {
-      console.warn('❌ Cannot forward audio: currentTabId=', this.currentTabId, 'isCapturing=', this.isCapturing);
+      console.warn('❌ Cannot forward audio: currentTabId=', this.currentTabId, 'isCapturing=', this.isCapturing, 'audioDataLength=', audioData?.length);
     }
   }
 

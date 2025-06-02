@@ -1,7 +1,8 @@
 
 /* global chrome */
 let banner;
-function ensureBanner () {
+
+function ensureBanner() {
   if (banner) return banner;
   banner = document.createElement('div');
   banner.style.cssText =
@@ -30,7 +31,7 @@ chrome.runtime.onMessage.addListener(({ action, audioData }) => {
   }
   
   // Forward audio data to the web application
-  if (action === 'audioData' && audioData) {
+  if (action === 'audioData' && audioData && audioData.length > 0) {
     console.log('=== FORWARDING AUDIO DATA TO WEB APP ===');
     console.log('Audio data length:', audioData.length);
     
