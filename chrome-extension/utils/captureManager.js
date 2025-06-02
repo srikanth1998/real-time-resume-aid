@@ -15,6 +15,10 @@ export class CaptureManager {
     console.log('CaptureManager initialized');
   }
 
+  async ensureOffscreen() {
+    return await OffscreenManager.ensureOffscreen();
+  }
+
   async startCapture(tabId) {
     try {
       console.log('=== STARTING AUDIO CAPTURE ===');
@@ -29,12 +33,28 @@ export class CaptureManager {
       }
 
       console.log('Ensuring offscreen document...');
-      await OffscreenManager.ensureOffscreen();
+      await this.ensureOffscreen();
+      
+      // Test offscreen communication
+      try {
+        const pingResponse = await chrome.runtime.sendMessage({ type: 'ping' });
+        if (!pingResponse?.success) {
+          throw new Error('Offscreen document not responding to ping');
+        }
+        console.log('✅ Offscreen communication verified');
+      } catch (pingError) {
+        console.error('❌ Offscreen communication test failed:', pingError);
+        throw new Error('Failed to communicate with offscreen document');
+      }
 
       // ask Chrome for a stream-ID for that tab
       console.log('Requesting media stream ID for tab:', tabId);
       const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
       console.log('Got stream ID:', streamId);
+
+      if (!streamId) {
+        throw new Error('Failed to get media stream ID');
+      }
 
       // kick the off-screen page
       console.log('Sending offscreen-start message with streamId:', streamId);

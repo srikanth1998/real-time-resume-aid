@@ -12,8 +12,8 @@ export class MessageHandler {
   async handleMessage(msg, sender, sendResponse) {
     console.log('=== BACKGROUND RECEIVED MESSAGE ===', msg);
     
-    if (msg.action === 'toggle') {
-      try {
+    try {
+      if (msg.action === 'toggle') {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tab) {
           const state = this.captureManager.getState();
@@ -23,20 +23,34 @@ export class MessageHandler {
             await this.captureManager.startCapture(tab.id);
           }
         }
-      } catch (error) {
-        console.error('Error handling toggle:', error);
+        if (sendResponse) sendResponse({ success: true });
+        return;
       }
-    }
-    
-    // Handle audio data from offscreen
-    if (msg.type === 'audio-data') {
-      await this.captureManager.handleAudioData(msg.audioData);
-    }
-    
-    // Handle messages from offscreen document
-    if (msg.type === 'offscreen-stopped') {
-      console.log('Received offscreen-stopped message');
-      await this.captureManager.stopCapture();
+      
+      // Handle audio data from offscreen
+      if (msg.type === 'audio-data') {
+        await this.captureManager.handleAudioData(msg.audioData);
+        if (sendResponse) sendResponse({ success: true });
+        return;
+      }
+      
+      // Handle messages from offscreen document
+      if (msg.type === 'offscreen-stopped') {
+        console.log('Received offscreen-stopped message');
+        await this.captureManager.stopCapture();
+        if (sendResponse) sendResponse({ success: true });
+        return;
+      }
+      
+      // Handle ping/pong for connection testing
+      if (msg.type === 'ping') {
+        if (sendResponse) sendResponse({ success: true, message: 'pong' });
+        return;
+      }
+      
+    } catch (error) {
+      console.error('Error in message handler:', error);
+      if (sendResponse) sendResponse({ success: false, error: error.message });
     }
   }
 
