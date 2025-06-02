@@ -46,7 +46,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["models/*", "audio-worklet.js"],
+      "resources": ["audio-worklet.js"],
       "matches": ["<all_urls>"]
     }
   ]

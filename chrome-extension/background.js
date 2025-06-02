@@ -1,19 +1,9 @@
 
 /* global chrome */
-import TranscriptionService from './transcription/transcriptionService.js';
 
 console.log('InterviewAce transcription background script loaded');
 
 let isCapturing = false;
-let transcriptionService = null;
-
-// Initialize transcription service
-async function initializeTranscription() {
-  if (!transcriptionService) {
-    transcriptionService = new TranscriptionService();
-    await transcriptionService.initialize();
-  }
-}
 
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
@@ -34,27 +24,27 @@ async function startTranscription(tab) {
   console.log('Starting transcription...');
   
   try {
-    // Initialize transcription service
-    await initializeTranscription();
+    // Create offscreen document for audio processing and transcription
+    await createOffscreen();
     
-    // Start tab capture
-    const streamId = await chrome.tabCapture.capture({
-      audio: true,
-      video: false
+    // Get stream ID using the correct API
+    const streamId = await chrome.tabCapture.getMediaStreamId({
+      targetTabId: tab.id
     });
     
     if (!streamId) {
-      throw new Error('Failed to capture tab audio');
+      throw new Error('Failed to get media stream ID');
     }
     
-    // Create offscreen document for audio processing
-    await createOffscreen();
-    
-    // Send start message to offscreen
-    await chrome.runtime.sendMessage({
+    // Send start message to offscreen with stream ID
+    const response = await chrome.runtime.sendMessage({
       type: 'start-transcription',
       streamId: streamId
     });
+    
+    if (!response?.success) {
+      throw new Error('Failed to start offscreen transcription');
+    }
     
     // Notify content script
     chrome.tabs.sendMessage(tab.id, {
@@ -62,6 +52,8 @@ async function startTranscription(tab) {
     });
     
     isCapturing = true;
+    chrome.action.setBadgeText({ text: 'ON' });
+    chrome.action.setBadgeBackgroundColor({ color: '#34a853' });
     console.log('✅ Transcription started');
     
   } catch (error) {
@@ -85,6 +77,7 @@ async function stopTranscription(tab) {
     });
     
     isCapturing = false;
+    chrome.action.setBadgeText({ text: '' });
     console.log('✅ Transcription stopped');
     
   } catch (error) {
@@ -107,31 +100,22 @@ async function createOffscreen() {
   }
 }
 
-// Handle messages
+// Handle messages from offscreen document
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('Background received message:', message);
   
-  if (message.type === 'audio-data') {
-    // Process audio data for transcription
-    if (transcriptionService && message.audioData) {
-      try {
-        const text = await transcriptionService.transcribeAudio(message.audioData);
-        
-        if (text && text.trim()) {
-          console.log('Transcribed text:', text);
-          
-          // Send transcription to content script
-          const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-          if (tabs[0]) {
-            chrome.tabs.sendMessage(tabs[0].id, {
-              action: 'transcriptionResult',
-              text: text,
-              timestamp: Date.now()
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error processing transcription:', error);
+  if (message.type === 'transcription-result') {
+    // Forward transcription to content script
+    if (message.text && message.text.trim()) {
+      console.log('Forwarding transcription:', message.text);
+      
+      const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'transcriptionResult',
+          text: message.text,
+          timestamp: Date.now()
+        });
       }
     }
   }
