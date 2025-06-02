@@ -5,6 +5,7 @@ console.log('InterviewAce transcription background script loaded');
 
 let isCapturing = false;
 let offscreenCreated = false;
+let currentTabId = null;
 
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
@@ -18,22 +19,18 @@ chrome.action.onClicked.addListener(async (tab) => {
     }
   } catch (error) {
     console.error('Error toggling transcription:', error);
-    // Show error to user
-    try {
-      await chrome.tabs.sendMessage(tab.id, {
-        action: 'transcriptionError',
-        error: error.message
-      });
-    } catch (e) {
-      console.warn('Could not notify content script of error:', e.message);
-    }
+    showErrorNotification(error.message);
   }
 });
 
 async function startTranscription(tab) {
   console.log('Starting transcription for tab:', tab.id);
+  currentTabId = tab.id;
   
   try {
+    // Ensure content script is injected
+    await ensureContentScript(tab.id);
+    
     // Clean up any existing offscreen first
     await cleanupOffscreen();
     
@@ -66,13 +63,7 @@ async function startTranscription(tab) {
     }
     
     // Notify content script
-    try {
-      await chrome.tabs.sendMessage(tab.id, {
-        action: 'transcriptionStarted'
-      });
-    } catch (e) {
-      console.warn('Could not notify content script:', e.message);
-    }
+    await notifyContentScript(tab.id, 'transcriptionStarted');
     
     isCapturing = true;
     chrome.action.setBadgeText({ text: 'ON' });
@@ -81,6 +72,7 @@ async function startTranscription(tab) {
     
   } catch (error) {
     console.error('❌ Error starting transcription:', error);
+    currentTabId = null;
     isCapturing = false;
     await cleanupOffscreen();
     throw error;
@@ -97,15 +89,10 @@ async function stopTranscription(tab) {
       });
     }
     
-    try {
-      await chrome.tabs.sendMessage(tab.id, {
-        action: 'transcriptionStopped'
-      });
-    } catch (e) {
-      console.warn('Could not notify content script:', e.message);
-    }
+    await notifyContentScript(tab.id, 'transcriptionStopped');
     
     isCapturing = false;
+    currentTabId = null;
     chrome.action.setBadgeText({ text: '' });
     console.log('✅ Transcription stopped');
     
@@ -113,6 +100,41 @@ async function stopTranscription(tab) {
     console.error('❌ Error stopping transcription:', error);
   } finally {
     await cleanupOffscreen();
+  }
+}
+
+async function ensureContentScript(tabId) {
+  try {
+    // Test if content script is already injected
+    await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+    console.log('Content script already injected');
+  } catch (error) {
+    console.log('Content script not found, injecting...');
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content.js']
+      });
+      console.log('✅ Content script injected successfully');
+      
+      // Wait a moment for the script to initialize
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (injectError) {
+      console.warn('❌ Could not inject content script:', injectError.message);
+      // Don't throw here - transcription can work without content script
+    }
+  }
+}
+
+async function notifyContentScript(tabId, action) {
+  if (!tabId) return;
+  
+  try {
+    await chrome.tabs.sendMessage(tabId, { action });
+    console.log(`✅ Content script notified: ${action}`);
+  } catch (error) {
+    console.warn(`Could not notify content script (${action}):`, error.message);
+    // Don't throw - this is not critical for transcription functionality
   }
 }
 
@@ -192,6 +214,19 @@ async function sendMessageToOffscreen(message, timeoutMs = 5000) {
   });
 }
 
+async function showErrorNotification(message) {
+  try {
+    await chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon48.png',
+      title: 'InterviewAce Transcription Error',
+      message: message
+    });
+  } catch (error) {
+    console.warn('Could not show notification:', error);
+  }
+}
+
 // Handle messages from offscreen document
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('Background received message:', message);
@@ -200,21 +235,22 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     if (message.text && message.text.trim()) {
       console.log('Forwarding transcription:', message.text);
       
-      try {
-        const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-        if (tabs[0]) {
-          await chrome.tabs.sendMessage(tabs[0].id, {
-            action: 'transcriptionResult',
-            text: message.text,
-            timestamp: Date.now()
-          });
-        }
-      } catch (error) {
-        console.warn('Could not forward transcription to content script:', error);
+      if (currentTabId) {
+        await notifyContentScript(currentTabId, {
+          action: 'transcriptionResult',
+          text: message.text,
+          timestamp: Date.now()
+        });
       }
     }
   }
   
   sendResponse({success: true});
   return true;
+});
+
+// Clean up when extension is disabled/reloaded
+chrome.runtime.onSuspend.addListener(() => {
+  console.log('Extension suspending, cleaning up...');
+  cleanupOffscreen();
 });

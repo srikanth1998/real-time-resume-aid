@@ -36,15 +36,24 @@ function updateBannerStatus(status) {
   }
 }
 
-chrome.runtime.onMessage.addListener(({ action, text, timestamp }) => {
-  console.log('=== CONTENT SCRIPT RECEIVED MESSAGE ===', { action, text, timestamp });
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('=== CONTENT SCRIPT RECEIVED MESSAGE ===', message);
   
+  // Handle ping messages from background script
+  if (message.action === 'ping') {
+    console.log('Responding to ping from background');
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  const { action, text, timestamp } = message;
   const b = ensureBanner();
   
   if (action === 'transcriptionStarted') {
     console.log('Showing transcription banner');
     updateBannerStatus('transcribing');
     b.hidden = false;
+    sendResponse({ success: true });
   }
   
   if (action === 'transcriptionStopped') {
@@ -53,6 +62,7 @@ chrome.runtime.onMessage.addListener(({ action, text, timestamp }) => {
     setTimeout(() => {
       b.hidden = true;
     }, 2000);
+    sendResponse({ success: true });
   }
   
   // Forward transcription results to the web application
@@ -78,7 +88,10 @@ chrome.runtime.onMessage.addListener(({ action, text, timestamp }) => {
       type: 'real-time-transcription'
     }, '*');
     console.log('✅ Transcription data posted to window');
+    sendResponse({ success: true });
   }
+  
+  return true; // Keep message channel open for async response
 });
 
 // Listen for messages from the web application
