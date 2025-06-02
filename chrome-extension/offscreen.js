@@ -190,6 +190,7 @@ async function startAudioProcessing(streamId) {
   
   try {
     // Get user media with the stream ID
+    console.log('Requesting getUserMedia with tab capture...');
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         mandatory: {
@@ -200,38 +201,57 @@ async function startAudioProcessing(streamId) {
       video: false
     });
     
-    console.log('✅ Got tab audio stream');
+    console.log('✅ Got tab audio stream:', stream);
+    console.log('Stream active:', stream.active);
+    console.log('Audio tracks:', stream.getAudioTracks().length);
     
     // Initialize Web Speech API
     recognition = initializeWebSpeechAPI();
     if (!recognition) {
       throw new Error('Web Speech API not available');
     }
+    console.log('✅ Web Speech API initialized');
     
     // Initialize MediaRecorder to capture and process tab audio
     const recorderInitialized = initializeMediaRecorder(stream);
     if (!recorderInitialized) {
       throw new Error('Failed to initialize MediaRecorder');
     }
+    console.log('✅ MediaRecorder initialized');
     
     // Create audio context for additional processing if needed
     audioContext = new AudioContext({
       sampleRate: 16000
     });
+    console.log('✅ AudioContext created');
     
     // Add audio worklet for processing
-    await audioContext.audioWorklet.addModule('audio-worklet.js');
-    worklet = new AudioWorkletNode(audioContext, 'audio-worklet');
+    try {
+      await audioContext.audioWorklet.addModule('audio-worklet.js');
+      worklet = new AudioWorkletNode(audioContext, 'audio-worklet');
+      console.log('✅ Audio worklet loaded');
+    } catch (workletError) {
+      console.warn('⚠️ Audio worklet failed to load:', workletError.message);
+      // Continue without worklet - not critical for basic functionality
+    }
     
     // Create source and connect
     source = audioContext.createMediaStreamSource(stream);
-    source.connect(worklet);
+    if (worklet) {
+      source.connect(worklet);
+    }
+    console.log('✅ Audio source connected');
     
     isProcessing = true;
-    console.log('✅ Audio processing started with Web Speech API and tab audio');
+    console.log('✅ Audio processing started successfully');
     
   } catch (error) {
     console.error('❌ Error starting audio processing:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     await stopAudioProcessing();
     throw error;
   }
