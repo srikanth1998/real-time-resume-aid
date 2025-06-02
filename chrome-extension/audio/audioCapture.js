@@ -11,6 +11,7 @@ export class AudioCapture {
     this.isStarting = false;
     this.isStopping = false;
     this.audioBufferManager = new AudioBuffer();
+    this.isActivelyCapturing = false;
     console.log('AudioCapture instance created');
   }
 
@@ -29,7 +30,7 @@ export class AudioCapture {
       console.log('Cleaning up previous audio session...');
       await this.stop(false);
       // Small delay to ensure cleanup is complete
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     
     this.isStarting = true;
@@ -61,8 +62,10 @@ export class AudioCapture {
       this.worklet = new AudioWorkletNode(this.audioCtx, 'pcm-worklet');
       console.log('✅ AudioWorkletNode created');
       
-      // Reset buffer when starting
+      // Reset buffer and set to active processing mode
       this.audioBufferManager.reset();
+      this.audioBufferManager.setProcessingMode(true);
+      this.isActivelyCapturing = true;
       
       // Setup audio processing
       this.setupAudioProcessing();
@@ -73,10 +76,8 @@ export class AudioCapture {
       
       console.log('Connecting source to worklet...');
       this.source.connect(this.worklet);
-      console.log('✅ Audio pipeline connected');
+      console.log('✅ Audio pipeline connected - REAL-TIME CAPTURE ACTIVE');
 
-      console.log('=== AUDIO CAPTURE PIPELINE SETUP COMPLETE ===');
-      
     } catch (error) {
       console.error('=== ERROR IN AUDIO CAPTURE START ===', error);
       await this.stop(true);
@@ -87,43 +88,49 @@ export class AudioCapture {
   }
 
   setupAudioProcessing() {
-    console.log('Setting up audio processing...');
+    console.log('Setting up REAL-TIME audio processing...');
     
-    // Accumulate audio data with better filtering
+    // Accumulate audio data with aggressive real-time processing
     this.worklet.port.onmessage = ({ data }) => {
+      if (!this.isActivelyCapturing) {
+        console.log('Not actively capturing, skipping audio data');
+        return;
+      }
+
       const samples = new Float32Array(data);
       
       if (this.audioBufferManager.addSamples(samples)) {
         const now = Date.now();
         const timeSinceLastSend = now - this.audioBufferManager.lastSentTime;
         
-        // Send when buffer is large enough AND enough time has passed, or buffer is at max
+        // More aggressive sending for real-time experience
         if (this.audioBufferManager.shouldSend()) {
-          console.log('Sending buffered audio, total samples:', this.audioBufferManager.bufferSize, 'time since last:', timeSinceLastSend);
+          console.log('🚀 REAL-TIME: Sending audio, samples:', this.audioBufferManager.bufferSize, 'time since last:', timeSinceLastSend);
           
           const combinedBuffer = this.audioBufferManager.getCombinedBuffer();
           
           try {
-            // Send combined audio data to background script
+            // Send combined audio data to background script immediately
             chrome.runtime.sendMessage({
               type: 'audio-data',
-              audioData: Array.from(combinedBuffer)
+              audioData: Array.from(combinedBuffer),
+              timestamp: now
             }).then(() => {
-              console.log('✅ Buffered audio data sent to background script');
+              console.log('✅ REAL-TIME audio data sent to background script');
             }).catch(err => {
-              console.warn('❌ Error sending buffered audio to background script:', err);
+              console.warn('❌ Error sending real-time audio to background script:', err);
             });
           } catch (err) {
-            console.warn('❌ Error processing buffered audio data:', err);
+            console.warn('❌ Error processing real-time audio data:', err);
           }
           
-          // Reset buffer and update last sent time
+          // Reset buffer and continue processing
           this.audioBufferManager.markSent();
         }
       }
     };
     
-    console.log('Audio processing setup complete');
+    console.log('REAL-TIME audio processing setup complete');
   }
 
   async stop(report = false) {
@@ -136,9 +143,10 @@ export class AudioCapture {
     }
     
     this.isStopping = true;
+    this.isActivelyCapturing = false;
     
     try {
-      // Send any remaining buffered audio before stopping (only if significant audio)
+      // Send any remaining buffered audio before stopping
       if (this.audioBufferManager.hasData()) {
         console.log('Sending final buffered audio before stopping, samples:', this.audioBufferManager.bufferSize);
         const combinedBuffer = this.audioBufferManager.getCombinedBuffer();
@@ -146,15 +154,17 @@ export class AudioCapture {
         try {
           chrome.runtime.sendMessage({
             type: 'audio-data',
-            audioData: Array.from(combinedBuffer)
+            audioData: Array.from(combinedBuffer),
+            final: true
           });
         } catch (err) {
           console.warn('Error sending final buffered audio:', err);
         }
       }
       
-      // Reset buffer
+      // Reset buffer and disable processing mode
       this.audioBufferManager.reset();
+      this.audioBufferManager.setProcessingMode(false);
       
       // Disconnect and clean up audio components
       if (this.source) {

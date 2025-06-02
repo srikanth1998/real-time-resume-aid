@@ -8,11 +8,11 @@ export function calculateRMS(samples) {
   return Math.sqrt(sum / samples.length);
 }
 
-// Audio processing constants
+// Audio processing constants - optimized for real-time
 export const AUDIO_CONSTANTS = {
-  MAX_BUFFER_SIZE: 48000 * 5, // 5 seconds at 48kHz
-  MIN_BUFFER_SIZE: 48000 * 1.0, // 1 second minimum
-  MIN_SEND_INTERVAL: 2000, // Minimum 2 seconds between sends
-  AUDIO_THRESHOLD: 0.01, // Minimum audio level to process
+  MAX_BUFFER_SIZE: 48000 * 3, // Reduced to 3 seconds
+  MIN_BUFFER_SIZE: 48000 * 0.5, // Reduced to 0.5 seconds for faster response
+  MIN_SEND_INTERVAL: 1000, // Reduced to 1 second for real-time feel
+  AUDIO_THRESHOLD: 0.005, // Much lower threshold for meeting audio
   SAMPLE_RATE: 48000
 };

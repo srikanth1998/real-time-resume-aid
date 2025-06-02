@@ -1,4 +1,3 @@
-
 /* global chrome */
 import { OffscreenManager } from './offscreenManager.js';
 import { UIManager } from './uiManager.js';
@@ -11,7 +10,8 @@ export class CaptureManager {
     this.isCapturing = false;
     this.currentTabId = null;
     this.audioBuffer = [];
-    this.maxBufferSize = 1000;
+    this.maxBufferSize = 50; // Reduced buffer size for faster processing
+    this.lastAudioTime = 0;
     console.log('CaptureManager initialized');
   }
 
@@ -21,7 +21,7 @@ export class CaptureManager {
 
   async startCapture(tabId) {
     try {
-      console.log('=== STARTING AUDIO CAPTURE ===');
+      console.log('=== STARTING REAL-TIME AUDIO CAPTURE ===');
       console.log('Starting capture for tab:', tabId);
       
       // Check if we're already capturing
@@ -29,23 +29,31 @@ export class CaptureManager {
         console.log('Already capturing, stopping current capture first');
         await this.stopCapture();
         // Small delay to ensure cleanup is complete
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       console.log('Ensuring offscreen document...');
       await this.ensureOffscreen();
       
-      // Test offscreen communication
-      try {
-        const pingResponse = await chrome.runtime.sendMessage({ type: 'ping' });
-        if (!pingResponse?.success) {
-          throw new Error('Offscreen document not responding to ping');
+      // Test offscreen communication with retry
+      let pingSuccess = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          const pingResponse = await chrome.runtime.sendMessage({ type: 'ping' });
+          if (pingResponse?.success) {
+            pingSuccess = true;
+            break;
+          }
+        } catch (pingError) {
+          console.warn(`Ping attempt ${i + 1} failed:`, pingError);
+          if (i < 2) await new Promise(resolve => setTimeout(resolve, 500));
         }
-        console.log('✅ Offscreen communication verified');
-      } catch (pingError) {
-        console.error('❌ Offscreen communication test failed:', pingError);
-        throw new Error('Failed to communicate with offscreen document');
       }
+      
+      if (!pingSuccess) {
+        throw new Error('Failed to establish offscreen communication after retries');
+      }
+      console.log('✅ Offscreen communication verified');
 
       // ask Chrome for a stream-ID for that tab
       console.log('Requesting media stream ID for tab:', tabId);
@@ -56,11 +64,12 @@ export class CaptureManager {
         throw new Error('Failed to get media stream ID');
       }
 
-      // kick the off-screen page
-      console.log('Sending offscreen-start message with streamId:', streamId);
+      // kick the off-screen page for real-time processing
+      console.log('Sending offscreen-start message for REAL-TIME capture');
       const response = await chrome.runtime.sendMessage({ 
         type: 'offscreen-start', 
-        streamId: streamId 
+        streamId: streamId,
+        realTime: true // Flag for real-time processing
       });
       console.log('Offscreen start response:', response);
 
@@ -70,12 +79,13 @@ export class CaptureManager {
 
       this.isCapturing = true;
       this.currentTabId = tabId;
+      this.lastAudioTime = Date.now();
       
-      console.log('Notifying content script of capture start...');
+      console.log('Notifying content script of REAL-TIME capture start...');
       await UIManager.notifyContentScript(tabId, 'captureStarted');
       
       UIManager.setRecordingBadge();
-      console.log('=== AUDIO CAPTURE STARTED SUCCESSFULLY ===');
+      console.log('=== REAL-TIME AUDIO CAPTURE STARTED SUCCESSFULLY ===');
       
     } catch (err) {
       console.error('=== CAPTURE FAILED ===', err);
@@ -97,7 +107,7 @@ export class CaptureManager {
 
   async stopCapture() {
     try {
-      console.log('=== STOPPING AUDIO CAPTURE ===');
+      console.log('=== STOPPING REAL-TIME AUDIO CAPTURE ===');
       
       try {
         const response = await chrome.runtime.sendMessage({ type: 'offscreen-stop' });
@@ -115,65 +125,76 @@ export class CaptureManager {
       // Always reset state even if errors occurred
       this.isCapturing = false;
       this.currentTabId = null;
+      this.audioBuffer = [];
       UIManager.clearBadge();
-      console.log('=== AUDIO CAPTURE STOPPED ===');
+      console.log('=== REAL-TIME AUDIO CAPTURE STOPPED ===');
     }
   }
 
   async handleAudioData(audioData) {
-    console.log('=== RECEIVED AUDIO DATA FROM OFFSCREEN ===');
+    const now = Date.now();
+    console.log('=== RECEIVED REAL-TIME AUDIO DATA ===');
     console.log('Audio data length:', audioData?.length);
     console.log('Current tab ID:', this.currentTabId);
     console.log('Is capturing:', this.isCapturing);
+    console.log('Time since last audio:', now - this.lastAudioTime, 'ms');
     
-    // Try to send to current tab's content script
+    this.lastAudioTime = now;
+    
+    // Immediately try to send to current tab's content script
     if (this.currentTabId && this.isCapturing && audioData && audioData.length > 0) {
       try {
-        console.log('Attempting to forward audio to content script...');
+        console.log('🚀 REAL-TIME: Forwarding audio to content script immediately...');
         await chrome.tabs.sendMessage(this.currentTabId, {
           action: 'audioData',
-          audioData: audioData
+          audioData: audioData,
+          timestamp: now,
+          realTime: true
         });
-        console.log('✅ Audio data forwarded to content script successfully');
+        console.log('✅ REAL-TIME audio forwarded successfully');
       } catch (err) {
-        console.warn('❌ Content script not available, buffering audio data:', err.message);
+        console.warn('❌ Content script not available for real-time audio:', err.message);
         
-        // Buffer audio data if content script isn't available
-        this.audioBuffer.push(audioData);
+        // Minimal buffering for real-time experience
+        this.audioBuffer.push({ audioData, timestamp: now });
         
-        // Keep buffer size manageable
-        if (this.audioBuffer.length > this.maxBufferSize) {
-          this.audioBuffer = this.audioBuffer.slice(-this.maxBufferSize);
+        // Keep only recent audio (last 5 segments)
+        if (this.audioBuffer.length > 5) {
+          this.audioBuffer = this.audioBuffer.slice(-5);
         }
         
         // Try to inject content script if it's not loaded
         const injected = await UIManager.injectContentScript(this.currentTabId);
         
         if (injected && this.audioBuffer.length > 0) {
-          console.log('Sending buffered audio data, items:', this.audioBuffer.length);
-          for (const bufferedAudio of this.audioBuffer) {
+          console.log('Sending recent buffered audio data, items:', this.audioBuffer.length);
+          for (const bufferedItem of this.audioBuffer) {
             try {
               await chrome.tabs.sendMessage(this.currentTabId, {
                 action: 'audioData',
-                audioData: bufferedAudio
+                audioData: bufferedItem.audioData,
+                timestamp: bufferedItem.timestamp,
+                realTime: true,
+                buffered: true
               });
             } catch (bufferErr) {
               console.warn('Error sending buffered audio:', bufferErr);
             }
           }
           this.audioBuffer = []; // Clear buffer after sending
-          console.log('✅ Buffered audio data sent successfully');
+          console.log('✅ Buffered real-time audio sent successfully');
         }
       }
     } else {
-      console.warn('❌ Cannot forward audio: currentTabId=', this.currentTabId, 'isCapturing=', this.isCapturing, 'audioDataLength=', audioData?.length);
+      console.warn('❌ Cannot forward real-time audio: currentTabId=', this.currentTabId, 'isCapturing=', this.isCapturing, 'audioDataLength=', audioData?.length);
     }
   }
 
   getState() {
     return {
       isCapturing: this.isCapturing,
-      currentTabId: this.currentTabId
+      currentTabId: this.currentTabId,
+      lastAudioTime: this.lastAudioTime
     };
   }
 }

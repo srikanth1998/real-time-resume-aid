@@ -10,6 +10,7 @@ export class AudioBuffer {
     this.audioBuffer = [];
     this.bufferSize = 0;
     this.lastSentTime = 0;
+    this.isProcessing = false;
   }
 
   addSamples(samples) {
@@ -19,8 +20,8 @@ export class AudioBuffer {
     
     console.log('🎵 Audio worklet received data, length:', samples.length, 'level:', audioLevel.toFixed(2));
     
-    // Only process audio if there's actual sound
-    if (audioLevel > AUDIO_CONSTANTS.AUDIO_THRESHOLD) {
+    // Lower threshold for better sensitivity and add to buffer regardless for meeting audio
+    if (audioLevel > 0.005 || this.audioBuffer.length > 0) { // Much lower threshold
       // Add to buffer
       this.audioBuffer.push(samples);
       this.bufferSize += samples.length;
@@ -28,7 +29,7 @@ export class AudioBuffer {
       console.log('Buffer size:', this.bufferSize, 'samples, level:', audioLevel.toFixed(2));
       return true;
     } else {
-      console.log('Skipping silent audio, level:', audioLevel.toFixed(2));
+      console.log('Skipping very silent audio, level:', audioLevel.toFixed(2));
       return false;
     }
   }
@@ -37,7 +38,11 @@ export class AudioBuffer {
     const now = Date.now();
     const timeSinceLastSend = now - this.lastSentTime;
     
-    return (this.bufferSize >= AUDIO_CONSTANTS.MIN_BUFFER_SIZE && timeSinceLastSend >= AUDIO_CONSTANTS.MIN_SEND_INTERVAL) || 
+    // More aggressive sending for real-time processing
+    const minTime = this.isProcessing ? AUDIO_CONSTANTS.MIN_SEND_INTERVAL : 1000; // Reduce wait time
+    const minSize = this.isProcessing ? AUDIO_CONSTANTS.MIN_BUFFER_SIZE : 24000; // Smaller buffer for faster response
+    
+    return (this.bufferSize >= minSize && timeSinceLastSend >= minTime) || 
            this.bufferSize >= AUDIO_CONSTANTS.MAX_BUFFER_SIZE;
   }
 
@@ -55,9 +60,15 @@ export class AudioBuffer {
     this.audioBuffer = [];
     this.bufferSize = 0;
     this.lastSentTime = Date.now();
+    this.isProcessing = true; // Mark that we're actively processing
   }
 
   hasData() {
-    return this.audioBuffer.length > 0 && this.bufferSize > AUDIO_CONSTANTS.MIN_BUFFER_SIZE / 2;
+    return this.audioBuffer.length > 0 && this.bufferSize > 12000; // Lower threshold
+  }
+
+  setProcessingMode(isProcessing) {
+    this.isProcessing = isProcessing;
+    console.log('Audio buffer processing mode:', isProcessing);
   }
 }
