@@ -24,8 +24,20 @@ async function startTranscription(tab) {
   console.log('Starting transcription...');
   
   try {
-    // Create offscreen document for audio processing and transcription
+    // First, ensure we have a clean slate
+    await cleanupOffscreen();
+    
+    // Create offscreen document
     await createOffscreen();
+    
+    // Wait a bit for offscreen to initialize
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Test communication
+    const pingSuccess = await testOffscreenCommunication();
+    if (!pingSuccess) {
+      throw new Error('Failed to establish communication with offscreen document');
+    }
     
     // Get stream ID using the correct API
     const streamId = await chrome.tabCapture.getMediaStreamId({
@@ -39,7 +51,7 @@ async function startTranscription(tab) {
     console.log('Got stream ID:', streamId);
     
     // Send start message to offscreen with stream ID
-    const response = await chrome.runtime.sendMessage({
+    const response = await sendMessageToOffscreen({
       type: 'start-transcription',
       streamId: streamId
     });
@@ -48,15 +60,18 @@ async function startTranscription(tab) {
     
     if (!response?.success) {
       const errorMessage = response?.error || 'Unknown error from offscreen';
-      const errorDetails = response?.details || {};
-      console.error('Offscreen error details:', errorDetails);
+      console.error('Offscreen error details:', response?.details);
       throw new Error(`Offscreen error: ${errorMessage}`);
     }
     
     // Notify content script
-    chrome.tabs.sendMessage(tab.id, {
-      action: 'transcriptionStarted'
-    });
+    try {
+      await chrome.tabs.sendMessage(tab.id, {
+        action: 'transcriptionStarted'
+      });
+    } catch (e) {
+      console.warn('Could not notify content script:', e.message);
+    }
     
     isCapturing = true;
     chrome.action.setBadgeText({ text: 'ON' });
@@ -66,6 +81,7 @@ async function startTranscription(tab) {
   } catch (error) {
     console.error('❌ Error starting transcription:', error);
     isCapturing = false;
+    await cleanupOffscreen();
   }
 }
 
@@ -74,14 +90,18 @@ async function stopTranscription(tab) {
   
   try {
     // Send stop message to offscreen
-    await chrome.runtime.sendMessage({
+    await sendMessageToOffscreen({
       type: 'stop-transcription'
     });
     
     // Notify content script
-    chrome.tabs.sendMessage(tab.id, {
-      action: 'transcriptionStopped'
-    });
+    try {
+      await chrome.tabs.sendMessage(tab.id, {
+        action: 'transcriptionStopped'
+      });
+    } catch (e) {
+      console.warn('Could not notify content script:', e.message);
+    }
     
     isCapturing = false;
     chrome.action.setBadgeText({ text: '' });
@@ -89,22 +109,85 @@ async function stopTranscription(tab) {
     
   } catch (error) {
     console.error('❌ Error stopping transcription:', error);
+  } finally {
+    await cleanupOffscreen();
   }
 }
 
 async function createOffscreen() {
-  const existingContexts = await chrome.runtime.getContexts({});
-  const offscreenDocument = existingContexts.find(
-    (c) => c.contextType === 'OFFSCREEN_DOCUMENT'
-  );
+  try {
+    // Check if offscreen document already exists
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+    
+    if (existingContexts.length > 0) {
+      console.log('Offscreen document already exists, closing it first');
+      await chrome.offscreen.closeDocument();
+      // Wait for cleanup
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
 
-  if (!offscreenDocument) {
+    console.log('Creating new offscreen document...');
     await chrome.offscreen.createDocument({
       url: 'offscreen.html',
       reasons: ['USER_MEDIA'],
       justification: 'Recording audio from tab for local transcription'
     });
+    
+    console.log('✅ Offscreen document created');
+  } catch (error) {
+    console.error('Error creating offscreen document:', error);
+    throw error;
   }
+}
+
+async function cleanupOffscreen() {
+  try {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+    
+    if (existingContexts.length > 0) {
+      console.log('Cleaning up existing offscreen document...');
+      await chrome.offscreen.closeDocument();
+      console.log('✅ Offscreen document closed');
+    }
+  } catch (error) {
+    console.warn('Error cleaning up offscreen:', error);
+  }
+}
+
+async function testOffscreenCommunication() {
+  try {
+    console.log('Testing offscreen communication...');
+    const response = await sendMessageToOffscreen({ type: 'ping' });
+    const success = response?.success === true;
+    console.log('Ping test result:', success);
+    return success;
+  } catch (error) {
+    console.error('Ping test failed:', error);
+    return false;
+  }
+}
+
+async function sendMessageToOffscreen(message) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Message timeout'));
+    }, 5000);
+    
+    chrome.runtime.sendMessage(message, (response) => {
+      clearTimeout(timeout);
+      
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      
+      resolve(response);
+    });
+  });
 }
 
 // Handle messages from offscreen document
@@ -116,13 +199,17 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     if (message.text && message.text.trim()) {
       console.log('Forwarding transcription:', message.text);
       
-      const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: 'transcriptionResult',
-          text: message.text,
-          timestamp: Date.now()
-        });
+      try {
+        const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+        if (tabs[0]) {
+          await chrome.tabs.sendMessage(tabs[0].id, {
+            action: 'transcriptionResult',
+            text: message.text,
+            timestamp: Date.now()
+          });
+        }
+      } catch (error) {
+        console.warn('Could not forward transcription to content script:', error);
       }
     }
   }
