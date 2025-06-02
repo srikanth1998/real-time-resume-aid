@@ -139,7 +139,9 @@ function processAudioChunk() {
   
   // Clean up after playing
   virtualAudioElement.onended = () => {
-    document.body.removeChild(virtualAudioElement);
+    if (virtualAudioElement && virtualAudioElement.parentNode) {
+      document.body.removeChild(virtualAudioElement);
+    }
     virtualAudioElement = null;
   };
 }
@@ -148,19 +150,41 @@ function processAudioChunk() {
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('Offscreen received message:', message);
   
-  if (message.type === 'start-transcription') {
-    await startAudioProcessing(message.streamId);
-    sendResponse({success: true});
-  } else if (message.type === 'stop-transcription') {
-    await stopAudioProcessing();
-    sendResponse({success: true});
+  try {
+    if (message.type === 'start-transcription') {
+      console.log('Starting transcription with stream ID:', message.streamId);
+      await startAudioProcessing(message.streamId);
+      sendResponse({ success: true });
+      return true;
+    } 
+    
+    if (message.type === 'stop-transcription') {
+      console.log('Stopping transcription');
+      await stopAudioProcessing();
+      sendResponse({ success: true });
+      return true;
+    }
+    
+    // Handle ping for communication testing
+    if (message.type === 'ping') {
+      sendResponse({ success: true, message: 'pong' });
+      return true;
+    }
+    
+    sendResponse({ success: false, error: 'Unknown message type' });
+  } catch (error) {
+    console.error('Error handling message:', error);
+    sendResponse({ success: false, error: error.message });
   }
   
   return true;
 });
 
 async function startAudioProcessing(streamId) {
-  if (isProcessing) return;
+  if (isProcessing) {
+    console.log('Already processing, stopping first...');
+    await stopAudioProcessing();
+  }
   
   console.log('Starting audio processing with stream ID:', streamId);
   
