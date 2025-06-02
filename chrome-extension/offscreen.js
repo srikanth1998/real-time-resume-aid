@@ -3,6 +3,10 @@
 let audioCtx, source, worklet;
 let isStarting = false;
 let isStopping = false;
+let audioBuffer = [];
+let bufferSize = 0;
+const MAX_BUFFER_SIZE = 48000 * 3; // 3 seconds at 48kHz
+const MIN_BUFFER_SIZE = 48000 * 0.5; // 0.5 seconds minimum
 
 async function start (streamId) {
   console.log('=== OFFSCREEN START FUNCTION CALLED ===');
@@ -46,21 +50,50 @@ async function start (streamId) {
     worklet = new AudioWorkletNode(audioCtx, 'pcm-worklet');
     console.log('✅ AudioWorkletNode created');
     
-    // Send audio data to background script instead of directly to tabs
+    // Reset buffer when starting
+    audioBuffer = [];
+    bufferSize = 0;
+    
+    // Accumulate audio data before sending
     worklet.port.onmessage = ({ data }) => {
-      console.log('🎵 Audio worklet received data, length:', new Float32Array(data).length);
-      try {
-        // Send audio data to background script which will forward to content script
-        chrome.runtime.sendMessage({
-          type: 'audio-data',
-          audioData: Array.from(new Float32Array(data))
-        }).then(() => {
-          console.log('✅ Audio data sent to background script');
-        }).catch(err => {
-          console.warn('❌ Error sending audio to background script:', err);
-        });
-      } catch (err) {
-        console.warn('❌ Error processing audio data:', err);
+      const samples = new Float32Array(data);
+      console.log('🎵 Audio worklet received data, length:', samples.length);
+      
+      // Add to buffer
+      audioBuffer.push(samples);
+      bufferSize += samples.length;
+      
+      console.log('Buffer size:', bufferSize, 'samples');
+      
+      // Send when buffer is large enough or when buffer is too large
+      if (bufferSize >= MIN_BUFFER_SIZE || bufferSize >= MAX_BUFFER_SIZE) {
+        console.log('Sending buffered audio, total samples:', bufferSize);
+        
+        // Combine all buffer chunks
+        const combinedBuffer = new Float32Array(bufferSize);
+        let offset = 0;
+        for (const chunk of audioBuffer) {
+          combinedBuffer.set(chunk, offset);
+          offset += chunk.length;
+        }
+        
+        try {
+          // Send combined audio data to background script
+          chrome.runtime.sendMessage({
+            type: 'audio-data',
+            audioData: Array.from(combinedBuffer)
+          }).then(() => {
+            console.log('✅ Buffered audio data sent to background script');
+          }).catch(err => {
+            console.warn('❌ Error sending buffered audio to background script:', err);
+          });
+        } catch (err) {
+          console.warn('❌ Error processing buffered audio data:', err);
+        }
+        
+        // Reset buffer
+        audioBuffer = [];
+        bufferSize = 0;
       }
     };
 
@@ -95,6 +128,30 @@ async function stop (report = false) {
   isStopping = true;
   
   try {
+    // Send any remaining buffered audio before stopping
+    if (audioBuffer.length > 0 && bufferSize > 0) {
+      console.log('Sending final buffered audio before stopping, samples:', bufferSize);
+      const combinedBuffer = new Float32Array(bufferSize);
+      let offset = 0;
+      for (const chunk of audioBuffer) {
+        combinedBuffer.set(chunk, offset);
+        offset += chunk.length;
+      }
+      
+      try {
+        chrome.runtime.sendMessage({
+          type: 'audio-data',
+          audioData: Array.from(combinedBuffer)
+        });
+      } catch (err) {
+        console.warn('Error sending final buffered audio:', err);
+      }
+    }
+    
+    // Reset buffer
+    audioBuffer = [];
+    bufferSize = 0;
+    
     // Disconnect and clean up audio components
     if (source) {
       try { 

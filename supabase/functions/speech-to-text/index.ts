@@ -77,6 +77,20 @@ serve(async (req) => {
     let audioBase64: string;
     
     if (audioData && Array.isArray(audioData)) {
+      // Check minimum length requirement
+      const minSamples = 48000 * 0.1; // 0.1 seconds at 48kHz
+      if (audioData.length < minSamples) {
+        console.warn(`Audio too short: ${audioData.length} samples, minimum required: ${minSamples}`);
+        return new Response(
+          JSON.stringify({ 
+            text: "", 
+            success: true,
+            warning: "Audio segment too short for transcription" 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       // Handle raw audio data from extension
       console.log('Processing raw audio data from extension');
       audioBase64 = convertAudioToBase64(audioData);
