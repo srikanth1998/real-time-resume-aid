@@ -6,11 +6,34 @@ let source = null;
 let worklet = null;
 let isProcessing = false;
 let recognition = null;
+let mediaRecorder = null;
+let audioChunks = [];
 
-// Initialize Web Speech API for transcription
-function initializeWebSpeechAPI() {
+// Initialize Web Speech API for transcription using MediaRecorder
+function initializeWebSpeechAPI(stream) {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
     console.error('Web Speech API not supported');
+    return null;
+  }
+
+  // Create MediaRecorder to convert the stream to audio that Speech API can process
+  try {
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType: 'audio/webm;codecs=opus'
+    });
+    
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+        processAudioChunk();
+      }
+    };
+    
+    mediaRecorder.start(1000); // Capture audio in 1-second chunks
+    console.log('✅ MediaRecorder started for tab audio');
+    
+  } catch (error) {
+    console.error('❌ Failed to create MediaRecorder:', error);
     return null;
   }
 
@@ -46,7 +69,7 @@ function initializeWebSpeechAPI() {
   recognizer.onerror = (event) => {
     console.error('Speech recognition error:', event.error);
     if (event.error === 'not-allowed') {
-      console.error('Microphone access denied');
+      console.log('This is expected - we are processing tab audio, not microphone');
     }
   };
   
@@ -56,13 +79,45 @@ function initializeWebSpeechAPI() {
       // Restart recognition if we're still processing
       setTimeout(() => {
         if (isProcessing && recognizer) {
-          recognizer.start();
+          try {
+            recognizer.start();
+          } catch (e) {
+            console.log('Could not restart recognition:', e.message);
+          }
         }
       }, 100);
     }
   };
   
   return recognizer;
+}
+
+// Process audio chunks and send to Speech API via audio element
+function processAudioChunk() {
+  if (audioChunks.length === 0) return;
+  
+  const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+  audioChunks = []; // Clear chunks
+  
+  // Create audio element to play the tab audio (which Speech API can then pick up)
+  const audioElement = document.createElement('audio');
+  audioElement.src = URL.createObjectURL(audioBlob);
+  audioElement.volume = 0.01; // Very low volume to avoid feedback
+  
+  // Play the audio so Speech API can process it
+  audioElement.play().catch(e => {
+    console.log('Audio play failed (this might be expected):', e.message);
+  });
+  
+  // Start speech recognition if not already running
+  if (recognition && !recognition.started) {
+    try {
+      recognition.start();
+      recognition.started = true;
+    } catch (e) {
+      console.log('Speech recognition start failed:', e.message);
+    }
+  }
 }
 
 // Handle messages from background script
@@ -86,12 +141,6 @@ async function startAudioProcessing(streamId) {
   console.log('Starting audio processing with stream ID:', streamId);
   
   try {
-    // Initialize Web Speech API
-    recognition = initializeWebSpeechAPI();
-    if (!recognition) {
-      throw new Error('Web Speech API not available');
-    }
-    
     // Get user media with the stream ID
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -102,6 +151,14 @@ async function startAudioProcessing(streamId) {
       },
       video: false
     });
+    
+    console.log('✅ Got tab audio stream');
+    
+    // Initialize Web Speech API with the stream
+    recognition = initializeWebSpeechAPI(stream);
+    if (!recognition) {
+      throw new Error('Web Speech API not available');
+    }
     
     // Create audio context for processing
     audioContext = new AudioContext({
@@ -116,11 +173,8 @@ async function startAudioProcessing(streamId) {
     source = audioContext.createMediaStreamSource(stream);
     source.connect(worklet);
     
-    // Start speech recognition
-    recognition.start();
-    
     isProcessing = true;
-    console.log('✅ Audio processing started with Web Speech API');
+    console.log('✅ Audio processing started with Web Speech API and tab audio');
     
   } catch (error) {
     console.error('❌ Error starting audio processing:', error);
@@ -135,8 +189,22 @@ async function stopAudioProcessing() {
   isProcessing = false;
   
   if (recognition) {
-    recognition.stop();
+    try {
+      recognition.stop();
+      recognition.started = false;
+    } catch (e) {
+      console.log('Error stopping recognition:', e.message);
+    }
     recognition = null;
+  }
+  
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try {
+      mediaRecorder.stop();
+    } catch (e) {
+      console.log('Error stopping media recorder:', e.message);
+    }
+    mediaRecorder = null;
   }
   
   if (source) {
@@ -153,6 +221,8 @@ async function stopAudioProcessing() {
     await audioContext.close();
     audioContext = null;
   }
+  
+  audioChunks = [];
   
   console.log('✅ Audio processing stopped');
 }
