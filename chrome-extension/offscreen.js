@@ -5,8 +5,19 @@ let isStarting = false;
 let isStopping = false;
 let audioBuffer = [];
 let bufferSize = 0;
-const MAX_BUFFER_SIZE = 48000 * 3; // 3 seconds at 48kHz
-const MIN_BUFFER_SIZE = 48000 * 0.5; // 0.5 seconds minimum
+let lastSentTime = 0;
+const MAX_BUFFER_SIZE = 48000 * 5; // 5 seconds at 48kHz
+const MIN_BUFFER_SIZE = 48000 * 1.0; // 1 second minimum
+const MIN_SEND_INTERVAL = 2000; // Minimum 2 seconds between sends
+
+// Function to calculate RMS (Root Mean Square) for audio level detection
+function calculateRMS(samples) {
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) {
+    sum += samples[i] * samples[i];
+  }
+  return Math.sqrt(sum / samples.length);
+}
 
 async function start (streamId) {
   console.log('=== OFFSCREEN START FUNCTION CALLED ===');
@@ -53,47 +64,62 @@ async function start (streamId) {
     // Reset buffer when starting
     audioBuffer = [];
     bufferSize = 0;
+    lastSentTime = 0;
     
-    // Accumulate audio data before sending
+    // Accumulate audio data with better filtering
     worklet.port.onmessage = ({ data }) => {
       const samples = new Float32Array(data);
-      console.log('🎵 Audio worklet received data, length:', samples.length);
       
-      // Add to buffer
-      audioBuffer.push(samples);
-      bufferSize += samples.length;
+      // Calculate audio level to filter out silent periods
+      const rms = calculateRMS(samples);
+      const audioLevel = rms * 100; // Convert to percentage-like value
       
-      console.log('Buffer size:', bufferSize, 'samples');
+      console.log('🎵 Audio worklet received data, length:', samples.length, 'level:', audioLevel.toFixed(2));
       
-      // Send when buffer is large enough or when buffer is too large
-      if (bufferSize >= MIN_BUFFER_SIZE || bufferSize >= MAX_BUFFER_SIZE) {
-        console.log('Sending buffered audio, total samples:', bufferSize);
+      // Only process audio if there's actual sound (threshold: 0.01)
+      if (audioLevel > 0.01) {
+        // Add to buffer
+        audioBuffer.push(samples);
+        bufferSize += samples.length;
         
-        // Combine all buffer chunks
-        const combinedBuffer = new Float32Array(bufferSize);
-        let offset = 0;
-        for (const chunk of audioBuffer) {
-          combinedBuffer.set(chunk, offset);
-          offset += chunk.length;
+        console.log('Buffer size:', bufferSize, 'samples, level:', audioLevel.toFixed(2));
+        
+        const now = Date.now();
+        const timeSinceLastSend = now - lastSentTime;
+        
+        // Send when buffer is large enough AND enough time has passed, or buffer is at max
+        if ((bufferSize >= MIN_BUFFER_SIZE && timeSinceLastSend >= MIN_SEND_INTERVAL) || bufferSize >= MAX_BUFFER_SIZE) {
+          console.log('Sending buffered audio, total samples:', bufferSize, 'time since last:', timeSinceLastSend);
+          
+          // Combine all buffer chunks
+          const combinedBuffer = new Float32Array(bufferSize);
+          let offset = 0;
+          for (const chunk of audioBuffer) {
+            combinedBuffer.set(chunk, offset);
+            offset += chunk.length;
+          }
+          
+          try {
+            // Send combined audio data to background script
+            chrome.runtime.sendMessage({
+              type: 'audio-data',
+              audioData: Array.from(combinedBuffer)
+            }).then(() => {
+              console.log('✅ Buffered audio data sent to background script');
+            }).catch(err => {
+              console.warn('❌ Error sending buffered audio to background script:', err);
+            });
+          } catch (err) {
+            console.warn('❌ Error processing buffered audio data:', err);
+          }
+          
+          // Reset buffer and update last sent time
+          audioBuffer = [];
+          bufferSize = 0;
+          lastSentTime = now;
         }
-        
-        try {
-          // Send combined audio data to background script
-          chrome.runtime.sendMessage({
-            type: 'audio-data',
-            audioData: Array.from(combinedBuffer)
-          }).then(() => {
-            console.log('✅ Buffered audio data sent to background script');
-          }).catch(err => {
-            console.warn('❌ Error sending buffered audio to background script:', err);
-          });
-        } catch (err) {
-          console.warn('❌ Error processing buffered audio data:', err);
-        }
-        
-        // Reset buffer
-        audioBuffer = [];
-        bufferSize = 0;
+      } else {
+        console.log('Skipping silent audio, level:', audioLevel.toFixed(2));
       }
     };
 
@@ -128,8 +154,8 @@ async function stop (report = false) {
   isStopping = true;
   
   try {
-    // Send any remaining buffered audio before stopping
-    if (audioBuffer.length > 0 && bufferSize > 0) {
+    // Send any remaining buffered audio before stopping (only if significant audio)
+    if (audioBuffer.length > 0 && bufferSize > MIN_BUFFER_SIZE / 2) {
       console.log('Sending final buffered audio before stopping, samples:', bufferSize);
       const combinedBuffer = new Float32Array(bufferSize);
       let offset = 0;
@@ -151,6 +177,7 @@ async function stop (report = false) {
     // Reset buffer
     audioBuffer = [];
     bufferSize = 0;
+    lastSentTime = 0;
     
     // Disconnect and clean up audio components
     if (source) {
