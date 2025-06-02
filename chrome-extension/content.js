@@ -15,19 +15,24 @@ function ensureBanner () {
 }
 
 chrome.runtime.onMessage.addListener(({ action, audioData }) => {
+  console.log('=== CONTENT SCRIPT RECEIVED MESSAGE ===', { action, audioDataLength: audioData?.length });
+  
   const b = ensureBanner();
   
   if (action === 'captureStarted') {
+    console.log('Showing capture banner');
     b.hidden = false;
   }
   
   if (action === 'captureStopped') {
+    console.log('Hiding capture banner');
     b.hidden = true;
   }
   
   // Forward audio data to the web application
   if (action === 'audioData' && audioData) {
-    console.log('Content script received audio data, forwarding to web app');
+    console.log('=== FORWARDING AUDIO DATA TO WEB APP ===');
+    console.log('Audio data length:', audioData.length);
     
     // Send to any open InterviewAce tabs
     window.postMessage({
@@ -35,6 +40,7 @@ chrome.runtime.onMessage.addListener(({ action, audioData }) => {
       audioData: audioData,
       source: 'interviewace-extension'
     }, '*');
+    console.log('✅ Audio data posted to window');
   }
 });
 
@@ -43,18 +49,31 @@ window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   
   if (event.data.action === 'interviewAppReady') {
-    console.log('Interview app is ready, notifying background script');
+    console.log('=== INTERVIEW APP READY MESSAGE RECEIVED ===');
+    console.log('Notifying that extension is ready...');
     // Notify that the app is ready
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension'
     }, '*');
+    console.log('✅ Extension ready message posted');
+  }
+  
+  if (event.data.action === 'testConnection') {
+    console.log('=== TEST CONNECTION MESSAGE RECEIVED ===');
+    window.postMessage({
+      action: 'extensionReady',
+      source: 'interviewace-extension'
+    }, '*');
+    console.log('✅ Test connection response sent');
   }
 });
 
 // Notify web app that extension is loaded
-console.log('InterviewAce extension content script loaded');
+console.log('=== INTERVIEWACE EXTENSION CONTENT SCRIPT LOADED ===');
+console.log('Page URL:', window.location.href);
 window.postMessage({
   action: 'extensionReady',
   source: 'interviewace-extension'
 }, '*');
+console.log('✅ Initial extension ready message posted');

@@ -1,3 +1,4 @@
+
 /* global chrome */
 let isCapturing   = false;
 let currentTabId  = null;
@@ -28,23 +29,26 @@ async function ensureOffscreen () {
 
 async function startCapture (tabId) {
   try {
+    console.log('=== STARTING AUDIO CAPTURE ===');
     console.log('Starting capture for tab:', tabId);
     
     // Check if we're already capturing
     if (isCapturing) {
       console.log('Already capturing, stopping current capture first');
       await stopCapture();
-      // Small delay to ensure everything is cleaned up
+      // Small delay to ensure cleanup is complete
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     await ensureOffscreen();
 
     // ask Chrome for a stream-ID for that tab
+    console.log('Requesting media stream ID for tab:', tabId);
     const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
     console.log('Got stream ID:', streamId);
 
     // kick the off-screen page
+    console.log('Sending offscreen-start message with streamId:', streamId);
     const response = await chrome.runtime.sendMessage({ type: 'offscreen-start', streamId });
     console.log('Offscreen start response:', response);
 
@@ -57,17 +61,19 @@ async function startCapture (tabId) {
     
     // Notify content script
     try {
+      console.log('Notifying content script of capture start');
       await chrome.tabs.sendMessage(tabId, { action: 'captureStarted' });
+      console.log('Content script notified successfully');
     } catch (err) {
       console.warn('Failed to notify content script (this is okay if no content script is loaded):', err);
     }
     
     chrome.action.setBadgeText({ text: 'REC' });
     chrome.action.setBadgeBackgroundColor({ color: '#d93025' });
-    console.log('Capture started successfully');
+    console.log('=== AUDIO CAPTURE STARTED SUCCESSFULLY ===');
     
   } catch (err) {
-    console.error('Capture failed:', err);
+    console.error('=== CAPTURE FAILED ===', err);
     // Ensure we reset state if capture failed
     isCapturing = false;
     currentTabId = null;
@@ -86,7 +92,7 @@ async function startCapture (tabId) {
 
 async function stopCapture () {
   try {
-    console.log('Stopping capture');
+    console.log('=== STOPPING AUDIO CAPTURE ===');
     
     try {
       const response = await chrome.runtime.sendMessage({ type: 'offscreen-stop' });
@@ -109,7 +115,7 @@ async function stopCapture () {
     isCapturing = false;
     currentTabId = null;
     chrome.action.setBadgeText({ text: '' });
-    console.log('Capture stopped and state reset');
+    console.log('=== AUDIO CAPTURE STOPPED ===');
   }
 }
 
@@ -117,11 +123,14 @@ async function stopCapture () {
 
 // toolbar-icon click
 chrome.action.onClicked.addListener(async (tab) => {
-  console.log('Extension icon clicked, tab:', tab.id);
+  console.log('=== EXTENSION ICON CLICKED ===');
+  console.log('Tab ID:', tab.id, 'URL:', tab.url);
   try {
     if (isCapturing) {
+      console.log('Currently capturing, will stop');
       await stopCapture();
     } else {
+      console.log('Not capturing, will start');
       await startCapture(tab.id);
     }
   } catch (error) {
@@ -131,7 +140,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // popup "Start / Stop"
 chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
-  console.log('Background received message:', msg);
+  console.log('=== BACKGROUND RECEIVED MESSAGE ===', msg);
   
   if (msg.action === 'toggle') {
     try {
@@ -150,18 +159,22 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
   
   // Handle audio data from offscreen
   if (msg.type === 'audio-data') {
-    console.log('Received audio data from offscreen, length:', msg.audioData?.length);
+    console.log('=== RECEIVED AUDIO DATA FROM OFFSCREEN ===');
+    console.log('Audio data length:', msg.audioData?.length);
+    console.log('Current tab ID:', currentTabId);
+    console.log('Is capturing:', isCapturing);
     
     // Try to send to current tab's content script
-    if (currentTabId) {
+    if (currentTabId && isCapturing) {
       try {
+        console.log('Attempting to forward audio to content script...');
         await chrome.tabs.sendMessage(currentTabId, {
           action: 'audioData',
           audioData: msg.audioData
         });
-        console.log('Audio data forwarded to content script successfully');
+        console.log('✅ Audio data forwarded to content script successfully');
       } catch (err) {
-        console.warn('Content script not available, buffering audio data:', err.message);
+        console.warn('❌ Content script not available, buffering audio data:', err.message);
         
         // Buffer audio data if content script isn't available
         audioBuffer.push(msg.audioData);
@@ -173,11 +186,12 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
         
         // Try to inject content script if it's not loaded
         try {
+          console.log('Attempting to inject content script...');
           await chrome.scripting.executeScript({
             target: { tabId: currentTabId },
             files: ['content.js']
           });
-          console.log('Content script injected');
+          console.log('✅ Content script injected successfully');
           
           // Try sending buffered audio data
           if (audioBuffer.length > 0) {
@@ -189,13 +203,14 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
               });
             }
             audioBuffer = []; // Clear buffer after sending
+            console.log('✅ Buffered audio data sent successfully');
           }
         } catch (injectErr) {
-          console.warn('Could not inject content script:', injectErr.message);
+          console.warn('❌ Could not inject content script:', injectErr.message);
         }
       }
     } else {
-      console.warn('No current tab ID available for audio forwarding');
+      console.warn('❌ Cannot forward audio: currentTabId=', currentTabId, 'isCapturing=', isCapturing);
     }
   }
   
