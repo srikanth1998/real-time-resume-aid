@@ -8,32 +8,12 @@ let isProcessing = false;
 let recognition = null;
 let mediaRecorder = null;
 let audioChunks = [];
+let virtualAudioElement = null;
 
-// Initialize Web Speech API for transcription using MediaRecorder
-function initializeWebSpeechAPI(stream) {
+// Initialize Web Speech API for transcription using virtual audio playback
+function initializeWebSpeechAPI() {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
     console.error('Web Speech API not supported');
-    return null;
-  }
-
-  // Create MediaRecorder to convert the stream to audio that Speech API can process
-  try {
-    mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'audio/webm;codecs=opus'
-    });
-    
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-        processAudioChunk();
-      }
-    };
-    
-    mediaRecorder.start(1000); // Capture audio in 1-second chunks
-    console.log('✅ MediaRecorder started for tab audio');
-    
-  } catch (error) {
-    console.error('❌ Failed to create MediaRecorder:', error);
     return null;
   }
 
@@ -69,7 +49,7 @@ function initializeWebSpeechAPI(stream) {
   recognizer.onerror = (event) => {
     console.error('Speech recognition error:', event.error);
     if (event.error === 'not-allowed') {
-      console.log('This is expected - we are processing tab audio, not microphone');
+      console.log('Microphone access denied - this is expected, we will use tab audio instead');
     }
   };
   
@@ -92,32 +72,76 @@ function initializeWebSpeechAPI(stream) {
   return recognizer;
 }
 
-// Process audio chunks and send to Speech API via audio element
+// Create MediaRecorder to capture tab audio and convert to processable format
+function initializeMediaRecorder(stream) {
+  try {
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType: 'audio/webm;codecs=opus'
+    });
+    
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+        processAudioChunk();
+      }
+    };
+    
+    mediaRecorder.start(1000); // Capture audio in 1-second chunks
+    console.log('✅ MediaRecorder started for tab audio');
+    
+  } catch (error) {
+    console.error('❌ Failed to create MediaRecorder:', error);
+    return false;
+  }
+  return true;
+}
+
+// Process audio chunks by playing them through a virtual audio element
 function processAudioChunk() {
   if (audioChunks.length === 0) return;
   
   const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
   audioChunks = []; // Clear chunks
   
-  // Create audio element to play the tab audio (which Speech API can then pick up)
-  const audioElement = document.createElement('audio');
-  audioElement.src = URL.createObjectURL(audioBlob);
-  audioElement.volume = 0.01; // Very low volume to avoid feedback
+  // Clean up previous audio element
+  if (virtualAudioElement) {
+    virtualAudioElement.pause();
+    virtualAudioElement.src = '';
+    URL.revokeObjectURL(virtualAudioElement.src);
+  }
+  
+  // Create new audio element to play the tab audio
+  virtualAudioElement = document.createElement('audio');
+  virtualAudioElement.src = URL.createObjectURL(audioBlob);
+  virtualAudioElement.volume = 0.1; // Low volume to avoid feedback
+  virtualAudioElement.muted = false; // Don't mute - Speech API needs to hear it
+  
+  // Append to document so Speech API can access it
+  document.body.appendChild(virtualAudioElement);
   
   // Play the audio so Speech API can process it
-  audioElement.play().catch(e => {
-    console.log('Audio play failed (this might be expected):', e.message);
+  virtualAudioElement.play().then(() => {
+    console.log('Playing tab audio for Speech API processing');
+    
+    // Start speech recognition if not already running
+    if (recognition && !recognition.started) {
+      try {
+        recognition.start();
+        recognition.started = true;
+        console.log('Speech recognition started');
+      } catch (e) {
+        console.log('Speech recognition start failed:', e.message);
+      }
+    }
+  }).catch(e => {
+    console.log('Audio play failed:', e.message);
   });
   
-  // Start speech recognition if not already running
-  if (recognition && !recognition.started) {
-    try {
-      recognition.start();
-      recognition.started = true;
-    } catch (e) {
-      console.log('Speech recognition start failed:', e.message);
-    }
-  }
+  // Clean up after playing
+  virtualAudioElement.onended = () => {
+    document.body.removeChild(virtualAudioElement);
+    virtualAudioElement = null;
+  };
 }
 
 // Handle messages from background script
@@ -154,13 +178,19 @@ async function startAudioProcessing(streamId) {
     
     console.log('✅ Got tab audio stream');
     
-    // Initialize Web Speech API with the stream
-    recognition = initializeWebSpeechAPI(stream);
+    // Initialize Web Speech API
+    recognition = initializeWebSpeechAPI();
     if (!recognition) {
       throw new Error('Web Speech API not available');
     }
     
-    // Create audio context for processing
+    // Initialize MediaRecorder to capture and process tab audio
+    const recorderInitialized = initializeMediaRecorder(stream);
+    if (!recorderInitialized) {
+      throw new Error('Failed to initialize MediaRecorder');
+    }
+    
+    // Create audio context for additional processing if needed
     audioContext = new AudioContext({
       sampleRate: 16000
     });
@@ -205,6 +235,18 @@ async function stopAudioProcessing() {
       console.log('Error stopping media recorder:', e.message);
     }
     mediaRecorder = null;
+  }
+  
+  if (virtualAudioElement) {
+    try {
+      virtualAudioElement.pause();
+      if (virtualAudioElement.parentNode) {
+        virtualAudioElement.parentNode.removeChild(virtualAudioElement);
+      }
+      virtualAudioElement = null;
+    } catch (e) {
+      console.log('Error cleaning up virtual audio element:', e.message);
+    }
   }
   
   if (source) {
