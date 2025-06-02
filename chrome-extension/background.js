@@ -36,14 +36,21 @@ async function startTranscription(tab) {
       throw new Error('Failed to get media stream ID');
     }
     
+    console.log('Got stream ID:', streamId);
+    
     // Send start message to offscreen with stream ID
     const response = await chrome.runtime.sendMessage({
       type: 'start-transcription',
       streamId: streamId
     });
     
+    console.log('Offscreen response:', response);
+    
     if (!response?.success) {
-      throw new Error('Failed to start offscreen transcription');
+      const errorMessage = response?.error || 'Unknown error from offscreen';
+      const errorDetails = response?.details || {};
+      console.error('Offscreen error details:', errorDetails);
+      throw new Error(`Offscreen error: ${errorMessage}`);
     }
     
     // Notify content script

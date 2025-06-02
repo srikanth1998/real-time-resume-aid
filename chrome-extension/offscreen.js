@@ -153,8 +153,21 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   try {
     if (message.type === 'start-transcription') {
       console.log('Starting transcription with stream ID:', message.streamId);
-      await startAudioProcessing(message.streamId);
-      sendResponse({ success: true });
+      try {
+        await startAudioProcessing(message.streamId);
+        console.log('✅ Transcription started successfully');
+        sendResponse({ success: true });
+      } catch (startError) {
+        console.error('❌ Failed to start transcription:', startError);
+        sendResponse({ 
+          success: false, 
+          error: startError.message,
+          details: {
+            name: startError.name,
+            stack: startError.stack
+          }
+        });
+      }
       return true;
     } 
     
@@ -205,6 +218,11 @@ async function startAudioProcessing(streamId) {
     console.log('Stream active:', stream.active);
     console.log('Audio tracks:', stream.getAudioTracks().length);
     
+    // Verify we have audio tracks
+    if (stream.getAudioTracks().length === 0) {
+      throw new Error('No audio tracks found in stream');
+    }
+    
     // Initialize Web Speech API
     recognition = initializeWebSpeechAPI();
     if (!recognition) {
@@ -225,7 +243,7 @@ async function startAudioProcessing(streamId) {
     });
     console.log('✅ AudioContext created');
     
-    // Add audio worklet for processing
+    // Add audio worklet for processing (optional)
     try {
       await audioContext.audioWorklet.addModule('audio-worklet.js');
       worklet = new AudioWorkletNode(audioContext, 'audio-worklet');
