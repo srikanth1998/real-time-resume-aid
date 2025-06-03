@@ -11,6 +11,14 @@ let lastTranscriptionTime = 0;
 let audioBuffer = [];
 let isProcessingAudio = false;
 
+// Dynamic audio capture variables
+let continuousAudioBuffer = [];
+let lastAudioActivity = 0;
+let silenceThreshold = 0.01; // Amplitude threshold for silence detection
+let silenceGapMs = 1000; // 1 second gap
+let isCapturingPhrase = false;
+let captureStartTime = 0;
+
 console.log('🔵 Offscreen document loaded');
 
 // Handle messages from background script
@@ -99,21 +107,24 @@ async function startAudioCapture(streamId) {
     
     workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
     
-    // Process audio data
+    // Process audio data with dynamic capture
     workletNode.port.onmessage = (event) => {
       if (event.data.type === 'audioData') {
-        collectAudioData(event.data.data);
+        processDynamicAudioData(event.data.data);
       }
     };
     
     // Connect audio pipeline
     source.connect(workletNode);
     
-    // Also setup MediaRecorder for backup
-    setupMediaRecorder();
+    // Reset dynamic capture variables
+    continuousAudioBuffer = [];
+    lastAudioActivity = 0;
+    isCapturingPhrase = false;
+    captureStartTime = 0;
     
     isRecording = true;
-    console.log('🎬 Real-time audio processing started');
+    console.log('🎬 Dynamic audio processing started');
     
   } catch (error) {
     console.error('💥 Error in startAudioCapture:', error);
@@ -121,43 +132,91 @@ async function startAudioCapture(streamId) {
   }
 }
 
-function collectAudioData(audioData) {
-  // Collect audio data in buffer
-  audioBuffer.push(...audioData);
+function processDynamicAudioData(audioData) {
+  const now = Date.now();
+  const amplitude = calculateAmplitude(audioData);
   
-  // Process every 3 seconds of audio (16000 samples/sec * 3 = 48000 samples)
-  if (audioBuffer.length >= 48000 && !isProcessingAudio) {
-    processCollectedAudio();
+  console.log('🎵 Audio data received, amplitude:', amplitude.toFixed(4));
+  
+  // Check if this is speech (above silence threshold)
+  const isSpeech = amplitude > silenceThreshold;
+  
+  if (isSpeech) {
+    // Speech detected
+    if (!isCapturingPhrase) {
+      // Start new phrase capture
+      console.log('🎤 Starting new phrase capture');
+      isCapturingPhrase = true;
+      captureStartTime = now;
+      continuousAudioBuffer = [];
+    }
+    
+    // Add audio data to continuous buffer
+    continuousAudioBuffer.push(...audioData);
+    lastAudioActivity = now;
+    
+    console.log('📝 Capturing speech, buffer size:', continuousAudioBuffer.length);
+    
+  } else {
+    // Silence detected
+    if (isCapturingPhrase) {
+      const silenceDuration = now - lastAudioActivity;
+      console.log('🤫 Silence detected, duration:', silenceDuration, 'ms');
+      
+      // Check if silence gap is long enough to end phrase
+      if (silenceDuration >= silenceGapMs) {
+        console.log('✅ Silence gap reached, ending phrase capture');
+        endPhraseCapture();
+      }
+    }
   }
 }
 
-async function processCollectedAudio() {
-  if (isProcessingAudio || audioBuffer.length === 0) return;
+function calculateAmplitude(audioData) {
+  let sum = 0;
+  for (let i = 0; i < audioData.length; i++) {
+    sum += audioData[i] * audioData[i];
+  }
+  return Math.sqrt(sum / audioData.length);
+}
+
+async function endPhraseCapture() {
+  if (!isCapturingPhrase || continuousAudioBuffer.length === 0) {
+    return;
+  }
   
-  isProcessingAudio = true;
-  console.log('🎙️ Processing audio buffer with', audioBuffer.length, 'samples');
+  console.log('🎯 Ending phrase capture, total samples:', continuousAudioBuffer.length);
+  
+  isCapturingPhrase = false;
+  const capturedAudio = [...continuousAudioBuffer];
+  continuousAudioBuffer = [];
+  
+  // Only process if we have enough audio (at least 0.5 seconds at 16kHz)
+  if (capturedAudio.length < 8000) {
+    console.log('⚠️ Audio too short, skipping transcription');
+    return;
+  }
+  
+  const captureDuration = (Date.now() - captureStartTime) / 1000;
+  console.log('📊 Phrase duration:', captureDuration.toFixed(2), 'seconds');
   
   try {
-    // Convert float32 audio data to WAV format
-    const audioBlob = createWAVBlob(audioBuffer);
-    
-    // Convert to base64 for transmission
+    // Convert to WAV and send for transcription
+    const audioBlob = createWAVBlob(capturedAudio);
     const base64Audio = await blobToBase64(audioBlob);
     
-    // Send to speech-to-text service
+    console.log('🚀 Sending phrase to transcription service...');
     const transcription = await sendToSTTService(base64Audio);
     
     if (transcription && transcription.trim()) {
+      console.log('✅ Transcription received:', transcription);
       sendTranscription(transcription);
+    } else {
+      console.log('⚠️ Empty transcription received');
     }
     
-    // Clear processed audio buffer
-    audioBuffer = [];
-    
   } catch (error) {
-    console.error('❌ Error processing audio:', error);
-  } finally {
-    isProcessingAudio = false;
+    console.error('❌ Error processing phrase:', error);
   }
 }
 
@@ -220,7 +279,6 @@ async function sendToSTTService(base64Audio) {
   try {
     console.log('🚀 Sending audio to STT service...');
     
-    // Get the current tab's origin to determine the correct Supabase URL
     const response = await fetch('https://eeebqclqovumfepbamcd.supabase.co/functions/v1/speech-to-text', {
       method: 'POST',
       headers: {
@@ -247,56 +305,6 @@ async function sendToSTTService(base64Audio) {
   }
 }
 
-function setupMediaRecorder() {
-  // Find best supported MIME type
-  const mimeTypes = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/mp4',
-    'audio/ogg;codecs=opus'
-  ];
-  
-  let selectedMimeType = '';
-  for (const mimeType of mimeTypes) {
-    if (MediaRecorder.isTypeSupported(mimeType)) {
-      selectedMimeType = mimeType;
-      break;
-    }
-  }
-  
-  if (!selectedMimeType) {
-    console.warn('No supported audio MIME types found for MediaRecorder');
-    return;
-  }
-  
-  console.log('🎭 Using MIME type for recording:', selectedMimeType);
-  
-  mediaRecorder = new MediaRecorder(mediaStream, {
-    mimeType: selectedMimeType,
-    audioBitsPerSecond: 64000
-  });
-  
-  audioChunks = [];
-  
-  mediaRecorder.ondataavailable = (event) => {
-    if (event.data.size > 0) {
-      console.log('📦 Audio chunk received:', event.data.size, 'bytes');
-      audioChunks.push(event.data);
-    }
-  };
-  
-  mediaRecorder.onerror = (event) => {
-    console.error('🔴 MediaRecorder error:', event.error);
-  };
-  
-  mediaRecorder.onstop = () => {
-    console.log('⏹️ MediaRecorder stopped');
-  };
-  
-  mediaRecorder.start(5000); // 5 second intervals
-  console.log('🎬 MediaRecorder started');
-}
-
 function sendTranscription(text) {
   if (!text || !text.trim()) return;
   
@@ -307,7 +315,7 @@ function sendTranscription(text) {
       type: 'transcription-result',
       text: text.trim(),
       timestamp: Date.now(),
-      source: 'whisper-api'
+      source: 'whisper-api-dynamic'
     });
   } catch (error) {
     console.error('💥 Error sending transcription:', error);
@@ -317,8 +325,15 @@ function sendTranscription(text) {
 async function stopAudioCapture() {
   console.log('🛑 Stopping audio capture...');
   
+  // Send any remaining captured audio before stopping
+  if (isCapturingPhrase && continuousAudioBuffer.length > 0) {
+    console.log('📤 Sending final captured phrase before stopping...');
+    await endPhraseCapture();
+  }
+  
   isRecording = false;
   isProcessingAudio = false;
+  isCapturingPhrase = false;
   
   // Stop worklet
   if (workletNode) {
@@ -328,17 +343,6 @@ async function stopAudioCapture() {
       console.log('✅ Audio worklet stopped');
     } catch (error) {
       console.warn('⚠️ Error stopping audio worklet:', error);
-    }
-  }
-  
-  // Stop MediaRecorder
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    try {
-      mediaRecorder.stop();
-      mediaRecorder = null;
-      console.log('✅ MediaRecorder stopped');
-    } catch (error) {
-      console.warn('⚠️ Error stopping MediaRecorder:', error);
     }
   }
   
@@ -366,8 +370,11 @@ async function stopAudioCapture() {
     }
   }
   
+  // Reset all variables
   audioChunks = [];
   audioBuffer = [];
+  continuousAudioBuffer = [];
+  lastAudioActivity = 0;
   
   console.log('✅ Audio capture stopped completely');
 }
@@ -378,4 +385,4 @@ window.addEventListener('beforeunload', () => {
   stopAudioCapture();
 });
 
-console.log('✅ Offscreen script ready for real audio transcription');
+console.log('✅ Offscreen script ready for dynamic real-time transcription');
