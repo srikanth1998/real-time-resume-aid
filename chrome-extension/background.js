@@ -10,6 +10,7 @@ let currentTabId = null;
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
   console.log('=== EXTENSION ICON CLICKED ===');
+  console.log('Tab ID:', tab.id, 'URL:', tab.url);
   
   try {
     if (!isCapturing) {
@@ -20,6 +21,28 @@ chrome.action.onClicked.addListener(async (tab) => {
   } catch (error) {
     console.error('Error toggling transcription:', error);
     showErrorNotification(error.message);
+  }
+});
+
+// Auto-start transcription when on lovableproject.com
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url && tab.url.includes('lovableproject.com')) {
+    console.log('🎯 DETECTED LOVABLE PROJECT PAGE');
+    console.log('Tab ID:', tabId, 'URL:', tab.url);
+    
+    // Store the tab ID and auto-start transcription
+    currentTabId = tabId;
+    
+    try {
+      await ensureContentScript(tabId);
+      
+      if (!isCapturing) {
+        console.log('🚀 Auto-starting transcription for Lovable project page');
+        await startTranscription(tab);
+      }
+    } catch (error) {
+      console.error('Error auto-starting transcription:', error);
+    }
   }
 });
 
@@ -49,7 +72,7 @@ async function startTranscription(tab) {
     if (!streamId) {
       throw new Error('Failed to get media stream ID - tab may not have audio or permission denied');
     }
-    
+
     console.log('Got stream ID:', streamId);
     
     // Start transcription in offscreen
@@ -68,7 +91,7 @@ async function startTranscription(tab) {
     isCapturing = true;
     chrome.action.setBadgeText({ text: 'ON' });
     chrome.action.setBadgeBackgroundColor({ color: '#34a853' });
-    console.log('✅ Transcription started successfully');
+    console.log('✅ Transcription started successfully for tab:', tab.id);
     
   } catch (error) {
     console.error('❌ Error starting transcription:', error);
@@ -107,15 +130,15 @@ async function ensureContentScript(tabId) {
   try {
     // Test if content script is already injected
     await chrome.tabs.sendMessage(tabId, { action: 'ping' });
-    console.log('Content script already injected');
+    console.log('Content script already injected for tab:', tabId);
   } catch (error) {
-    console.log('Content script not found, injecting...');
+    console.log('Content script not found for tab:', tabId, ', injecting...');
     try {
       await chrome.scripting.executeScript({
         target: { tabId },
         files: ['content.js']
       });
-      console.log('✅ Content script injected successfully');
+      console.log('✅ Content script injected successfully for tab:', tabId);
       
       // Wait a moment for the script to initialize
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -131,7 +154,7 @@ async function notifyContentScript(tabId, action) {
   
   try {
     await chrome.tabs.sendMessage(tabId, { action });
-    console.log(`✅ Content script notified: ${action}`);
+    console.log(`✅ Content script notified (tab ${tabId}): ${action}`);
   } catch (error) {
     console.warn(`Could not notify content script (${action}):`, error.message);
     // Don't throw - this is not critical for transcription functionality
@@ -254,11 +277,60 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         sendResponse({ success: true, forwarded: true });
       } catch (error) {
         console.error('❌ Error forwarding transcription to content script:', error);
-        sendResponse({ success: false, error: error.message });
+        
+        // Try to find and update the current tab if message failed
+        try {
+          const tabs = await chrome.tabs.query({ url: '*://*.lovableproject.com/*' });
+          if (tabs.length > 0) {
+            const tab = tabs[0];
+            console.log('🔄 Found Lovable tab, updating currentTabId to:', tab.id);
+            currentTabId = tab.id;
+            
+            // Ensure content script and retry
+            await ensureContentScript(tab.id);
+            await chrome.tabs.sendMessage(currentTabId, {
+              action: 'transcriptionResult',
+              text: message.text,
+              timestamp: message.timestamp || Date.now()
+            });
+            console.log('✅ Transcription forwarded after tab recovery');
+            sendResponse({ success: true, forwarded: true, recovered: true });
+          } else {
+            console.warn('⚠️ No Lovable tabs found for recovery');
+            sendResponse({ success: false, error: 'No active Lovable tab found' });
+          }
+        } catch (recoveryError) {
+          console.error('❌ Tab recovery failed:', recoveryError);
+          sendResponse({ success: false, error: error.message });
+        }
       }
     } else {
-      console.warn('⚠️ No current tab ID to forward transcription to');
-      sendResponse({ success: false, error: 'No active tab' });
+      console.warn('⚠️ No current tab ID, attempting to find Lovable tab...');
+      
+      try {
+        const tabs = await chrome.tabs.query({ url: '*://*.lovableproject.com/*' });
+        if (tabs.length > 0) {
+          const tab = tabs[0];
+          console.log('🔍 Found Lovable tab:', tab.id);
+          currentTabId = tab.id;
+          
+          // Ensure content script and send message
+          await ensureContentScript(tab.id);
+          await chrome.tabs.sendMessage(currentTabId, {
+            action: 'transcriptionResult',
+            text: message.text,
+            timestamp: message.timestamp || Date.now()
+          });
+          console.log('✅ Transcription sent to discovered tab');
+          sendResponse({ success: true, forwarded: true, discovered: true });
+        } else {
+          console.warn('⚠️ No Lovable tabs found');
+          sendResponse({ success: false, error: 'No Lovable tab found' });
+        }
+      } catch (discoveryError) {
+        console.error('❌ Tab discovery failed:', discoveryError);
+        sendResponse({ success: false, error: 'Failed to find target tab' });
+      }
     }
     return true; // Keep message channel open
   }
