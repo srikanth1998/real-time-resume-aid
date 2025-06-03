@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 let mediaRecorder = null;
@@ -369,13 +368,12 @@ function sendTranscription(text) {
     
     console.log('📨 Message being sent:', message);
     
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('❌ Error sending transcription:', chrome.runtime.lastError);
-      } else {
-        console.log('✅ Transcription sent successfully, response:', response);
-      }
+    // Send message without waiting for response to avoid port closure issues
+    chrome.runtime.sendMessage(message).catch((error) => {
+      console.warn('⚠️ Message send failed (this is normal if background script is busy):', error.message);
     });
+    
+    console.log('✅ Transcription message sent');
   } catch (error) {
     console.error('💥 Error sending transcription:', error);
   }
