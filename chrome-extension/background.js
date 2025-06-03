@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 console.log('InterviewAce transcription background script loaded');
@@ -229,19 +228,35 @@ async function showErrorNotification(message) {
 
 // Handle messages from offscreen document
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  console.log('Background received message:', message);
+  console.log('🔔 Background received message:', message);
+  console.log('📋 Message details:', {
+    type: message.type,
+    text: message.text ? `"${message.text.substring(0, 50)}..."` : 'undefined',
+    timestamp: message.timestamp,
+    source: message.source
+  });
   
   if (message.type === 'transcription-result') {
     if (message.text && message.text.trim()) {
-      console.log('Forwarding transcription:', message.text);
+      console.log('📢 Forwarding transcription to content script:', message.text);
+      console.log('🎯 Target tab ID:', currentTabId);
       
       if (currentTabId) {
-        await notifyContentScript(currentTabId, {
-          action: 'transcriptionResult',
-          text: message.text,
-          timestamp: Date.now()
-        });
+        try {
+          const response = await chrome.tabs.sendMessage(currentTabId, {
+            action: 'transcriptionResult',
+            text: message.text,
+            timestamp: message.timestamp || Date.now()
+          });
+          console.log('✅ Transcription forwarded to content script, response:', response);
+        } catch (error) {
+          console.error('❌ Error forwarding transcription to content script:', error);
+        }
+      } else {
+        console.warn('⚠️ No current tab ID to forward transcription to');
       }
+    } else {
+      console.warn('⚠️ Received empty transcription text');
     }
   }
   

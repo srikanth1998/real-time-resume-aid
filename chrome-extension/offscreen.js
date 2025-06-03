@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 let mediaRecorder = null;
@@ -182,6 +181,7 @@ function calculateAmplitude(audioData) {
 
 async function endPhraseCapture() {
   if (!isCapturingPhrase || continuousAudioBuffer.length === 0) {
+    console.log('⚠️ No phrase to capture or already ended');
     return;
   }
   
@@ -193,7 +193,7 @@ async function endPhraseCapture() {
   
   // Only process if we have enough audio (at least 0.5 seconds at 16kHz)
   if (capturedAudio.length < 8000) {
-    console.log('⚠️ Audio too short, skipping transcription');
+    console.log('⚠️ Audio too short, skipping transcription. Samples:', capturedAudio.length);
     return;
   }
   
@@ -201,9 +201,14 @@ async function endPhraseCapture() {
   console.log('📊 Phrase duration:', captureDuration.toFixed(2), 'seconds');
   
   try {
+    console.log('🔄 Converting audio to WAV format...');
     // Convert to WAV and send for transcription
     const audioBlob = createWAVBlob(capturedAudio);
+    console.log('📦 Created WAV blob, size:', audioBlob.size, 'bytes');
+    
+    console.log('🔢 Converting to base64...');
     const base64Audio = await blobToBase64(audioBlob);
+    console.log('✅ Base64 conversion complete, length:', base64Audio.length);
     
     console.log('🚀 Sending phrase to transcription service...');
     const transcription = await sendToSTTService(base64Audio);
@@ -217,10 +222,16 @@ async function endPhraseCapture() {
     
   } catch (error) {
     console.error('❌ Error processing phrase:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
   }
 }
 
 function createWAVBlob(audioData) {
+  console.log('🎧 Creating WAV blob from', audioData.length, 'samples');
   const sampleRate = 16000;
   const numChannels = 1;
   const bytesPerSample = 2;
@@ -260,17 +271,23 @@ function createWAVBlob(audioData) {
   const audioView = new Int16Array(buffer, 44);
   audioView.set(int16Data);
   
+  console.log('✅ WAV blob created successfully');
   return new Blob([buffer], { type: 'audio/wav' });
 }
 
 function blobToBase64(blob) {
+  console.log('🔄 Converting blob to base64...');
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result.split(',')[1];
+      console.log('✅ Base64 conversion successful');
       resolve(base64);
     };
-    reader.onerror = reject;
+    reader.onerror = (error) => {
+      console.error('❌ Base64 conversion failed:', error);
+      reject(error);
+    };
     reader.readAsDataURL(blob);
   });
 }
@@ -278,20 +295,28 @@ function blobToBase64(blob) {
 async function sendToSTTService(base64Audio) {
   try {
     console.log('🚀 Sending audio to STT service...');
+    console.log('📊 Audio data size:', base64Audio.length, 'characters');
     
+    const requestBody = {
+      audio: base64Audio
+    };
+    
+    console.log('📡 Making request to Supabase function...');
     const response = await fetch('https://eeebqclqovumfepbamcd.supabase.co/functions/v1/speech-to-text', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlZWJxY2xxb3Z1bWZlcGJhbWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0Mzg4MzQsImV4cCI6MjA1MzAxNDgzNH0.bEFGgq9p5sAfOZQWE38zOqJ5Lmi_oNNJqshR8-Ooa98'
       },
-      body: JSON.stringify({
-        audio: base64Audio
-      })
+      body: JSON.stringify(requestBody)
     });
     
+    console.log('📬 STT service response status:', response.status, response.statusText);
+    
     if (!response.ok) {
-      throw new Error(`STT service error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('❌ STT service error response:', errorText);
+      throw new Error(`STT service error: ${response.status} - ${errorText}`);
     }
     
     const result = await response.json();
@@ -301,21 +326,39 @@ async function sendToSTTService(base64Audio) {
     
   } catch (error) {
     console.error('❌ Error calling STT service:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return null;
   }
 }
 
 function sendTranscription(text) {
-  if (!text || !text.trim()) return;
+  if (!text || !text.trim()) {
+    console.log('⚠️ No text to send or empty text');
+    return;
+  }
   
   console.log('📤 Sending transcription to background:', text);
   
   try {
-    chrome.runtime.sendMessage({
+    const message = {
       type: 'transcription-result',
       text: text.trim(),
       timestamp: Date.now(),
       source: 'whisper-api-dynamic'
+    };
+    
+    console.log('📨 Message being sent:', message);
+    
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('❌ Error sending transcription:', chrome.runtime.lastError);
+      } else {
+        console.log('✅ Transcription sent successfully, response:', response);
+      }
     });
   } catch (error) {
     console.error('💥 Error sending transcription:', error);

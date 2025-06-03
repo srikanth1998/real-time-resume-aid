@@ -37,11 +37,16 @@ function updateBannerStatus(status) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('=== CONTENT SCRIPT RECEIVED MESSAGE ===', message);
+  console.log('🔔 CONTENT SCRIPT RECEIVED MESSAGE:', message);
+  console.log('📋 Message details:', {
+    action: message.action,
+    text: message.text ? `"${message.text.substring(0, 50)}..."` : 'undefined',
+    timestamp: message.timestamp
+  });
   
   // Handle ping messages from background script
   if (message.action === 'ping') {
-    console.log('Responding to ping from background');
+    console.log('🏓 Responding to ping from background');
     sendResponse({ success: true });
     return true;
   }
@@ -50,14 +55,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const b = ensureBanner();
   
   if (action === 'transcriptionStarted') {
-    console.log('Showing transcription banner');
+    console.log('🎬 Showing transcription banner');
     updateBannerStatus('transcribing');
     b.hidden = false;
     sendResponse({ success: true });
   }
   
   if (action === 'transcriptionStopped') {
-    console.log('Hiding transcription banner');
+    console.log('🛑 Hiding transcription banner');
     updateBannerStatus('stopped');
     setTimeout(() => {
       b.hidden = true;
@@ -67,9 +72,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Forward transcription results to the web application
   if (action === 'transcriptionResult' && text && text.trim()) {
-    console.log('=== FORWARDING TRANSCRIPTION TO WEB APP ===');
-    console.log('Transcribed text:', text);
-    console.log('Timestamp:', timestamp);
+    console.log('📢 FORWARDING TRANSCRIPTION TO WEB APP');
+    console.log('📝 Transcribed text:', text);
+    console.log('⏰ Timestamp:', timestamp);
     
     // Show processing status briefly
     updateBannerStatus('processing');
@@ -80,13 +85,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }, 1000);
     
     // Send transcription to web application
-    window.postMessage({
+    const messageData = {
       action: 'processTranscription',
       text: text,
       source: 'interviewace-extension',
       timestamp: timestamp || Date.now(),
       type: 'real-time-transcription'
-    }, '*');
+    };
+    
+    console.log('📨 Posting message to window:', messageData);
+    window.postMessage(messageData, '*');
     console.log('✅ Transcription data posted to window');
     sendResponse({ success: true });
   }
@@ -99,8 +107,8 @@ window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   
   if (event.data.action === 'interviewAppReady') {
-    console.log('=== INTERVIEW APP READY MESSAGE RECEIVED ===');
-    console.log('Notifying that extension is ready for transcription...');
+    console.log('🎯 INTERVIEW APP READY MESSAGE RECEIVED');
+    console.log('📢 Notifying that extension is ready for transcription...');
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
@@ -111,7 +119,7 @@ window.addEventListener('message', (event) => {
   }
   
   if (event.data.action === 'testConnection') {
-    console.log('=== TEST CONNECTION MESSAGE RECEIVED ===');
+    console.log('🧪 TEST CONNECTION MESSAGE RECEIVED');
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
@@ -123,8 +131,8 @@ window.addEventListener('message', (event) => {
 });
 
 // Notify web app that extension is loaded with transcription capabilities
-console.log('=== INTERVIEWACE TRANSCRIPTION EXTENSION LOADED ===');
-console.log('Page URL:', window.location.href);
+console.log('🚀 INTERVIEWACE TRANSCRIPTION EXTENSION LOADED');
+console.log('🌐 Page URL:', window.location.href);
 window.postMessage({
   action: 'extensionReady',
   source: 'interviewace-extension',
