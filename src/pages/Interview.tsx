@@ -118,8 +118,8 @@ const Interview = () => {
       cleanup = initializeExtensionConnector();
       
       // Listen for extension events
-      const handleExtensionReady = () => {
-        console.log('✅ Extension ready event received');
+      const handleExtensionReady = (event: CustomEvent) => {
+        console.log('✅ Extension ready event received:', event.detail);
         setExtensionConnected(true);
         setExtensionStatus("Listening");
         (window as any).__extensionReady = true;
@@ -132,13 +132,20 @@ const Interview = () => {
 
       // Listen for transcriptions from extension
       const handleExtensionTranscription = (event: CustomEvent) => {
-        console.log('📥 Extension transcription received:', event.detail);
+        console.log('📥 EXTENSION TRANSCRIPTION EVENT RECEIVED:', event.detail);
+        console.log('📝 Transcription text:', event.detail?.text);
+        console.log('⏰ Timestamp:', event.detail?.timestamp);
+        console.log('🎯 Type:', event.detail?.type);
+        
         if (event.detail?.text) {
+          console.log('🔄 Processing transcription data...');
           handleExtensionTranscriptionData(event.detail.text, event.detail.timestamp);
+        } else {
+          console.warn('⚠️ No text in transcription event detail');
         }
       };
 
-      window.addEventListener('extensionReady', handleExtensionReady);
+      window.addEventListener('extensionReady', handleExtensionReady as EventListener);
       window.addEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
 
       // Initial check
@@ -154,7 +161,8 @@ const Interview = () => {
       }
 
       return () => {
-        window.removeEventListener('extensionReady', handleExtensionReady);
+        console.log('🧹 Cleaning up extension event listeners');
+        window.removeEventListener('extensionReady', handleExtensionReady as EventListener);
         window.removeEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
         if (cleanup) cleanup();
       };
@@ -257,7 +265,8 @@ const Interview = () => {
   };
 
   const handleExtensionTranscriptionData = async (transcriptionText: string, timestamp?: number) => {
-    console.log('🎯 Processing transcription from extension:', transcriptionText);
+    console.log('🎯 PROCESSING TRANSCRIPTION FROM EXTENSION:', transcriptionText);
+    console.log('📊 Current processing state:', processingRef.current);
     
     if (processingRef.current) {
       console.log('⚠️ Already processing, skipping...');
@@ -268,7 +277,8 @@ const Interview = () => {
     setExtensionStatus("Processing...");
     
     try {
-      // Show the transcription
+      // Show the transcription immediately
+      console.log('📝 Setting current transcript to:', transcriptionText);
       setCurrentTranscript(transcriptionText);
       
       // Generate answer for the transcription
@@ -276,6 +286,7 @@ const Interview = () => {
       await generateAnswer(transcriptionText);
       
       setExtensionStatus("Listening");
+      console.log('✅ Transcription processing completed successfully');
       
     } catch (error) {
       console.error('❌ Error processing extension transcription:', error);

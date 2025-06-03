@@ -7,13 +7,28 @@ export const initializeExtensionConnector = () => {
   // Listen for messages from Chrome extension content script
   const handleExtensionMessage = (event: MessageEvent) => {
     console.log('=== Received window message ===', event);
-    if (event.source !== window) return;
+    console.log('🔍 Message data:', event.data);
+    console.log('🔍 Message source:', event.data.source);
+    console.log('🔍 Message action:', event.data.action);
+    
+    if (event.source !== window) {
+      console.log('❌ Message not from window, ignoring');
+      return;
+    }
     
     // Only process messages from our extension
-    if (event.data.source !== 'interviewace-extension') return;
+    if (event.data.source !== 'interviewace-extension') {
+      console.log('❌ Message not from interviewace-extension, ignoring. Source:', event.data.source);
+      return;
+    }
+    
+    console.log('✅ Processing message from extension:', event.data.action);
     
     if (event.data.action === 'processTranscription') {
-      console.log('Received transcription from extension:', event.data.text);
+      console.log('📝 TRANSCRIPTION RECEIVED:', event.data.text);
+      console.log('⏰ Timestamp:', event.data.timestamp);
+      console.log('🎯 Type:', event.data.type);
+      
       // Dispatch custom event that the Interview component can listen to
       const transcriptionEvent = new CustomEvent('extensionTranscription', {
         detail: { 
@@ -22,11 +37,12 @@ export const initializeExtensionConnector = () => {
           type: event.data.type
         }
       });
+      console.log('🚀 Dispatching extensionTranscription event with detail:', transcriptionEvent.detail);
       window.dispatchEvent(transcriptionEvent);
     }
     
     if (event.data.action === 'extensionReady') {
-      console.log('Extension reported as ready with capabilities:', event.data.capabilities);
+      console.log('✅ Extension reported as ready with capabilities:', event.data.capabilities);
       // Dispatch event to update UI
       const readyEvent = new CustomEvent('extensionReady', {
         detail: { capabilities: event.data.capabilities }
@@ -39,13 +55,13 @@ export const initializeExtensionConnector = () => {
   window.addEventListener('message', handleExtensionMessage);
   
   // Notify extension that interview app is ready
-  console.log('Posting message: interviewAppReady');
+  console.log('📢 Posting message: interviewAppReady');
   window.postMessage({
     action: 'interviewAppReady',
     timestamp: Date.now()
   }, '*');
 
-  console.log('Extension connector initialized for transcription mode');
+  console.log('✅ Extension connector initialized for transcription mode');
 
   return () => {
     window.removeEventListener('message', handleExtensionMessage);
