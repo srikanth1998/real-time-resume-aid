@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 let mediaRecorder = null;
@@ -89,41 +88,10 @@ async function startAudioCapture(streamId) {
     // Create source from stream
     const source = audioContext.createMediaStreamSource(mediaStream);
     
-    // Create processor for audio analysis
-    await audioContext.audioWorklet.addModule('data:text/javascript;base64,' + btoa(`
-      class AudioProcessor extends AudioWorkletProcessor {
-        constructor() {
-          super();
-          this.bufferSize = 4096;
-          this.buffer = new Float32Array(this.bufferSize);
-          this.bufferIndex = 0;
-        }
-        
-        process(inputs, outputs, parameters) {
-          const input = inputs[0];
-          if (input.length > 0) {
-            const inputChannel = input[0];
-            
-            for (let i = 0; i < inputChannel.length; i++) {
-              this.buffer[this.bufferIndex] = inputChannel[i];
-              this.bufferIndex++;
-              
-              if (this.bufferIndex >= this.bufferSize) {
-                // Send buffer when full
-                this.port.postMessage({
-                  type: 'audioData',
-                  data: Array.from(this.buffer)
-                });
-                this.bufferIndex = 0;
-              }
-            }
-          }
-          return true;
-        }
-      }
-      
-      registerProcessor('audio-processor', AudioProcessor);
-    `));
+    // Load the proper worklet module
+    const workletUrl = chrome.runtime.getURL('audio-processor-worklet.js');
+    console.log('Loading worklet from:', workletUrl);
+    await audioContext.audioWorklet.addModule(workletUrl);
     
     workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
     

@@ -47,7 +47,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["audio-worklet.js"],
+      "resources": ["audio-worklet.js", "audio-processor-worklet.js"],
       "matches": ["<all_urls>"]
     }
   ]
