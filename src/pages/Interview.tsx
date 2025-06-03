@@ -34,7 +34,6 @@ const Interview = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTranscriptRef = useRef("");
   const processingRef = useRef(false);
-  const audioBufferRef = useRef<string>("");
 
   useEffect(() => {
     const checkSession = async () => {
@@ -113,14 +112,14 @@ const Interview = () => {
     let cleanup: (() => void) | undefined;
 
     const initExtension = async () => {
-      console.log('Initializing extension connector...');
+      console.log('🚀 Initializing extension connector...');
       setExtensionStatus("Connecting...");
       
       cleanup = initializeExtensionConnector();
       
       // Listen for extension events
       const handleExtensionReady = () => {
-        console.log('Extension ready event received');
+        console.log('✅ Extension ready event received');
         setExtensionConnected(true);
         setExtensionStatus("Listening");
         (window as any).__extensionReady = true;
@@ -131,19 +130,20 @@ const Interview = () => {
         }
       };
 
-      const handleExtensionAudio = (event: CustomEvent) => {
-        console.log('Extension audio event received:', event.detail);
-        if (event.detail?.audioData) {
-          handleExtensionAudioData(event.detail.audioData);
+      // Listen for transcriptions from extension
+      const handleExtensionTranscription = (event: CustomEvent) => {
+        console.log('📥 Extension transcription received:', event.detail);
+        if (event.detail?.text) {
+          handleExtensionTranscriptionData(event.detail.text, event.detail.timestamp);
         }
       };
 
       window.addEventListener('extensionReady', handleExtensionReady);
-      window.addEventListener('extensionAudio', handleExtensionAudio as EventListener);
+      window.addEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
 
       // Initial check
       const isAvailable = checkExtensionAvailability();
-      console.log('Initial extension check:', isAvailable);
+      console.log('🔍 Initial extension check:', isAvailable);
       setExtensionConnected(isAvailable);
       
       if (isAvailable) {
@@ -155,7 +155,7 @@ const Interview = () => {
 
       return () => {
         window.removeEventListener('extensionReady', handleExtensionReady);
-        window.removeEventListener('extensionAudio', handleExtensionAudio as EventListener);
+        window.removeEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
         if (cleanup) cleanup();
       };
     };
@@ -175,7 +175,7 @@ const Interview = () => {
     checks.forEach(delay => {
       setTimeout(() => {
         const isConnected = checkExtensionAvailability();
-        console.log(`Extension check at ${delay}ms:`, isConnected);
+        console.log(`🔍 Extension check at ${delay}ms:`, isConnected);
         
         if (isConnected && !extensionConnected) {
           setExtensionConnected(true);
@@ -186,6 +186,35 @@ const Interview = () => {
         }
       }, delay);
     });
+  };
+
+  const handleExtensionTranscriptionData = async (transcriptionText: string, timestamp?: number) => {
+    console.log('🎯 Processing transcription from extension:', transcriptionText);
+    
+    if (processingRef.current) {
+      console.log('⚠️ Already processing, skipping...');
+      return;
+    }
+    
+    processingRef.current = true;
+    setExtensionStatus("Processing...");
+    
+    try {
+      // Show the transcription
+      setCurrentTranscript(transcriptionText);
+      
+      // Generate answer for the transcription
+      console.log('🤖 Generating AI answer for transcription...');
+      await generateAnswer(transcriptionText);
+      
+      setExtensionStatus("Listening");
+      
+    } catch (error) {
+      console.error('❌ Error processing extension transcription:', error);
+      setExtensionStatus("Error");
+    } finally {
+      processingRef.current = false;
+    }
   };
 
   const startTimer = (expiresAt: Date) => {
@@ -238,142 +267,6 @@ const Interview = () => {
     navigate(`/complete?session_id=${sessionId}`);
   };
 
-  const handleExtensionAudioData = async (audioData: number[]) => {
-    console.log('Processing audio from extension, length:', audioData?.length);
-    
-    if (processingRef.current) {
-      console.log('Already processing audio, skipping...');
-      return;
-    }
-    
-    processingRef.current = true;
-    setExtensionStatus("Processing audio...");
-    setCurrentTranscript("Processing audio from meeting...");
-    
-    try {
-      console.log('Sending audio to speech-to-text function');
-      
-      const { data, error } = await supabase.functions.invoke('speech-to-text', {
-        body: {
-          audioData: audioData  // Send raw audio data instead of base64
-        }
-      });
-
-      console.log('Speech-to-text response:', { data, error });
-
-      if (error) {
-        console.error('Speech to text error:', error);
-        setCurrentTranscript("Error processing audio");
-        setExtensionStatus("Error");
-        return;
-      }
-
-      const transcript = data?.text || "";
-      console.log('Transcript received:', transcript);
-      
-      // Show transcript even if it's short or doesn't contain a question
-      if (transcript && transcript.trim().length > 3) {
-        setCurrentTranscript(transcript);
-        setExtensionStatus("Listening");
-        
-        // Auto-generate answer if this looks like a question
-        if (transcript.includes('?') || 
-            transcript.toLowerCase().includes('tell me') || 
-            transcript.toLowerCase().includes('describe') || 
-            transcript.toLowerCase().includes('explain') ||
-            transcript.toLowerCase().includes('what') ||
-            transcript.toLowerCase().includes('how') ||
-            transcript.toLowerCase().includes('why')) {
-          console.log('Detected question, generating answer...');
-          generateAnswer(transcript);
-        }
-      } else {
-        console.log('Transcript too short or empty, showing anyway');
-        setCurrentTranscript(transcript || "No clear speech detected");
-        setExtensionStatus("Listening");
-      }
-      
-    } catch (error) {
-      console.error('Audio processing error:', error);
-      setCurrentTranscript("Error processing audio");
-      setExtensionStatus("Error");
-    } finally {
-      processingRef.current = false;
-    }
-  };
-
-  const initializeSpeechRecognition = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast({
-        title: "Speech recognition not supported",
-        description: "Please use a compatible browser.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    recognitionRef.current = new SpeechRecognition();
-    
-    recognitionRef.current.continuous = true;
-    recognitionRef.current.interimResults = true;
-    recognitionRef.current.lang = 'en-US';
-
-    recognitionRef.current.onresult = (event: any) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
-        }
-      }
-
-      const fullTranscript = finalTranscript + interimTranscript;
-      setCurrentTranscript(fullTranscript);
-
-      if (finalTranscript && finalTranscript.trim().length > 10 && !processingRef.current) {
-        const newQuestion = finalTranscript.trim();
-        if (newQuestion !== lastTranscriptRef.current) {
-          processingRef.current = true;
-          generateAnswer(newQuestion);
-          lastTranscriptRef.current = newQuestion;
-        }
-      }
-    };
-
-    recognitionRef.current.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-      processingRef.current = false;
-    };
-
-    recognitionRef.current.onend = () => {
-      setIsListening(false);
-      processingRef.current = false;
-    };
-  };
-
-  const toggleListening = () => {
-    if (!recognitionRef.current) return;
-
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      processingRef.current = false;
-    } else {
-      recognitionRef.current.start();
-      setIsListening(true);
-      setCurrentTranscript("");
-      setCurrentAnswer("");
-      lastTranscriptRef.current = "";
-      processingRef.current = false;
-    }
-  };
-
   const handleManualSubmit = () => {
     if (!manualQuestion.trim()) return;
     
@@ -385,6 +278,7 @@ const Interview = () => {
   const generateAnswer = async (question: string) => {
     if (isGeneratingAnswer || !question.trim()) return;
     
+    console.log('🤖 Generating answer for question:', question);
     setIsGeneratingAnswer(true);
     setCurrentAnswer("Analyzing your documents and generating a tailored response...");
 
@@ -429,7 +323,7 @@ const Interview = () => {
       });
 
     } catch (error: any) {
-      console.error('Answer generation error:', error);
+      console.error('❌ Answer generation error:', error);
       let errorMessage = "Sorry, there was an error generating the answer. Please try again.";
       
       if (error.message && error.message.includes('quota')) {

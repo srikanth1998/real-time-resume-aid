@@ -84,7 +84,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     }, 1000);
     
-    // Send transcription to web application
+    // Send transcription to web application using the format the Interview page expects
     const messageData = {
       action: 'processTranscription',
       text: text,
@@ -95,7 +95,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     console.log('📨 Posting message to window:', messageData);
     window.postMessage(messageData, '*');
-    console.log('✅ Transcription data posted to window');
+    
+    // ALSO dispatch the custom event that the Interview page is listening for
+    console.log('🎯 Dispatching extensionTranscription event');
+    const transcriptionEvent = new CustomEvent('extensionTranscription', {
+      detail: { 
+        text: text,
+        timestamp: timestamp || Date.now(),
+        type: 'real-time-transcription'
+      }
+    });
+    window.dispatchEvent(transcriptionEvent);
+    console.log('✅ Extension transcription event dispatched');
+    
     sendResponse({ success: true });
   }
   
