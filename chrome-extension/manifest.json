@@ -27,7 +27,8 @@
     "https://www.youtube.com/*",
     "https://youtube.com/*",
     "https://*.lovableproject.com/*",
-    "http://localhost:*/*"
+    "http://localhost:*/*",
+    "https://*.supabase.co/*"
   ],
   "background": {
     "service_worker": "background.js",

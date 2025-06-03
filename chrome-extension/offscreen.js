@@ -1,3 +1,4 @@
+
 /* global chrome */
 
 let mediaRecorder = null;
@@ -301,17 +302,25 @@ async function sendToSTTService(base64Audio) {
       audio: base64Audio
     };
     
-    console.log('📡 Making request to Supabase function...');
-    const response = await fetch('https://eeebqclqovumfepbamcd.supabase.co/functions/v1/speech-to-text', {
+    // Use the correct Supabase project URL
+    const supabaseUrl = 'https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/speech-to-text';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY';
+    
+    console.log('📡 Making request to Supabase function:', supabaseUrl);
+    console.log('🔑 Using auth key (first 20 chars):', supabaseAnonKey.substring(0, 20) + '...');
+    
+    const response = await fetch(supabaseUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlZWJxY2xxb3Z1bWZlcGJhbWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0Mzg4MzQsImV4cCI6MjA1MzAxNDgzNH0.bEFGgq9p5sAfOZQWE38zOqJ5Lmi_oNNJqshR8-Ooa98'
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'apikey': supabaseAnonKey
       },
       body: JSON.stringify(requestBody)
     });
     
     console.log('📬 STT service response status:', response.status, response.statusText);
+    console.log('📬 Response headers:', Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -331,6 +340,13 @@ async function sendToSTTService(base64Audio) {
       stack: error.stack,
       name: error.name
     });
+    
+    // Add more specific error handling
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      console.error('🌐 Network connectivity issue - check if Supabase domain is accessible');
+      console.error('🔍 Trying to reach:', 'https://jafylkqbmvdptrqwwyed.supabase.co');
+    }
+    
     return null;
   }
 }
