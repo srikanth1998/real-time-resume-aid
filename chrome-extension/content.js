@@ -70,9 +70,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
   }
   
-  // Forward transcription results to the web application
+  // Handle transcription results and forward to web application
   if (action === 'transcriptionResult' && text && text.trim()) {
-    console.log('📢 FORWARDING TRANSCRIPTION TO WEB APP');
+    console.log('📢 PROCESSING TRANSCRIPTION RESULT FROM BACKGROUND');
     console.log('📝 Transcribed text:', text);
     console.log('⏰ Timestamp:', timestamp);
     
@@ -84,7 +84,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     }, 1000);
     
-    // Send transcription to web application using the format the Interview page expects
+    // Send transcription to web application using both methods for reliability
     const messageData = {
       action: 'processTranscription',
       text: text,
@@ -93,10 +93,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       type: 'real-time-transcription'
     };
     
-    console.log('📨 Posting message to window:', messageData);
+    console.log('📨 Posting window message:', messageData);
     window.postMessage(messageData, '*');
     
-    // ALSO dispatch the custom event that the Interview page is listening for
+    // Also dispatch custom event
     console.log('🎯 Dispatching extensionTranscription event');
     const transcriptionEvent = new CustomEvent('extensionTranscription', {
       detail: { 
@@ -142,7 +142,7 @@ window.addEventListener('message', (event) => {
   }
 });
 
-// Notify web app that extension is loaded with transcription capabilities
+// Notify web app that extension is loaded
 console.log('🚀 INTERVIEWACE TRANSCRIPTION EXTENSION LOADED');
 console.log('🌐 Page URL:', window.location.href);
 window.postMessage({

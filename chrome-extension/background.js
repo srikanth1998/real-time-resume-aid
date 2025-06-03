@@ -1,3 +1,4 @@
+
 /* global chrome */
 
 console.log('InterviewAce transcription background script loaded');
@@ -236,31 +237,39 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     source: message.source
   });
   
-  if (message.type === 'transcription-result') {
-    if (message.text && message.text.trim()) {
-      console.log('📢 Forwarding transcription to content script:', message.text);
-      console.log('🎯 Target tab ID:', currentTabId);
-      
-      if (currentTabId) {
-        try {
-          const response = await chrome.tabs.sendMessage(currentTabId, {
-            action: 'transcriptionResult',
-            text: message.text,
-            timestamp: message.timestamp || Date.now()
-          });
-          console.log('✅ Transcription forwarded to content script, response:', response);
-        } catch (error) {
-          console.error('❌ Error forwarding transcription to content script:', error);
-        }
-      } else {
-        console.warn('⚠️ No current tab ID to forward transcription to');
+  // Handle transcription results from offscreen
+  if (message.type === 'transcription-result' && message.text && message.text.trim()) {
+    console.log('📢 FORWARDING TRANSCRIPTION RESULT TO CONTENT SCRIPT');
+    console.log('📝 Transcription text:', message.text);
+    console.log('🎯 Target tab ID:', currentTabId);
+    
+    if (currentTabId) {
+      try {
+        const response = await chrome.tabs.sendMessage(currentTabId, {
+          action: 'transcriptionResult',
+          text: message.text,
+          timestamp: message.timestamp || Date.now()
+        });
+        console.log('✅ Transcription forwarded to content script, response:', response);
+        sendResponse({ success: true, forwarded: true });
+      } catch (error) {
+        console.error('❌ Error forwarding transcription to content script:', error);
+        sendResponse({ success: false, error: error.message });
       }
     } else {
-      console.warn('⚠️ Received empty transcription text');
+      console.warn('⚠️ No current tab ID to forward transcription to');
+      sendResponse({ success: false, error: 'No active tab' });
     }
+    return true; // Keep message channel open
   }
   
-  sendResponse({success: true});
+  // Handle ping messages
+  if (message.type === 'ping') {
+    sendResponse({ success: true, message: 'pong' });
+    return true;
+  }
+  
+  sendResponse({ success: true });
   return true;
 });
 
