@@ -6,6 +6,7 @@ let isRecording = false;
 let audioContext = null;
 let mediaStream = null;
 let workletNode = null;
+let lastTranscriptionTime = 0; // Add this as a module-level variable
 
 console.log('🔵 Offscreen document loaded');
 
@@ -157,10 +158,10 @@ function detectSpeechPatterns(audioData) {
     
     const randomResponse = responses[Math.floor(Math.random() * responses.length)];
     
-    // Only send every few seconds to avoid spam
-    if (!this.lastTranscriptionTime || Date.now() - this.lastTranscriptionTime > 3000) {
+    // Only send every few seconds to avoid spam - use module variable instead of this
+    if (!lastTranscriptionTime || Date.now() - lastTranscriptionTime > 3000) {
       sendTranscription(randomResponse);
-      this.lastTranscriptionTime = Date.now();
+      lastTranscriptionTime = Date.now();
     }
   }
 }
