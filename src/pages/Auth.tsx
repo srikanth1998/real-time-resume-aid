@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -150,13 +149,10 @@ const Auth = () => {
       // Clear any existing auth state
       await supabase.auth.signOut();
       
-      // Use the current origin for redirect URL
-      const redirectUrl = `${window.location.origin}/auth`;
-      
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: redirectUrl,
+          emailRedirectTo: `${window.location.origin}/auth`,
           shouldCreateUser: true
         }
       });
