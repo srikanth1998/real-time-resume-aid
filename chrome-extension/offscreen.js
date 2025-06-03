@@ -1,3 +1,4 @@
+
 /* global chrome */
 
 let mediaRecorder = null;
@@ -6,7 +7,9 @@ let isRecording = false;
 let audioContext = null;
 let mediaStream = null;
 let workletNode = null;
-let lastTranscriptionTime = 0; // Add this as a module-level variable
+let lastTranscriptionTime = 0;
+let audioBuffer = [];
+let isProcessingAudio = false;
 
 console.log('🔵 Offscreen document loaded');
 
@@ -99,18 +102,18 @@ async function startAudioCapture(streamId) {
     // Process audio data
     workletNode.port.onmessage = (event) => {
       if (event.data.type === 'audioData') {
-        processAudioData(event.data.data);
+        collectAudioData(event.data.data);
       }
     };
     
     // Connect audio pipeline
     source.connect(workletNode);
     
-    // Also setup MediaRecorder as backup
+    // Also setup MediaRecorder for backup
     setupMediaRecorder();
     
     isRecording = true;
-    console.log('🎬 Audio processing started');
+    console.log('🎬 Real-time audio processing started');
     
   } catch (error) {
     console.error('💥 Error in startAudioCapture:', error);
@@ -118,64 +121,130 @@ async function startAudioCapture(streamId) {
   }
 }
 
-function processAudioData(audioData) {
-  // Convert to PCM and analyze
-  const amplitude = calculateRMS(audioData);
+function collectAudioData(audioData) {
+  // Collect audio data in buffer
+  audioBuffer.push(...audioData);
   
-  // Only process if there's significant audio (speech detection)
-  if (amplitude > 0.01) {
-    console.log('🎤 Processing speech, amplitude:', amplitude);
-    
-    // Convert to text using simple speech patterns
-    // This is a basic implementation - in production you'd use a real STT service
-    detectSpeechPatterns(audioData);
+  // Process every 3 seconds of audio (16000 samples/sec * 3 = 48000 samples)
+  if (audioBuffer.length >= 48000 && !isProcessingAudio) {
+    processCollectedAudio();
   }
 }
 
-function calculateRMS(samples) {
-  let sum = 0;
-  for (let i = 0; i < samples.length; i++) {
-    sum += samples[i] * samples[i];
-  }
-  return Math.sqrt(sum / samples.length);
-}
-
-function detectSpeechPatterns(audioData) {
-  // Simple speech detection based on audio characteristics
-  const amplitude = calculateRMS(audioData);
-  const frequency = analyzeFrequency(audioData);
+async function processCollectedAudio() {
+  if (isProcessingAudio || audioBuffer.length === 0) return;
   
-  // Simulate transcription based on audio characteristics
-  if (amplitude > 0.02 && frequency > 100 && frequency < 3000) {
-    // This simulates different responses based on audio characteristics
-    const responses = [
-      "I hear someone speaking about their experience",
-      "The speaker is discussing their background", 
-      "They're explaining their qualifications",
-      "I can hear them answering a question",
-      "The speaker is providing examples from their work"
-    ];
+  isProcessingAudio = true;
+  console.log('🎙️ Processing audio buffer with', audioBuffer.length, 'samples');
+  
+  try {
+    // Convert float32 audio data to WAV format
+    const audioBlob = createWAVBlob(audioBuffer);
     
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    // Convert to base64 for transmission
+    const base64Audio = await blobToBase64(audioBlob);
     
-    // Only send every few seconds to avoid spam - use module variable instead of this
-    if (!lastTranscriptionTime || Date.now() - lastTranscriptionTime > 3000) {
-      sendTranscription(randomResponse);
-      lastTranscriptionTime = Date.now();
+    // Send to speech-to-text service
+    const transcription = await sendToSTTService(base64Audio);
+    
+    if (transcription && transcription.trim()) {
+      sendTranscription(transcription);
     }
+    
+    // Clear processed audio buffer
+    audioBuffer = [];
+    
+  } catch (error) {
+    console.error('❌ Error processing audio:', error);
+  } finally {
+    isProcessingAudio = false;
   }
 }
 
-function analyzeFrequency(samples) {
-  // Simple frequency analysis
-  let zeroCrossings = 0;
-  for (let i = 1; i < samples.length; i++) {
-    if ((samples[i] >= 0) !== (samples[i-1] >= 0)) {
-      zeroCrossings++;
-    }
+function createWAVBlob(audioData) {
+  const sampleRate = 16000;
+  const numChannels = 1;
+  const bytesPerSample = 2;
+  
+  // Convert float32 to int16
+  const int16Data = new Int16Array(audioData.length);
+  for (let i = 0; i < audioData.length; i++) {
+    int16Data[i] = Math.max(-32768, Math.min(32767, audioData[i] * 32768));
   }
-  // Estimate frequency from zero crossings
-  return (zeroCrossings * 16000) / (2 * samples.length);
+  
+  // Create WAV header
+  const buffer = new ArrayBuffer(44 + int16Data.length * bytesPerSample);
+  const view = new DataView(buffer);
+  
+  // WAV header
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + int16Data.length * bytesPerSample, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+  view.setUint16(32, numChannels * bytesPerSample, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+  writeString(36, 'data');
+  view.setUint32(40, int16Data.length * bytesPerSample, true);
+  
+  // Write audio data
+  const audioView = new Int16Array(buffer, 44);
+  audioView.set(int16Data);
+  
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function sendToSTTService(base64Audio) {
+  try {
+    console.log('🚀 Sending audio to STT service...');
+    
+    // Get the current tab's origin to determine the correct Supabase URL
+    const response = await fetch('https://eeebqclqovumfepbamcd.supabase.co/functions/v1/speech-to-text', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlZWJxY2xxb3Z1bWZlcGJhbWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0Mzg4MzQsImV4cCI6MjA1MzAxNDgzNH0.bEFGgq9p5sAfOZQWE38zOqJ5Lmi_oNNJqshR8-Ooa98'
+      },
+      body: JSON.stringify({
+        audio: base64Audio
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`STT service error: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('✅ STT service response:', result);
+    
+    return result.text;
+    
+  } catch (error) {
+    console.error('❌ Error calling STT service:', error);
+    return null;
+  }
 }
 
 function setupMediaRecorder() {
@@ -238,7 +307,7 @@ function sendTranscription(text) {
       type: 'transcription-result',
       text: text.trim(),
       timestamp: Date.now(),
-      source: 'audio-processing'
+      source: 'whisper-api'
     });
   } catch (error) {
     console.error('💥 Error sending transcription:', error);
@@ -249,6 +318,7 @@ async function stopAudioCapture() {
   console.log('🛑 Stopping audio capture...');
   
   isRecording = false;
+  isProcessingAudio = false;
   
   // Stop worklet
   if (workletNode) {
@@ -297,6 +367,7 @@ async function stopAudioCapture() {
   }
   
   audioChunks = [];
+  audioBuffer = [];
   
   console.log('✅ Audio capture stopped completely');
 }
@@ -307,4 +378,4 @@ window.addEventListener('beforeunload', () => {
   stopAudioCapture();
 });
 
-console.log('✅ Offscreen script ready for audio processing');
+console.log('✅ Offscreen script ready for real audio transcription');
