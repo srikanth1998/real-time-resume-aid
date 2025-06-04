@@ -1,3 +1,4 @@
+
 /* global chrome */
 
 let mediaRecorder = null;
@@ -14,21 +15,23 @@ let isProcessingAudio = false;
 let audioOutput = null;
 let gainNode = null;
 
-// Dynamic audio capture variables
+// Optimized dynamic audio capture variables
 let continuousAudioBuffer = [];
 let lastAudioActivity = 0;
-let silenceThreshold = 0.01;
-let silenceGapMs = 1000;
+let silenceThreshold = 0.003; // Reduced threshold for better sensitivity
+let silenceGapMs = 750; // Reduced gap for faster processing
 let isCapturingPhrase = false;
 let captureStartTime = 0;
+let minCaptureLength = 6000; // Reduced minimum length (0.375s at 16kHz)
+let maxCaptureLength = 32000; // Reduced maximum length (2s at 16kHz)
 
-console.log('🔵 Offscreen document loaded and initializing...');
+console.log('🔵 Offscreen document loaded with optimized audio processing...');
 
 // Setup message handlers immediately
 setupMessageHandlers();
 
 function setupMessageHandlers() {
-  console.log('🔧 Setting up message handlers in offscreen...');
+  console.log('🔧 Setting up optimized message handlers in offscreen...');
   
   // Handle messages from background script
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -38,39 +41,39 @@ function setupMessageHandlers() {
     if (message.type === 'ping') {
       console.log('🏓 Responding to ping with success');
       sendResponse({ success: true, message: 'pong' });
-      return true; // Keep message channel open
+      return true;
     }
     
     if (message.type === 'start-transcription') {
-      console.log('🎬 Starting transcription with stream ID:', message.streamId);
-      startAudioCapture(message.streamId)
+      console.log('🎬 Starting optimized transcription with stream ID:', message.streamId);
+      startOptimizedAudioCapture(message.streamId)
         .then(() => {
-          console.log('✅ Audio capture started successfully');
+          console.log('✅ Optimized audio capture started successfully');
           sendResponse({ success: true });
         })
         .catch(error => {
-          console.error('❌ Failed to start audio capture:', error);
+          console.error('❌ Failed to start optimized audio capture:', error);
           sendResponse({ 
             success: false, 
             error: error.message,
             errorType: error.name
           });
         });
-      return true; // Keep message channel open for async response
+      return true;
     }
     
     if (message.type === 'stop-transcription') {
-      console.log('🛑 Stopping transcription');
-      stopAudioCapture()
+      console.log('🛑 Stopping optimized transcription');
+      stopOptimizedAudioCapture()
         .then(() => {
-          console.log('✅ Audio capture stopped');
+          console.log('✅ Optimized audio capture stopped');
           sendResponse({ success: true });
         })
         .catch(error => {
-          console.error('❌ Error stopping audio capture:', error);
+          console.error('❌ Error stopping optimized audio capture:', error);
           sendResponse({ success: false, error: error.message });
         });
-      return true; // Keep message channel open for async response
+      return true;
     }
     
     console.warn('❓ Unknown message type:', message.type);
@@ -78,27 +81,27 @@ function setupMessageHandlers() {
     return true;
   });
 
-  console.log('✅ Message handlers set up successfully');
+  console.log('✅ Optimized message handlers set up successfully');
   
-  // Send ready signal to background script after handlers are set up
+  // Send ready signal to background script
   console.log('📡 Sending ready signal to background...');
   chrome.runtime.sendMessage({ type: 'offscreen-ready' }).catch((error) => {
-    console.warn('Could not send ready signal (background might not be listening yet):', error.message);
+    console.warn('Could not send ready signal:', error.message);
   });
 }
 
-async function startAudioCapture(streamId) {
-  console.log('🎬 Starting audio capture with stream ID:', streamId);
+async function startOptimizedAudioCapture(streamId) {
+  console.log('🚀 Starting optimized audio capture with stream ID:', streamId);
   
   if (isRecording) {
     console.log('Already recording, stopping first...');
-    await stopAudioCapture();
+    await stopOptimizedAudioCapture();
   }
   
   try {
-    console.log('📡 Getting user media with stream ID:', streamId);
+    console.log('📡 Getting user media with optimized constraints...');
     
-    // Request media stream with specific audio constraints
+    // Optimized audio constraints for lower latency
     const constraints = {
       audio: {
         mandatory: {
@@ -109,11 +112,7 @@ async function startAudioCapture(streamId) {
       video: false
     };
     
-    console.log('🎯 Requesting media with constraints:', constraints);
-    
     mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-    
-    console.log('✅ Got media stream, tracks:', mediaStream.getAudioTracks().length);
     
     if (mediaStream.getAudioTracks().length === 0) {
       throw new Error('No audio tracks found in stream');
@@ -127,34 +126,32 @@ async function startAudioCapture(streamId) {
       readyState: audioTrack.readyState
     });
     
-    // Create audio context for processing
-    console.log('🎧 Creating AudioContext...');
+    // Create optimized audio context
+    console.log('🎧 Creating optimized AudioContext...');
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: 16000
+      sampleRate: 16000, // Optimized sample rate
+      latencyHint: 'interactive' // Low latency hint
     });
     
-    console.log('📊 AudioContext state:', audioContext.state);
-    
     // Create source from stream
-    console.log('🔗 Creating media stream source...');
     const source = audioContext.createMediaStreamSource(mediaStream);
     
-    // Create gain node for volume control
+    // Create gain node for volume control and passthrough
     gainNode = audioContext.createGain();
-    gainNode.gain.value = 1.0; // Full volume
+    gainNode.gain.value = 1.0;
     
-    // Connect to audio output (speakers) for passthrough
+    // Connect to audio output for passthrough
     source.connect(gainNode);
     gainNode.connect(audioContext.destination);
-    console.log('🔊 Audio passthrough enabled - you should hear the audio now');
+    console.log('🔊 Optimized audio passthrough enabled');
     
-    // Load the proper worklet module for transcription
+    // Load the audio worklet for processing
     const workletUrl = chrome.runtime.getURL('audio-processor-worklet.js');
-    console.log('Loading worklet from:', workletUrl);
+    console.log('Loading optimized worklet from:', workletUrl);
     
     try {
       await audioContext.audioWorklet.addModule(workletUrl);
-      console.log('✅ Worklet module loaded successfully');
+      console.log('✅ Optimized worklet module loaded');
     } catch (workletError) {
       console.error('❌ Failed to load worklet module:', workletError);
       throw new Error(`Failed to load audio worklet: ${workletError.message}`);
@@ -162,32 +159,27 @@ async function startAudioCapture(streamId) {
     
     workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
     
-    // Process audio data with dynamic capture (for transcription)
+    // Optimized audio processing with reduced latency
     workletNode.port.onmessage = (event) => {
       if (event.data.type === 'audioData') {
-        processDynamicAudioData(event.data.data);
+        processOptimizedAudioData(event.data.data);
       }
     };
     
-    // Connect audio pipeline for transcription (parallel to passthrough)
+    // Connect audio pipeline for transcription
     source.connect(workletNode);
     
-    // Reset dynamic capture variables
+    // Reset optimized capture variables
     continuousAudioBuffer = [];
     lastAudioActivity = 0;
     isCapturingPhrase = false;
     captureStartTime = 0;
     
     isRecording = true;
-    console.log('🎬 Audio capture and passthrough started successfully');
+    console.log('🚀 Optimized audio capture and passthrough started successfully');
     
   } catch (error) {
-    console.error('💥 Error in startAudioCapture:', error);
-    console.error('💥 Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
+    console.error('💥 Error in optimized startAudioCapture:', error);
     
     // Clean up any partial setup
     if (audioContext) {
@@ -208,24 +200,27 @@ async function startAudioCapture(streamId) {
       }
     }
     
-    throw new Error(`Error starting tab capture: ${error.message}`);
+    throw new Error(`Error starting optimized tab capture: ${error.message}`);
   }
 }
 
-function processDynamicAudioData(audioData) {
+function processOptimizedAudioData(audioData) {
   const now = Date.now();
   const amplitude = calculateAmplitude(audioData);
   
-  console.log('🎵 Audio data received, amplitude:', amplitude.toFixed(4));
+  // Optimized amplitude logging (less frequent)
+  if (now - lastAudioActivity > 200) {
+    console.log('🎵 Audio amplitude:', amplitude.toFixed(4));
+  }
   
-  // Check if this is speech (above silence threshold)
+  // Optimized speech detection with lower threshold
   const isSpeech = amplitude > silenceThreshold;
   
   if (isSpeech) {
     // Speech detected
     if (!isCapturingPhrase) {
       // Start new phrase capture
-      console.log('🎤 Starting new phrase capture');
+      console.log('🎤 Starting optimized phrase capture');
       isCapturingPhrase = true;
       captureStartTime = now;
       continuousAudioBuffer = [];
@@ -235,18 +230,26 @@ function processDynamicAudioData(audioData) {
     continuousAudioBuffer.push(...audioData);
     lastAudioActivity = now;
     
-    console.log('📝 Capturing speech, buffer size:', continuousAudioBuffer.length);
+    // Optimized buffer size logging
+    if (continuousAudioBuffer.length % 8000 === 0) {
+      console.log('📝 Buffer size:', continuousAudioBuffer.length);
+    }
+    
+    // Check for maximum capture length to prevent memory issues
+    if (continuousAudioBuffer.length >= maxCaptureLength) {
+      console.log('📏 Maximum capture length reached, ending phrase');
+      endOptimizedPhraseCapture();
+    }
     
   } else {
     // Silence detected
     if (isCapturingPhrase) {
       const silenceDuration = now - lastAudioActivity;
-      console.log('🤫 Silence detected, duration:', silenceDuration, 'ms');
       
-      // Check if silence gap is long enough to end phrase
+      // Optimized silence detection with shorter gap
       if (silenceDuration >= silenceGapMs) {
-        console.log('✅ Silence gap reached, ending phrase capture');
-        endPhraseCapture();
+        console.log('✅ Optimized silence gap reached, ending phrase capture');
+        endOptimizedPhraseCapture();
       }
     }
   }
@@ -260,80 +263,72 @@ function calculateAmplitude(audioData) {
   return Math.sqrt(sum / audioData.length);
 }
 
-async function endPhraseCapture() {
+async function endOptimizedPhraseCapture() {
   if (!isCapturingPhrase || continuousAudioBuffer.length === 0) {
-    console.log('⚠️ No phrase to capture or already ended');
     return;
   }
   
-  console.log('🎯 Ending phrase capture, total samples:', continuousAudioBuffer.length);
+  console.log('🎯 Ending optimized phrase capture, samples:', continuousAudioBuffer.length);
   
   isCapturingPhrase = false;
   const capturedAudio = [...continuousAudioBuffer];
   continuousAudioBuffer = [];
   
-  // Only process if we have enough audio (at least 0.5 seconds at 16kHz)
-  if (capturedAudio.length < 8000) {
-    console.log('⚠️ Audio too short, skipping transcription. Samples:', capturedAudio.length);
+  // Optimized minimum length check
+  if (capturedAudio.length < minCaptureLength) {
+    console.log('⚠️ Audio too short for transcription. Samples:', capturedAudio.length);
     return;
   }
   
   const captureDuration = (Date.now() - captureStartTime) / 1000;
-  console.log('📊 Phrase duration:', captureDuration.toFixed(2), 'seconds');
+  console.log('📊 Optimized phrase duration:', captureDuration.toFixed(2), 'seconds');
   
   try {
-    console.log('🔄 Converting audio to WAV format...');
-    // Convert to WAV and send for transcription
-    const audioBlob = createWAVBlob(capturedAudio);
-    console.log('📦 Created WAV blob, size:', audioBlob.size, 'bytes');
+    // Optimized audio processing
+    console.log('🔄 Converting to optimized WAV format...');
+    const audioBlob = createOptimizedWAVBlob(capturedAudio);
+    console.log('📦 Created optimized WAV blob, size:', audioBlob.size, 'bytes');
     
-    console.log('🔢 Converting to base64...');
     const base64Audio = await blobToBase64(audioBlob);
-    console.log('✅ Base64 conversion complete, length:', base64Audio.length);
+    console.log('🚀 Sending optimized phrase to transcription service...');
     
-    console.log('🚀 Sending phrase to transcription service...');
-    const transcription = await sendToSTTService(base64Audio);
+    const transcription = await sendToOptimizedSTTService(base64Audio);
     
     if (transcription && transcription.trim()) {
-      console.log('✅ Transcription received:', transcription);
-      sendTranscription(transcription);
+      console.log('✅ Optimized transcription received:', transcription);
+      sendOptimizedTranscription(transcription);
     } else {
       console.log('⚠️ Empty transcription received');
     }
     
   } catch (error) {
-    console.error('❌ Error processing phrase:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
+    console.error('❌ Error processing optimized phrase:', error);
   }
 }
 
-function createWAVBlob(audioData) {
-  console.log('🎧 Creating WAV blob from', audioData.length, 'samples');
+function createOptimizedWAVBlob(audioData) {
+  console.log('🎧 Creating optimized WAV blob from', audioData.length, 'samples');
   const sampleRate = 16000;
   const numChannels = 1;
   const bytesPerSample = 2;
   
-  // Convert float32 to int16
+  // Optimized float32 to int16 conversion
   const int16Data = new Int16Array(audioData.length);
   for (let i = 0; i < audioData.length; i++) {
     int16Data[i] = Math.max(-32768, Math.min(32767, audioData[i] * 32768));
   }
   
-  // Create WAV header
+  // Create optimized WAV header
   const buffer = new ArrayBuffer(44 + int16Data.length * bytesPerSample);
   const view = new DataView(buffer);
   
-  // WAV header
   const writeString = (offset, string) => {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
   };
   
+  // Optimized WAV header creation
   writeString(0, 'RIFF');
   view.setUint32(4, 36 + int16Data.length * bytesPerSample, true);
   writeString(8, 'WAVE');
@@ -352,42 +347,34 @@ function createWAVBlob(audioData) {
   const audioView = new Int16Array(buffer, 44);
   audioView.set(int16Data);
   
-  console.log('✅ WAV blob created successfully');
+  console.log('✅ Optimized WAV blob created successfully');
   return new Blob([buffer], { type: 'audio/wav' });
 }
 
 function blobToBase64(blob) {
-  console.log('🔄 Converting blob to base64...');
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result.split(',')[1];
-      console.log('✅ Base64 conversion successful');
       resolve(base64);
     };
-    reader.onerror = (error) => {
-      console.error('❌ Base64 conversion failed:', error);
-      reject(error);
-    };
+    reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
 }
 
-async function sendToSTTService(base64Audio) {
+async function sendToOptimizedSTTService(base64Audio) {
   try {
-    console.log('🚀 Sending audio to STT service...');
-    console.log('📊 Audio data size:', base64Audio.length, 'characters');
+    console.log('🚀 Sending to optimized STT service...');
     
-    const requestBody = {
-      audio: base64Audio
-    };
+    const requestBody = { audio: base64Audio };
     
-    // Use the correct Supabase project URL
+    // Optimized request with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    
     const supabaseUrl = 'https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/speech-to-text';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY';
-    
-    console.log('📡 Making request to Supabase function:', supabaseUrl);
-    console.log('🔑 Using auth key (first 20 chars):', supabaseAnonKey.substring(0, 20) + '...');
     
     const response = await fetch(supabaseUrl, {
       method: 'POST',
@@ -396,77 +383,61 @@ async function sendToSTTService(base64Audio) {
         'Authorization': `Bearer ${supabaseAnonKey}`,
         'apikey': supabaseAnonKey
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
     });
     
-    console.log('📬 STT service response status:', response.status, response.statusText);
-    console.log('📬 Response headers:', Object.fromEntries(response.headers.entries()));
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ STT service error response:', errorText);
       throw new Error(`STT service error: ${response.status} - ${errorText}`);
     }
     
     const result = await response.json();
-    console.log('✅ STT service response:', result);
+    console.log('✅ Optimized STT service response:', result);
     
     return result.text;
     
   } catch (error) {
-    console.error('❌ Error calling STT service:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    
-    // Add more specific error handling
-    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-      console.error('🌐 Network connectivity issue - check if Supabase domain is accessible');
-      console.error('🔍 Trying to reach:', 'https://jafylkqbmvdptrqwwyed.supabase.co');
-    }
-    
+    console.error('❌ Error calling optimized STT service:', error);
     return null;
   }
 }
 
-function sendTranscription(text) {
+function sendOptimizedTranscription(text) {
   if (!text || !text.trim()) {
-    console.log('⚠️ No text to send or empty text');
     return;
   }
   
-  console.log('📤 Sending transcription to background:', text);
+  console.log('📤 Sending optimized transcription to background:', text);
   
   try {
     const message = {
       type: 'transcription-result',
       text: text.trim(),
       timestamp: Date.now(),
-      source: 'whisper-api-dynamic'
+      source: 'whisper-api-optimized'
     };
     
-    console.log('📨 Message being sent:', message);
-    
-    // Send message without waiting for response to avoid port closure issues
+    // Optimized message sending without waiting
     chrome.runtime.sendMessage(message).catch((error) => {
-      console.warn('⚠️ Message send failed (this is normal if background script is busy):', error.message);
+      console.warn('⚠️ Message send failed:', error.message);
     });
     
-    console.log('✅ Transcription message sent');
+    console.log('✅ Optimized transcription message sent');
   } catch (error) {
-    console.error('💥 Error sending transcription:', error);
+    console.error('💥 Error sending optimized transcription:', error);
   }
 }
 
-async function stopAudioCapture() {
-  console.log('🛑 Stopping audio capture...');
+async function stopOptimizedAudioCapture() {
+  console.log('🛑 Stopping optimized audio capture...');
   
   // Send any remaining captured audio before stopping
   if (isCapturingPhrase && continuousAudioBuffer.length > 0) {
-    console.log('📤 Sending final captured phrase before stopping...');
-    await endPhraseCapture();
+    console.log('📤 Sending final optimized phrase before stopping...');
+    await endOptimizedPhraseCapture();
   }
   
   isRecording = false;
@@ -478,7 +449,7 @@ async function stopAudioCapture() {
     try {
       gainNode.disconnect();
       gainNode = null;
-      console.log('✅ Audio passthrough stopped');
+      console.log('✅ Optimized audio passthrough stopped');
     } catch (error) {
       console.warn('⚠️ Error stopping audio passthrough:', error);
     }
@@ -489,7 +460,7 @@ async function stopAudioCapture() {
     try {
       workletNode.disconnect();
       workletNode = null;
-      console.log('✅ Audio worklet stopped');
+      console.log('✅ Optimized audio worklet stopped');
     } catch (error) {
       console.warn('⚠️ Error stopping audio worklet:', error);
     }
@@ -498,11 +469,9 @@ async function stopAudioCapture() {
   // Stop media stream
   if (mediaStream) {
     try {
-      mediaStream.getTracks().forEach(track => {
-        track.stop();
-      });
+      mediaStream.getTracks().forEach(track => track.stop());
       mediaStream = null;
-      console.log('✅ Media stream stopped');
+      console.log('✅ Optimized media stream stopped');
     } catch (error) {
       console.warn('⚠️ Error stopping media stream:', error);
     }
@@ -513,7 +482,7 @@ async function stopAudioCapture() {
     try {
       await audioContext.close();
       audioContext = null;
-      console.log('✅ Audio context closed');
+      console.log('✅ Optimized audio context closed');
     } catch (error) {
       console.warn('⚠️ Error closing audio context:', error);
     }
@@ -525,14 +494,13 @@ async function stopAudioCapture() {
   continuousAudioBuffer = [];
   lastAudioActivity = 0;
   
-  console.log('✅ Audio capture stopped completely');
+  console.log('✅ Optimized audio capture stopped completely');
 }
 
 // Cleanup on unload
 window.addEventListener('beforeunload', () => {
-  console.log('🔄 Offscreen unloading, cleaning up...');
-  stopAudioCapture();
+  console.log('🔄 Offscreen unloading, cleaning up optimized resources...');
+  stopOptimizedAudioCapture();
 });
 
-// Immediately signal readiness
-console.log('✅ Offscreen script ready for dynamic real-time transcription with audio passthrough');
+console.log('✅ Optimized offscreen script ready for high-speed real-time transcription');

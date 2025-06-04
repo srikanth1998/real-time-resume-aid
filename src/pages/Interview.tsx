@@ -29,11 +29,25 @@ const Interview = () => {
   const [manualQuestion, setManualQuestion] = useState("");
   const [extensionConnected, setExtensionConnected] = useState(false);
   const [extensionStatus, setExtensionStatus] = useState("Connecting...");
+  const [isStreaming, setIsStreaming] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTranscriptRef = useRef("");
   const processingRef = useRef(false);
+  const streamingAnswerRef = useRef("");
+
+  // Predictive caching for common questions
+  const commonQuestions = [
+    "Tell me about yourself",
+    "What are your strengths?",
+    "What are your weaknesses?",
+    "Why do you want this job?",
+    "Why should we hire you?",
+    "Where do you see yourself in 5 years?",
+    "Tell me about a challenge you overcame",
+    "What motivates you?"
+  ];
 
   useEffect(() => {
     const checkSession = async () => {
@@ -93,6 +107,9 @@ const Interview = () => {
       
       // Check for extension and initialize
       checkAndInitializeExtension();
+      
+      // Start predictive caching
+      startPredictiveCaching();
     };
 
     checkSession();
@@ -117,40 +134,30 @@ const Interview = () => {
       
       cleanup = initializeExtensionConnector();
       
-      // Listen for extension events
       const handleExtensionReady = (event: CustomEvent) => {
         console.log('✅ Extension ready event received:', event.detail);
         setExtensionConnected(true);
         setExtensionStatus("Listening");
         (window as any).__extensionReady = true;
         
-        // Auto-switch to extension mode if it becomes available
         if (inputMode === 'voice') {
           setInputMode('extension');
         }
       };
 
-      // Listen for transcriptions from extension
       const handleExtensionTranscription = (event: CustomEvent) => {
         console.log('📥 EXTENSION TRANSCRIPTION EVENT RECEIVED:', event.detail);
-        console.log('📝 Transcription text:', event.detail?.text);
-        console.log('⏰ Timestamp:', event.detail?.timestamp);
-        console.log('🎯 Type:', event.detail?.type);
         
         if (event.detail?.text) {
           console.log('🔄 Processing transcription data...');
           handleExtensionTranscriptionData(event.detail.text, event.detail.timestamp);
-        } else {
-          console.warn('⚠️ No text in transcription event detail');
         }
       };
 
       window.addEventListener('extensionReady', handleExtensionReady as EventListener);
       window.addEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
 
-      // Initial check
       const isAvailable = checkExtensionAvailability();
-      console.log('🔍 Initial extension check:', isAvailable);
       setExtensionConnected(isAvailable);
       
       if (isAvailable) {
@@ -161,7 +168,6 @@ const Interview = () => {
       }
 
       return () => {
-        console.log('🧹 Cleaning up extension event listeners');
         window.removeEventListener('extensionReady', handleExtensionReady as EventListener);
         window.removeEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
         if (cleanup) cleanup();
@@ -177,7 +183,30 @@ const Interview = () => {
     };
   }, [inputMode]);
 
-  // Add missing speech recognition functions
+  const startPredictiveCaching = async () => {
+    console.log('🚀 Starting predictive caching for common questions...');
+    
+    // Cache common questions in background
+    for (const question of commonQuestions) {
+      try {
+        // Use non-streaming mode for caching
+        await supabase.functions.invoke('generate-interview-answer', {
+          body: {
+            sessionId: sessionId,
+            question: question,
+            streaming: false
+          }
+        });
+        console.log('✅ Cached answer for:', question);
+      } catch (error) {
+        console.warn('⚠️ Failed to cache answer for:', question, error);
+      }
+      
+      // Small delay to avoid overwhelming the API
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  };
+
   const initializeSpeechRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       toast({
@@ -214,7 +243,7 @@ const Interview = () => {
       if (finalTranscript && finalTranscript !== lastTranscriptRef.current) {
         lastTranscriptRef.current = finalTranscript;
         console.log('🎯 Final transcript received:', finalTranscript);
-        generateAnswer(finalTranscript);
+        generateStreamingAnswer(finalTranscript);
       }
     };
 
@@ -251,7 +280,6 @@ const Interview = () => {
     checks.forEach(delay => {
       setTimeout(() => {
         const isConnected = checkExtensionAvailability();
-        console.log(`🔍 Extension check at ${delay}ms:`, isConnected);
         
         if (isConnected && !extensionConnected) {
           setExtensionConnected(true);
@@ -266,7 +294,6 @@ const Interview = () => {
 
   const handleExtensionTranscriptionData = async (transcriptionText: string, timestamp?: number) => {
     console.log('🎯 PROCESSING TRANSCRIPTION FROM EXTENSION:', transcriptionText);
-    console.log('📊 Current processing state:', processingRef.current);
     
     if (processingRef.current) {
       console.log('⚠️ Already processing, skipping...');
@@ -277,17 +304,9 @@ const Interview = () => {
     setExtensionStatus("Processing...");
     
     try {
-      // Show the transcription immediately
-      console.log('📝 Setting current transcript to:', transcriptionText);
       setCurrentTranscript(transcriptionText);
-      
-      // Generate answer for the transcription
-      console.log('🤖 Generating AI answer for transcription...');
-      await generateAnswer(transcriptionText);
-      
+      await generateStreamingAnswer(transcriptionText);
       setExtensionStatus("Listening");
-      console.log('✅ Transcription processing completed successfully');
-      
     } catch (error) {
       console.error('❌ Error processing extension transcription:', error);
       setExtensionStatus("Error");
@@ -350,59 +369,95 @@ const Interview = () => {
     if (!manualQuestion.trim()) return;
     
     setCurrentTranscript(manualQuestion);
-    generateAnswer(manualQuestion);
+    generateStreamingAnswer(manualQuestion);
     setManualQuestion("");
   };
 
-  const generateAnswer = async (question: string) => {
+  const generateStreamingAnswer = async (question: string) => {
     if (isGeneratingAnswer || !question.trim()) return;
     
-    console.log('🤖 Generating answer for question:', question);
+    console.log('🚀 Generating streaming answer for question:', question);
     setIsGeneratingAnswer(true);
-    setCurrentAnswer("Analyzing your documents and generating a tailored response...");
+    setIsStreaming(true);
+    setCurrentAnswer("");
+    streamingAnswerRef.current = "";
 
     try {
-      const { data, error } = await supabase.functions.invoke('generate-interview-answer', {
-        body: {
+      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/generate-interview-answer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.supabaseKey}`,
+          'apikey': supabase.supabaseKey
+        },
+        body: JSON.stringify({
           sessionId: sessionId,
-          question: question
-        }
+          question: question,
+          streaming: true
+        })
       });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        throw new Error('Failed to generate streaming answer');
       }
 
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to generate answer');
-      }
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      const aiAnswer = data.answer;
-      setCurrentAnswer(aiAnswer);
-      
-      const newEntry = {
-        question,
-        answer: aiAnswer,
-        timestamp: new Date().toISOString()
-      };
-      
-      setConversationHistory(prev => [...prev, newEntry]);
-      
-      await supabase
-        .from('transcripts')
-        .insert({
-          session_id: sessionId,
-          question_text: question,
-          generated_answer: aiAnswer
-        });
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data.trim()) {
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.type === 'delta' && parsed.content) {
+                    streamingAnswerRef.current += parsed.content;
+                    setCurrentAnswer(streamingAnswerRef.current);
+                  } else if (parsed.type === 'done') {
+                    // Final answer received
+                    const finalAnswer = parsed.fullAnswer || streamingAnswerRef.current;
+                    setCurrentAnswer(finalAnswer);
+                    
+                    const newEntry = {
+                      question,
+                      answer: finalAnswer,
+                      timestamp: new Date().toISOString()
+                    };
+                    
+                    setConversationHistory(prev => [...prev, newEntry]);
+                    
+                    await supabase
+                      .from('transcripts')
+                      .insert({
+                        session_id: sessionId,
+                        question_text: question,
+                        generated_answer: finalAnswer
+                      });
+                  }
+                } catch (parseError) {
+                  console.warn('Failed to parse streaming data:', parseError);
+                }
+              }
+            }
+          }
+        }
+      }
 
       toast({
         title: "Response generated",
-        description: "AI has analyzed your documents and provided a tailored answer.",
+        description: "AI has provided a tailored answer using streaming.",
       });
 
     } catch (error: any) {
-      console.error('❌ Answer generation error:', error);
+      console.error('❌ Streaming answer generation error:', error);
       let errorMessage = "Sorry, there was an error generating the answer. Please try again.";
       
       if (error.message && error.message.includes('quota')) {
@@ -420,8 +475,14 @@ const Interview = () => {
       });
     } finally {
       setIsGeneratingAnswer(false);
+      setIsStreaming(false);
       processingRef.current = false;
     }
+  };
+
+  // Fallback to old generation method
+  const generateAnswer = async (question: string) => {
+    return generateStreamingAnswer(question);
   };
 
   const copyToClipboard = (text: string) => {
@@ -462,6 +523,11 @@ const Interview = () => {
             {extensionConnected && (
               <span className="bg-green-800 text-green-200 text-xs px-2 py-1 rounded">
                 Extension Connected
+              </span>
+            )}
+            {isStreaming && (
+              <span className="bg-blue-800 text-blue-200 text-xs px-2 py-1 rounded animate-pulse">
+                Streaming Response
               </span>
             )}
           </div>
@@ -634,7 +700,7 @@ const Interview = () => {
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
-                <span>AI-Generated Answer</span>
+                <span>AI-Generated Answer {isStreaming && <span className="text-blue-400">(Streaming...)</span>}</span>
                 <div className="flex space-x-1 md:space-x-2">
                   <Button
                     onClick={() => copyToClipboard(currentAnswer)}
@@ -646,7 +712,7 @@ const Interview = () => {
                     <Copy className="h-3 w-3 md:h-4 md:w-4" />
                   </Button>
                   <Button
-                    onClick={() => generateAnswer(currentTranscript)}
+                    onClick={() => generateStreamingAnswer(currentTranscript)}
                     variant="outline"
                     size="sm"
                     disabled={!currentTranscript || isGeneratingAnswer}
@@ -662,10 +728,16 @@ const Interview = () => {
                 <p className="text-white leading-relaxed text-sm md:text-base">
                   {currentAnswer || "Ask a question to get an AI-generated response tailored to your resume and job description."}
                 </p>
-                {isGeneratingAnswer && (
+                {isGeneratingAnswer && !isStreaming && (
                   <div className="flex items-center space-x-2 mt-4 text-blue-400">
                     <div className="animate-spin rounded-full h-3 w-3 md:h-4 md:w-4 border-b-2 border-blue-400"></div>
                     <span className="text-xs md:text-sm">Analyzing documents and generating personalized answer...</span>
+                  </div>
+                )}
+                {isStreaming && (
+                  <div className="flex items-center space-x-2 mt-4 text-green-400">
+                    <div className="animate-pulse rounded-full h-3 w-3 md:h-4 md:w-4 bg-green-400"></div>
+                    <span className="text-xs md:text-sm">Streaming response in real-time...</span>
                   </div>
                 )}
               </div>
@@ -700,19 +772,20 @@ const Interview = () => {
                         Your conversation history will appear here as you ask questions.
                       </p>
                       <div className="text-xs md:text-sm text-blue-400 bg-blue-900/20 p-3 md:p-4 rounded-lg">
-                        <p className="font-medium mb-2">🤖 AI Interview Assistant Active</p>
+                        <p className="font-medium mb-2">🚀 Enhanced AI Interview Assistant</p>
                         {extensionConnected ? (
                           <>
                             <p>• Extension capturing meeting audio automatically</p>
-                            <p>• Questions will be processed in real-time</p>
+                            <p>• Real-time streaming responses</p>
                           </>
                         ) : (
                           <>
                             <p>• Choose your input method above</p>
-                            <p>• Ask questions and get AI responses</p>
+                            <p>• Get streaming AI responses</p>
                           </>
                         )}
-                        <p>• Powered by your resume and job description</p>
+                        <p>• Predictive caching for instant answers</p>
+                        <p>• Optimized for speed and accuracy</p>
                       </div>
                     </div>
                   ) : (

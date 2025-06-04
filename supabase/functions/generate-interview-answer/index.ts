@@ -14,19 +14,45 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, question } = await req.json();
+    const { sessionId, question, streaming = true } = await req.json();
     
     if (!sessionId || !question) {
       throw new Error('Session ID and question are required');
     }
 
-    console.log('Generating answer for session:', sessionId, 'Question:', question);
+    console.log('Generating answer for session:', sessionId, 'Question:', question, 'Streaming:', streaming);
 
     // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Check cache first for instant responses
+    const questionHash = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(question.toLowerCase().trim())
+    );
+    const hashArray = Array.from(new Uint8Array(questionHash));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const { data: cachedAnswer } = await supabase
+      .from('answer_cache')
+      .select('answer')
+      .eq('session_id', sessionId)
+      .eq('question_hash', hashHex)
+      .single();
+
+    if (cachedAnswer) {
+      console.log('Cache hit! Returning cached answer');
+      return new Response(JSON.stringify({ 
+        answer: cachedAnswer.answer,
+        success: true,
+        cached: true
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Get session details and documents
     const { data: session, error: sessionError } = await supabase
@@ -60,13 +86,12 @@ serve(async (req) => {
         if (doc.parsed_content) {
           jobDescContent = doc.parsed_content;
         } else if (doc.storage_path && doc.storage_path.startsWith('http')) {
-          // It's a URL, use it as content
           jobDescContent = `Job posting URL: ${doc.storage_path}`;
         }
       }
     }
 
-    // Create the enhanced AI prompt with the new structure
+    // Create the enhanced AI prompt
     const systemPrompt = `ROLE  
 You are a real-time interview co-pilot for a job candidate.
 
@@ -97,41 +122,146 @@ Return plain text only:`;
       throw new Error('OpenAI API key not configured');
     }
 
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: question }
-        ],
-        temperature: 0.7,
-        max_tokens: 300,
-      }),
-    });
+    if (streaming) {
+      // Streaming response
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openAIApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: question }
+                ],
+                temperature: 0.7,
+                max_tokens: 300,
+                stream: true,
+              }),
+            });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI API error:', errorData);
-      throw new Error('Failed to generate AI response');
+            if (!response.ok) {
+              throw new Error('Failed to generate AI response');
+            }
+
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let fullAnswer = '';
+
+            if (reader) {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+                    if (data === '[DONE]') continue;
+                    
+                    try {
+                      const parsed = JSON.parse(data);
+                      const content = parsed.choices?.[0]?.delta?.content;
+                      if (content) {
+                        fullAnswer += content;
+                        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content, type: 'delta' })}\n\n`));
+                      }
+                    } catch (e) {
+                      // Skip invalid JSON
+                    }
+                  }
+                }
+              }
+            }
+
+            // Cache the complete answer
+            try {
+              await supabase
+                .from('answer_cache')
+                .upsert({
+                  session_id: sessionId,
+                  question_hash: hashHex,
+                  question: question,
+                  answer: fullAnswer,
+                  created_at: new Date().toISOString()
+                });
+            } catch (cacheError) {
+              console.warn('Failed to cache answer:', cacheError);
+            }
+
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'done', fullAnswer })}\n\n`));
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    } else {
+      // Non-streaming response (fallback)
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: question }
+          ],
+          temperature: 0.7,
+          max_tokens: 300,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('OpenAI API error:', errorData);
+        throw new Error('Failed to generate AI response');
+      }
+
+      const data = await response.json();
+      const generatedAnswer = data.choices[0].message.content;
+
+      // Cache the answer
+      try {
+        await supabase
+          .from('answer_cache')
+          .upsert({
+            session_id: sessionId,
+            question_hash: hashHex,
+            question: question,
+            answer: generatedAnswer,
+            created_at: new Date().toISOString()
+          });
+      } catch (cacheError) {
+        console.warn('Failed to cache answer:', cacheError);
+      }
+
+      return new Response(JSON.stringify({ 
+        answer: generatedAnswer,
+        success: true 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-
-    const data = await response.json();
-    const generatedAnswer = data.choices[0].message.content;
-
-    console.log('Generated answer:', generatedAnswer);
-
-    return new Response(JSON.stringify({ 
-      answer: generatedAnswer,
-      success: true 
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
 
   } catch (error) {
     console.error('Error in generate-interview-answer function:', error);
