@@ -1,4 +1,3 @@
-
 /* global chrome */
 let banner;
 let extensionStatus = 'disconnected';
@@ -23,7 +22,7 @@ function updateBannerStatus(status) {
   switch (status) {
     case 'transcribing':
       b.style.background = '#34a853';
-      b.textContent = '🎤 InterviewAce - Transcribing locally...';
+      b.textContent = '🎤 InterviewAce - Audio passthrough active, transcribing...';
       break;
     case 'processing':
       b.style.background = '#1976d2';
@@ -55,7 +54,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const b = ensureBanner();
   
   if (action === 'transcriptionStarted') {
-    console.log('🎬 Showing transcription banner');
+    console.log('🎬 Showing transcription banner with passthrough info');
     updateBannerStatus('transcribing');
     b.hidden = false;
     sendResponse({ success: true });
@@ -124,7 +123,7 @@ window.addEventListener('message', (event) => {
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
-      capabilities: ['localTranscription', 'privacyFocused'],
+      capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
       timestamp: Date.now()
     }, '*');
     console.log('✅ Extension ready message posted with transcription capabilities');
@@ -135,7 +134,7 @@ window.addEventListener('message', (event) => {
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
-      capabilities: ['localTranscription', 'privacyFocused'],
+      capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
       timestamp: Date.now()
     }, '*');
     console.log('✅ Test connection response sent with transcription capabilities');
@@ -148,7 +147,7 @@ console.log('🌐 Page URL:', window.location.href);
 window.postMessage({
   action: 'extensionReady',
   source: 'interviewace-extension',
-  capabilities: ['localTranscription', 'privacyFocused'],
+  capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
   timestamp: Date.now()
 }, '*');
 console.log('✅ Initial extension ready message posted with transcription capabilities');
