@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ const Upload = () => {
   useEffect(() => {
     const checkSession = async () => {
       console.log('[UPLOAD] Starting session check for:', sessionId);
+      console.log('[UPLOAD] Payment success flag:', paymentSuccess);
       
       if (!sessionId) {
         console.error('[UPLOAD] No session ID provided');
@@ -39,7 +41,7 @@ const Upload = () => {
       }
 
       try {
-        // Clear any existing file states to prevent showing old data
+        // Clear any existing file states
         setResumeFile(null);
         setJobDescFile(null);
         setJobDescUrl("");
@@ -53,7 +55,7 @@ const Upload = () => {
 
         console.log('[UPLOAD] Auth session found for user:', authSession.user.id);
 
-        // Fetch session details with fresh data
+        // Fetch session details
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
@@ -74,26 +76,20 @@ const Upload = () => {
 
         console.log('[UPLOAD] Session found:', sessionData.id, 'Status:', sessionData.status);
 
-        // If coming from successful payment, allow pending_assets status
-        // Otherwise, check for proper status flow
-        if (paymentSuccess === 'true') {
-          console.log('[UPLOAD] Coming from payment success');
-          // Coming from successful payment - allow if status is pending_assets or pending_payment
-          if (sessionData.status !== 'pending_assets' && sessionData.status !== 'pending_payment') {
-            console.error('[UPLOAD] Invalid session status for payment success:', sessionData.status);
-            toast({
-              title: "Session not ready",
-              description: "This session is not ready for document upload.",
-              variant: "destructive"
-            });
-            navigate('/');
-            return;
-          }
-          
-          // If still pending_payment after successful payment, update to pending_assets
-          if (sessionData.status === 'pending_payment') {
-            console.log('[UPLOAD] Updating session status to pending_assets');
-            const { error: updateError } = await supabase
+        // Handle different session statuses
+        if (sessionData.status === 'assets_received') {
+          console.log('[UPLOAD] Assets already received, redirecting to lobby');
+          navigate(`/lobby?session_id=${sessionId}`);
+          return;
+        } else if (sessionData.status === 'in_progress') {
+          console.log('[UPLOAD] Session in progress, redirecting to interview');
+          navigate(`/interview?session_id=${sessionId}`);
+          return;
+        } else if (sessionData.status === 'pending_payment') {
+          // If coming from payment success, update status
+          if (paymentSuccess === 'true') {
+            console.log('[UPLOAD] Updating session status from pending_payment to pending_assets');
+            const { error: updateError } = await supabaseClient
               .from('sessions')
               .update({
                 status: 'pending_assets',
@@ -107,25 +103,25 @@ const Upload = () => {
               sessionData.status = 'pending_assets';
               console.log('[UPLOAD] Session status updated to pending_assets');
             }
-          }
-        } else {
-          console.log('[UPLOAD] Normal flow - checking session status');
-          // Normal flow - must be pending_assets
-          if (sessionData.status === 'assets_received') {
-            console.log('[UPLOAD] Assets already received, redirecting to lobby');
-            navigate(`/lobby?session_id=${sessionId}`);
-            return;
-          }
-          if (sessionData.status !== 'pending_assets') {
-            console.error('[UPLOAD] Invalid session status:', sessionData.status);
+          } else {
+            console.error('[UPLOAD] Session still pending payment');
             toast({
-              title: "Session not ready",
+              title: "Payment required",
               description: "Please complete payment first.",
               variant: "destructive"
             });
             navigate('/');
             return;
           }
+        } else if (sessionData.status !== 'pending_assets') {
+          console.error('[UPLOAD] Invalid session status for upload:', sessionData.status);
+          toast({
+            title: "Session not ready",
+            description: "This session is not ready for document upload.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
         }
 
         setSession(sessionData);
@@ -258,7 +254,7 @@ const Upload = () => {
             filename: 'job_description_url.txt',
             file_size: jobDescUrl.length,
             mime_type: 'text/plain',
-            storage_path: jobDescUrl, // Store URL directly
+            storage_path: jobDescUrl,
             parsed_content: jobDescUrl
           });
 

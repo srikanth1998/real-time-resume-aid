@@ -21,9 +21,12 @@ const Payment = () => {
 
   useEffect(() => {
     const verifySession = async () => {
-      if (!sessionId) {
+      console.log('[PAYMENT] Verifying session:', sessionId);
+      
+      if (!sessionId || !planData) {
+        console.error('[PAYMENT] Missing session ID or plan data');
         toast({
-          title: "No session found",
+          title: "Missing information",
           description: "Please start a new session from the homepage.",
           variant: "destructive"
         });
@@ -34,11 +37,12 @@ const Payment = () => {
       try {
         const { data: { session: authSession } } = await supabase.auth.getSession();
         if (!authSession) {
+          console.error('[PAYMENT] No auth session');
           navigate('/auth');
           return;
         }
 
-        // Verify session exists and belongs to user
+        // Fetch fresh session data
         const { data: session, error } = await supabase
           .from('sessions')
           .select('*')
@@ -47,6 +51,7 @@ const Payment = () => {
           .single();
 
         if (error || !session) {
+          console.error('[PAYMENT] Session not found:', error);
           toast({
             title: "Session not found",
             description: "Please start a new session.",
@@ -56,23 +61,36 @@ const Payment = () => {
           return;
         }
 
-        // Check if session is already paid
-        if (session.status !== 'pending_payment') {
-          if (session.status === 'pending_assets') {
-            navigate(`/upload?session_id=${sessionId}`);
-            return;
-          } else if (session.status === 'assets_received') {
-            navigate(`/lobby?session_id=${sessionId}`);
-            return;
-          } else if (session.status === 'in_progress') {
-            navigate(`/interview?session_id=${sessionId}`);
-            return;
-          }
+        console.log('[PAYMENT] Session found:', session.id, 'Status:', session.status);
+
+        // Check session status and redirect accordingly
+        if (session.status === 'pending_assets') {
+          console.log('[PAYMENT] Session already paid, redirecting to upload');
+          navigate(`/upload?session_id=${sessionId}&payment_success=true`);
+          return;
+        } else if (session.status === 'assets_received') {
+          console.log('[PAYMENT] Assets already received, redirecting to lobby');
+          navigate(`/lobby?session_id=${sessionId}`);
+          return;
+        } else if (session.status === 'in_progress') {
+          console.log('[PAYMENT] Session in progress, redirecting to interview');
+          navigate(`/interview?session_id=${sessionId}`);
+          return;
+        } else if (session.status !== 'pending_payment') {
+          console.error('[PAYMENT] Invalid session status:', session.status);
+          toast({
+            title: "Invalid session",
+            description: "This session is not available for payment.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
         }
 
         setSessionData(session);
+        console.log('[PAYMENT] Session ready for payment');
       } catch (error) {
-        console.error('Error verifying session:', error);
+        console.error('[PAYMENT] Error verifying session:', error);
         toast({
           title: "Error",
           description: "Failed to verify session. Please try again.",
@@ -85,7 +103,7 @@ const Payment = () => {
     };
 
     verifySession();
-  }, [sessionId, navigate, toast]);
+  }, [sessionId, planData, navigate, toast]);
 
   const handlePayment = async () => {
     if (!sessionData || !planData) {
@@ -106,7 +124,7 @@ const Payment = () => {
         return;
       }
 
-      console.log('Creating checkout session with data:', {
+      console.log('[PAYMENT] Creating checkout session with:', {
         sessionId: sessionData.id,
         planType: planData.id,
         priceAmount: planData.priceCents,
@@ -131,14 +149,14 @@ const Payment = () => {
       }
 
       if (data?.url) {
-        // Redirect to Stripe checkout
+        console.log('[PAYMENT] Redirecting to Stripe checkout:', data.url);
         window.location.href = data.url;
       } else {
         throw new Error('No checkout URL received');
       }
 
     } catch (error: any) {
-      console.error('Payment error:', error);
+      console.error('[PAYMENT] Payment error:', error);
       toast({
         title: "Payment Error",
         description: error.message || "Failed to start payment process. Please try again.",
@@ -199,13 +217,14 @@ const Payment = () => {
                     <Monitor className="h-3 w-3" />
                     <span>+</span>
                     <Smartphone className="h-3 w-3" />
+                    <span className="ml-1">Cross-Device</span>
                   </div>
                 ) : (
-                  <Monitor className="h-3 w-3" />
+                  <div className="flex items-center space-x-1">
+                    <Monitor className="h-3 w-3" />
+                    <span className="ml-1">Single Device</span>
+                  </div>
                 )}
-                <span className="ml-1">
-                  {planData.deviceMode === 'cross' ? 'Cross-Device' : 'Single Device'}
-                </span>
               </Badge>
             </CardTitle>
             <CardDescription>

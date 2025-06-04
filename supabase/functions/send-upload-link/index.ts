@@ -32,7 +32,7 @@ serve(async (req) => {
     const resend = new Resend(resendApiKey)
     console.log('[EMAIL] Resend client initialized')
     
-    // Create the upload URL with proper domain
+    // Create the upload URL
     const uploadUrl = `https://jafylkqbmvdptrqwwyed.supabase.co/upload?session_id=${sessionId}&payment_success=true`
     console.log('[EMAIL] Upload URL:', uploadUrl)
 
@@ -86,7 +86,7 @@ serve(async (req) => {
             </ul>
           </div>
 
-          <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; text-align: center;">
+          <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; text-center;">
             <p style="color: #6b7280; font-size: 14px; margin-bottom: 10px;">
               <strong>Session ID:</strong> ${sessionId}
             </p>
