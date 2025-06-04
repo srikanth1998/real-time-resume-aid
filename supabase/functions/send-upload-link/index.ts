@@ -16,11 +16,30 @@ serve(async (req) => {
     console.log('[EMAIL] Starting send-upload-link function')
     
     const { email, sessionId, planType, deviceMode, paymentId } = await req.json()
-    console.log('[EMAIL] Request data:', { email, sessionId, planType, deviceMode, paymentId })
+    console.log('[EMAIL] Request data received:', { 
+      email, 
+      sessionId, 
+      planType, 
+      deviceMode, 
+      paymentId,
+      sessionIdType: typeof sessionId,
+      sessionIdLength: sessionId?.length 
+    })
 
     if (!email || !sessionId || !paymentId) {
-      console.error('[EMAIL] Missing required fields:', { email: !!email, sessionId: !!sessionId, paymentId: !!paymentId })
+      console.error('[EMAIL] Missing required fields:', { 
+        email: !!email, 
+        sessionId: !!sessionId, 
+        paymentId: !!paymentId 
+      })
       throw new Error('Email, sessionId, and paymentId are required')
+    }
+
+    // Validate session ID format (should be UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(sessionId)) {
+      console.error('[EMAIL] Invalid session ID format:', sessionId)
+      throw new Error(`Invalid session ID format: ${sessionId}`)
     }
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
@@ -32,15 +51,15 @@ serve(async (req) => {
     const resend = new Resend(resendApiKey)
     console.log('[EMAIL] Resend client initialized')
     
-    // Use the correct domain for your project
-    const origin = req.headers.get('origin') || 'https://preview--real-time-resume-aid.lovable.app'
-    const uploadUrl = `${origin}/upload?session_id=${sessionId}&payment_id=${paymentId}&confirmed=true`
-    console.log('[EMAIL] Upload URL:', uploadUrl)
+    // Use your correct domain
+    const uploadUrl = `https://preview--real-time-resume-aid.lovable.app/upload?session_id=${sessionId}&payment_id=${paymentId}&confirmed=true`
+    console.log('[EMAIL] Generated upload URL:', uploadUrl)
 
     const deviceModeText = deviceMode === 'cross' ? ' (Cross-Device)' : ''
     const planDisplayName = planType ? planType.charAt(0).toUpperCase() + planType.slice(1) : 'Premium'
 
     console.log('[EMAIL] Sending email to:', email)
+    console.log('[EMAIL] Final session ID being used:', sessionId)
     
     const emailResponse = await resend.emails.send({
       from: "InterviewAce <onboarding@resend.dev>",
@@ -122,7 +141,8 @@ serve(async (req) => {
         success: true, 
         emailId: emailResponse.data?.id,
         message: 'Upload link email sent successfully',
-        uploadUrl: uploadUrl
+        uploadUrl: uploadUrl,
+        sessionIdUsed: sessionId
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

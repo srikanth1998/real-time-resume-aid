@@ -84,6 +84,8 @@ serve(async (req) => {
       console.log('[WEBHOOK] Device mode:', deviceMode)
       console.log('[WEBHOOK] User email:', userEmail)
       console.log('[WEBHOOK] Full session metadata:', session.metadata)
+      console.log('[WEBHOOK] Stripe session ID:', session.id)
+      console.log('[WEBHOOK] Payment intent ID:', session.payment_intent)
 
       if (!sessionId) {
         console.error('[WEBHOOK] No session_id in metadata')
@@ -95,25 +97,46 @@ serve(async (req) => {
         throw new Error('No user_email found in Stripe metadata')
       }
 
-      // Get session details
+      // CRITICAL: Verify the session ID exists in our database
+      console.log('[WEBHOOK] Verifying session exists in database:', sessionId)
       const { data: sessionData, error: sessionError } = await supabaseClient
         .from('sessions')
         .select('*')
         .eq('id', sessionId)
-        .single()
+        .maybeSingle()
 
-      if (sessionError || !sessionData) {
+      if (sessionError) {
         console.error('[WEBHOOK] Error fetching session:', sessionError)
-        throw new Error('Session not found: ' + sessionId)
+        throw new Error(`Database error fetching session: ${sessionError.message}`)
       }
 
-      console.log('[WEBHOOK] Found session:', sessionData.id)
+      if (!sessionData) {
+        console.error('[WEBHOOK] Session not found in database:', sessionId)
+        // Let's check what sessions do exist
+        const { data: allSessions, error: allSessionsError } = await supabaseClient
+          .from('sessions')
+          .select('id, created_at, status, stripe_session_id')
+          .order('created_at', { ascending: false })
+          .limit(10)
+        
+        console.log('[WEBHOOK] Recent sessions in DB:', allSessions)
+        console.log('[WEBHOOK] All sessions error:', allSessionsError)
+        
+        throw new Error(`Session ${sessionId} not found in database`)
+      }
+
+      console.log('[WEBHOOK] Found session in database:', {
+        id: sessionData.id,
+        status: sessionData.status,
+        created_at: sessionData.created_at
+      })
 
       // Generate payment confirmation ID
       const paymentId = session.payment_intent || session.id
       console.log('[WEBHOOK] Payment ID:', paymentId)
       
       // Update session status to pending_assets (ready for upload)
+      console.log('[WEBHOOK] Updating session status to pending_assets...')
       const { error: updateError } = await supabaseClient
         .from('sessions')
         .update({
@@ -129,16 +152,16 @@ serve(async (req) => {
         throw updateError
       }
 
-      console.log('[WEBHOOK] Session updated to pending_assets')
+      console.log('[WEBHOOK] Session updated to pending_assets successfully')
 
       // Send email with upload link including payment confirmation
       try {
-        console.log('[WEBHOOK] Sending upload link email...')
+        console.log('[WEBHOOK] Sending upload link email with session ID:', sessionId)
         
         const { data: emailData, error: emailError } = await supabaseClient.functions.invoke('send-upload-link', {
           body: {
             email: userEmail,
-            sessionId: sessionId,
+            sessionId: sessionId, // CRITICAL: Make sure this is the correct session ID
             planType: planType,
             deviceMode: deviceMode,
             paymentId: paymentId
@@ -156,7 +179,7 @@ serve(async (req) => {
         throw emailErr
       }
 
-      console.log('[WEBHOOK] Payment processing completed for session:', sessionId)
+      console.log('[WEBHOOK] Payment processing completed successfully for session:', sessionId)
     } else {
       console.log('[WEBHOOK] Unhandled event type:', event.type)
     }
