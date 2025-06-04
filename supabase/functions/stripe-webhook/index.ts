@@ -8,14 +8,17 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Log all incoming requests for debugging
+  console.log('[WEBHOOK] Incoming request URL:', req.url)
+  console.log('[WEBHOOK] Request method:', req.method)
+  console.log('[WEBHOOK] All headers:', Object.fromEntries(req.headers.entries()))
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
     console.log('[WEBHOOK] Starting webhook processing')
-    console.log('[WEBHOOK] Request method:', req.method)
-    console.log('[WEBHOOK] Request headers:', Object.fromEntries(req.headers.entries()))
     
     const signature = req.headers.get('stripe-signature')
     if (!signature) {
