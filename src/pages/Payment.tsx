@@ -13,103 +13,25 @@ const Payment = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [verifyingSession, setVerifyingSession] = useState(true);
-  const [sessionData, setSessionData] = useState<any>(null);
 
   const planData = location.state?.plan;
-  const sessionId = location.state?.sessionId;
 
   useEffect(() => {
-    const verifySession = async () => {
-      console.log('[PAYMENT] Verifying session:', sessionId);
-      
-      if (!sessionId || !planData) {
-        console.error('[PAYMENT] Missing session ID or plan data');
-        toast({
-          title: "Missing information",
-          description: "Please start a new session from the homepage.",
-          variant: "destructive"
-        });
-        navigate('/');
-        return;
-      }
-
-      try {
-        const { data: { session: authSession } } = await supabase.auth.getSession();
-        if (!authSession) {
-          console.error('[PAYMENT] No auth session');
-          navigate('/auth');
-          return;
-        }
-
-        // Fetch fresh session data
-        const { data: session, error } = await supabase
-          .from('sessions')
-          .select('*')
-          .eq('id', sessionId)
-          .eq('user_id', authSession.user.id)
-          .single();
-
-        if (error || !session) {
-          console.error('[PAYMENT] Session not found:', error);
-          toast({
-            title: "Session not found",
-            description: "Please start a new session.",
-            variant: "destructive"
-          });
-          navigate('/');
-          return;
-        }
-
-        console.log('[PAYMENT] Session found:', session.id, 'Status:', session.status);
-
-        // Check session status and redirect accordingly
-        if (session.status === 'pending_assets') {
-          console.log('[PAYMENT] Session already paid, redirecting to upload');
-          navigate(`/upload?session_id=${sessionId}&payment_success=true`);
-          return;
-        } else if (session.status === 'assets_received') {
-          console.log('[PAYMENT] Assets already received, redirecting to lobby');
-          navigate(`/lobby?session_id=${sessionId}`);
-          return;
-        } else if (session.status === 'in_progress') {
-          console.log('[PAYMENT] Session in progress, redirecting to interview');
-          navigate(`/interview?session_id=${sessionId}`);
-          return;
-        } else if (session.status !== 'pending_payment') {
-          console.error('[PAYMENT] Invalid session status:', session.status);
-          toast({
-            title: "Invalid session",
-            description: "This session is not available for payment.",
-            variant: "destructive"
-          });
-          navigate('/');
-          return;
-        }
-
-        setSessionData(session);
-        console.log('[PAYMENT] Session ready for payment');
-      } catch (error) {
-        console.error('[PAYMENT] Error verifying session:', error);
-        toast({
-          title: "Error",
-          description: "Failed to verify session. Please try again.",
-          variant: "destructive"
-        });
-        navigate('/');
-      } finally {
-        setVerifyingSession(false);
-      }
-    };
-
-    verifySession();
-  }, [sessionId, planData, navigate, toast]);
+    if (!planData) {
+      toast({
+        title: "Missing plan information",
+        description: "Please select a plan from the homepage.",
+        variant: "destructive"
+      });
+      navigate('/');
+    }
+  }, [planData, navigate, toast]);
 
   const handlePayment = async () => {
-    if (!sessionData || !planData) {
+    if (!planData) {
       toast({
         title: "Missing information",
-        description: "Session or plan data is missing.",
+        description: "Plan data is missing.",
         variant: "destructive"
       });
       return;
@@ -124,23 +46,16 @@ const Payment = () => {
         return;
       }
 
-      console.log('[PAYMENT] Creating checkout session with:', {
-        sessionId: sessionData.id,
-        planType: planData.id,
-        priceAmount: planData.priceCents,
-        planName: planData.name,
-        duration: planData.duration,
-        deviceMode: planData.deviceMode
-      });
+      console.log('[PAYMENT] Creating checkout session for plan:', planData.id);
 
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
-          sessionId: sessionData.id,
           planType: planData.id,
           priceAmount: planData.priceCents,
           planName: planData.name,
           duration: planData.duration,
-          deviceMode: planData.deviceMode
+          deviceMode: planData.deviceMode,
+          userEmail: authSession.user.email
         }
       });
 
@@ -167,23 +82,12 @@ const Payment = () => {
     }
   };
 
-  if (verifyingSession) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Verifying session...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!sessionData || !planData) {
+  if (!planData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
         <Card className="max-w-md">
           <CardContent className="pt-6 text-center">
-            <p className="text-gray-600 mb-4">Session information not found.</p>
+            <p className="text-gray-600 mb-4">Plan information not found.</p>
             <Button onClick={() => navigate('/')}>
               Return to Homepage
             </Button>
@@ -256,11 +160,11 @@ const Payment = () => {
             <div className="space-y-3">
               <div className="flex items-start space-x-3">
                 <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">1</span>
-                <span className="text-sm">Payment confirmation & session activation</span>
+                <span className="text-sm">Payment confirmation & email sent with upload link</span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">2</span>
-                <span className="text-sm">Email sent with document upload link</span>
+                <span className="text-sm">Click email link to access upload page</span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">3</span>
@@ -268,7 +172,7 @@ const Payment = () => {
               </div>
               <div className="flex items-start space-x-3">
                 <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">4</span>
-                <span className="text-sm">Start your AI-powered interview</span>
+                <span className="text-sm">Start your AI-powered interview session</span>
               </div>
             </div>
           </CardContent>
@@ -308,11 +212,6 @@ const Payment = () => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Session Info */}
-        <div className="mt-6 text-center text-xs text-gray-500">
-          Session ID: {sessionData.id}
-        </div>
       </div>
     </div>
   );

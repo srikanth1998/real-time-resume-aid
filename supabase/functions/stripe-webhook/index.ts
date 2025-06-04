@@ -53,20 +53,22 @@ serve(async (req) => {
       const sessionId = session.metadata?.session_id
       const planType = session.metadata?.plan_type
       const deviceMode = session.metadata?.device_mode || 'single'
+      const userEmail = session.metadata?.user_email
 
       console.log('[WEBHOOK] Processing payment for session:', sessionId)
       console.log('[WEBHOOK] Plan type:', planType)
       console.log('[WEBHOOK] Device mode:', deviceMode)
+      console.log('[WEBHOOK] User email:', userEmail)
 
       if (!sessionId) {
         console.error('[WEBHOOK] No session_id in metadata')
         throw new Error('No session_id found in Stripe metadata')
       }
 
-      // Get session details to fetch user info
+      // Get session details
       const { data: sessionData, error: sessionError } = await supabaseClient
         .from('sessions')
-        .select('*, users(email)')
+        .select('*')
         .eq('id', sessionId)
         .single()
 
@@ -76,8 +78,10 @@ serve(async (req) => {
       }
 
       console.log('[WEBHOOK] Found session:', sessionData.id)
-      console.log('[WEBHOOK] User email:', sessionData.users?.email)
 
+      // Generate payment confirmation ID
+      const paymentId = session.payment_intent || session.id
+      
       // Update session status to pending_assets (ready for upload)
       const { error: updateError } = await supabaseClient
         .from('sessions')
@@ -96,16 +100,17 @@ serve(async (req) => {
 
       console.log('[WEBHOOK] Session updated to pending_assets')
 
-      // Send email with direct upload link
+      // Send email with upload link including payment confirmation
       try {
         console.log('[WEBHOOK] Sending upload link email...')
         
         const { data: emailData, error: emailError } = await supabaseClient.functions.invoke('send-upload-link', {
           body: {
-            email: sessionData.users?.email,
+            email: userEmail,
             sessionId: sessionId,
             planType: planType,
-            deviceMode: deviceMode
+            deviceMode: deviceMode,
+            paymentId: paymentId
           }
         })
 

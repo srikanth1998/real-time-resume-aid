@@ -14,7 +14,9 @@ const Upload = () => {
   const { toast } = useToast();
   
   const sessionId = searchParams.get('session_id');
-  const paymentConfirmed = searchParams.get('payment_confirmed');
+  const paymentId = searchParams.get('payment_id');
+  const confirmed = searchParams.get('confirmed');
+  
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -24,15 +26,17 @@ const Upload = () => {
   const [uploadMethod, setUploadMethod] = useState<"file" | "url">("file");
 
   useEffect(() => {
-    const checkSession = async () => {
-      console.log('[UPLOAD] Starting session check for:', sessionId);
-      console.log('[UPLOAD] Payment confirmed flag:', paymentConfirmed);
+    const verifySessionAndPayment = async () => {
+      console.log('[UPLOAD] Verifying session and payment');
+      console.log('[UPLOAD] Session ID:', sessionId);
+      console.log('[UPLOAD] Payment ID:', paymentId);
+      console.log('[UPLOAD] Confirmed:', confirmed);
       
-      if (!sessionId) {
-        console.error('[UPLOAD] No session ID provided');
+      if (!sessionId || !paymentId || confirmed !== 'true') {
+        console.error('[UPLOAD] Missing required parameters');
         toast({
-          title: "No session found",
-          description: "Please start a new session from the homepage.",
+          title: "Invalid access",
+          description: "Please use the link from your payment confirmation email.",
           variant: "destructive"
         });
         navigate('/');
@@ -40,42 +44,39 @@ const Upload = () => {
       }
 
       try {
-        // Clear any existing file states
-        setResumeFile(null);
-        setJobDescFile(null);
-        setJobDescUrl("");
-        
-        const { data: { session: authSession } } = await supabase.auth.getSession();
-        if (!authSession) {
-          console.error('[UPLOAD] No auth session');
-          navigate('/auth');
-          return;
-        }
-
-        console.log('[UPLOAD] Auth session found for user:', authSession.user.id);
-
-        // Fetch session details
+        // Fetch session details directly (no auth required since we have payment confirmation)
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
-          .eq('user_id', authSession.user.id)
           .single();
 
         if (error || !sessionData) {
           console.error('[UPLOAD] Session not found:', error);
           toast({
             title: "Session not found",
-            description: "Please start a new session.",
+            description: "The session ID is invalid or has expired.",
             variant: "destructive"
           });
           navigate('/');
           return;
         }
 
-        console.log('[UPLOAD] Session found:', sessionData.id, 'Status:', sessionData.status);
+        // Verify payment ID matches
+        if (sessionData.stripe_payment_intent_id !== paymentId && sessionData.stripe_session_id !== paymentId) {
+          console.error('[UPLOAD] Payment ID mismatch');
+          toast({
+            title: "Invalid payment confirmation",
+            description: "The payment ID does not match this session.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
 
-        // Handle different session statuses
+        console.log('[UPLOAD] Session verified:', sessionData.id, 'Status:', sessionData.status);
+
+        // Check session status and redirect accordingly
         if (sessionData.status === 'assets_received') {
           console.log('[UPLOAD] Assets already received, redirecting to lobby');
           navigate(`/lobby?session_id=${sessionId}`);
@@ -84,34 +85,6 @@ const Upload = () => {
           console.log('[UPLOAD] Session in progress, redirecting to interview');
           navigate(`/interview?session_id=${sessionId}`);
           return;
-        } else if (sessionData.status === 'pending_payment') {
-          // If coming from payment confirmation email, update status
-          if (paymentConfirmed === 'true') {
-            console.log('[UPLOAD] Updating session status from pending_payment to pending_assets');
-            const { error: updateError } = await supabase
-              .from('sessions')
-              .update({
-                status: 'pending_assets',
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', sessionId);
-
-            if (updateError) {
-              console.error('[UPLOAD] Error updating session status:', updateError);
-            } else {
-              sessionData.status = 'pending_assets';
-              console.log('[UPLOAD] Session status updated to pending_assets');
-            }
-          } else {
-            console.error('[UPLOAD] Session still pending payment');
-            toast({
-              title: "Payment required",
-              description: "Please complete payment first.",
-              variant: "destructive"
-            });
-            navigate('/');
-            return;
-          }
         } else if (sessionData.status !== 'pending_assets') {
           console.error('[UPLOAD] Invalid session status for upload:', sessionData.status);
           toast({
@@ -124,12 +97,12 @@ const Upload = () => {
         }
 
         setSession(sessionData);
-        console.log('[UPLOAD] Session loaded successfully');
+        console.log('[UPLOAD] Ready for upload');
       } catch (error) {
-        console.error('[UPLOAD] Error in session check:', error);
+        console.error('[UPLOAD] Error verifying session:', error);
         toast({
           title: "Error",
-          description: "Failed to load session. Please try again.",
+          description: "Failed to verify session. Please try again.",
           variant: "destructive"
         });
         navigate('/');
@@ -138,8 +111,8 @@ const Upload = () => {
       }
     };
 
-    checkSession();
-  }, [sessionId, paymentConfirmed, navigate, toast]);
+    verifySessionAndPayment();
+  }, [sessionId, paymentId, confirmed, navigate, toast]);
 
   const validateFile = (file: File, type: string) => {
     const maxSize = 5 * 1024 * 1024; // 5MB
@@ -167,11 +140,8 @@ const Upload = () => {
   };
 
   const uploadFile = async (file: File, type: string) => {
-    const { data: { session: authSession } } = await supabase.auth.getSession();
-    if (!authSession) throw new Error('Not authenticated');
-
     const fileExt = file.name.split('.').pop();
-    const fileName = `${authSession.user.id}/${sessionId}/${type}.${fileExt}`;
+    const fileName = `${sessionId}/${type}.${fileExt}`;
     
     const { error: uploadError } = await supabase.storage
       .from('interview-documents')
@@ -235,16 +205,13 @@ const Upload = () => {
 
     try {
       console.log('[UPLOAD] Uploading resume...');
-      // Upload resume
       await uploadFile(resumeFile, 'resume');
 
-      // Handle job description
       if (uploadMethod === "file" && jobDescFile) {
         console.log('[UPLOAD] Uploading job description file...');
         await uploadFile(jobDescFile, 'job_description');
       } else if (uploadMethod === "url") {
         console.log('[UPLOAD] Saving job description URL...');
-        // Save URL as document metadata
         const { error: dbError } = await supabase
           .from('documents')
           .insert({
@@ -263,7 +230,6 @@ const Upload = () => {
       }
 
       console.log('[UPLOAD] Updating session status to assets_received...');
-      // Update session status
       const { error: updateError } = await supabase
         .from('sessions')
         .update({
@@ -279,10 +245,10 @@ const Upload = () => {
       console.log('[UPLOAD] Upload completed successfully');
       toast({
         title: "Upload successful!",
-        description: "Your documents have been uploaded and processed.",
+        description: "Your documents have been uploaded. Starting interview session...",
       });
 
-      // Redirect to lobby
+      // Redirect directly to lobby
       navigate(`/lobby?session_id=${sessionId}`);
 
     } catch (error: any) {
@@ -302,7 +268,7 @@ const Upload = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading session...</p>
+          <p>Verifying payment and loading session...</p>
         </div>
       </div>
     );
@@ -321,11 +287,11 @@ const Upload = () => {
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Your Documents</h1>
-        <p className="text-gray-600">Upload your resume and job description to get started</p>
+        <p className="text-gray-600">Upload your resume and job description to start your interview</p>
       </div>
 
       <div className="max-w-4xl mx-auto">
-        {/* Payment Confirmation & Session Info */}
+        {/* Payment Confirmation */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -333,7 +299,7 @@ const Upload = () => {
               <span>Payment Confirmed - {session.plan_type.charAt(0).toUpperCase() + session.plan_type.slice(1)} Plan</span>
             </CardTitle>
             <CardDescription>
-              {session.duration_minutes} minutes • Session expires automatically after use
+              {session.duration_minutes} minutes • {session.device_mode === 'cross' ? 'Cross-Device Access' : 'Single Device'}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -385,7 +351,6 @@ const Upload = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Upload Method Toggle */}
                 <div className="flex space-x-2">
                   <Button
                     variant={uploadMethod === "file" ? "default" : "outline"}
@@ -444,38 +409,6 @@ const Upload = () => {
           </Card>
         </div>
 
-        {/* Upload Instructions */}
-        <Card className="mt-8">
-          <CardContent className="pt-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center space-x-2">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span>Resume Tips</span>
-                </h3>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  <li>• Include specific skills and technologies</li>
-                  <li>• List relevant work experience and achievements</li>
-                  <li>• Mention certifications and education</li>
-                  <li>• Use clear, scannable formatting</li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center space-x-2">
-                  <Briefcase className="h-4 w-4 text-blue-600" />
-                  <span>Job Description Tips</span>
-                </h3>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  <li>• Copy the complete job posting</li>
-                  <li>• Include required skills and qualifications</li>
-                  <li>• Note company culture and values</li>
-                  <li>• Include any specific technologies mentioned</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Upload Button */}
         <div className="mt-8 text-center">
           <Button
@@ -486,12 +419,12 @@ const Upload = () => {
             {uploading ? (
               <>
                 <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Uploading documents...
+                Uploading & Starting Interview...
               </>
             ) : (
               <>
                 <UploadIcon className="h-5 w-5 mr-2" />
-                Upload & Continue
+                Upload & Start Interview
               </>
             )}
           </Button>

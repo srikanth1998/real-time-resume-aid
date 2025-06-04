@@ -15,12 +15,12 @@ serve(async (req) => {
   try {
     console.log('[EMAIL] Starting send-upload-link function')
     
-    const { email, sessionId, planType, deviceMode } = await req.json()
-    console.log('[EMAIL] Request data:', { email, sessionId, planType, deviceMode })
+    const { email, sessionId, planType, deviceMode, paymentId } = await req.json()
+    console.log('[EMAIL] Request data:', { email, sessionId, planType, deviceMode, paymentId })
 
-    if (!email || !sessionId) {
-      console.error('[EMAIL] Missing required fields:', { email: !!email, sessionId: !!sessionId })
-      throw new Error('Email and sessionId are required')
+    if (!email || !sessionId || !paymentId) {
+      console.error('[EMAIL] Missing required fields:', { email: !!email, sessionId: !!sessionId, paymentId: !!paymentId })
+      throw new Error('Email, sessionId, and paymentId are required')
     }
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
@@ -32,8 +32,8 @@ serve(async (req) => {
     const resend = new Resend(resendApiKey)
     console.log('[EMAIL] Resend client initialized')
     
-    // Create the direct upload URL with payment confirmation
-    const uploadUrl = `https://jafylkqbmvdptrqwwyed.supabase.co/upload?session_id=${sessionId}&payment_confirmed=true`
+    // Create the upload URL with payment confirmation
+    const uploadUrl = `https://jafylkqbmvdptrqwwyed.supabase.co/upload?session_id=${sessionId}&payment_id=${paymentId}&confirmed=true`
     console.log('[EMAIL] Upload URL:', uploadUrl)
 
     const deviceModeText = deviceMode === 'cross' ? ' (Cross-Device)' : ''
@@ -44,27 +44,39 @@ serve(async (req) => {
     const emailResponse = await resend.emails.send({
       from: "InterviewAce <onboarding@resend.dev>",
       to: [email],
-      subject: "🚀 Payment Confirmed - Start Your InterviewAce Session",
+      subject: "🎉 Payment Confirmed - Start Your InterviewAce Session Now!",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
           <div style="text-align: center; margin-bottom: 30px;">
             <h1 style="color: #2563eb; font-size: 28px; margin-bottom: 10px;">🧠 InterviewAce</h1>
-            <h2 style="color: #1f2937; font-size: 24px; margin-bottom: 20px;">Payment Confirmed! Ready to Start 🎉</h2>
+            <h2 style="color: #1f2937; font-size: 24px; margin-bottom: 20px;">Payment Successful! Ready to Start 🚀</h2>
           </div>
 
-          <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #0ea5e9;">
-            <h3 style="color: #059669; margin-top: 0; font-size: 18px;">✅ Your ${planDisplayName} Plan${deviceModeText} is Active</h3>
-            <p style="color: #374151; line-height: 1.6; margin-bottom: 0;">
-              Your payment has been processed successfully! Click the button below to upload your documents and begin your AI-powered interview preparation.
+          <div style="background-color: #dcfce7; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #16a34a;">
+            <h3 style="color: #059669; margin-top: 0; font-size: 18px;">✅ ${planDisplayName} Plan${deviceModeText} Activated</h3>
+            <p style="color: #374151; line-height: 1.6; margin-bottom: 10px;">
+              Your payment has been processed successfully! Click the button below to upload your documents and start your interview session.
+            </p>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 0;">
+              <strong>Payment ID:</strong> ${paymentId}
             </p>
           </div>
 
           <div style="text-align: center; margin: 30px 0;">
             <a href="${uploadUrl}" 
-               style="background-color: #2563eb; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; display: inline-block; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.25);">
-              📄 Upload Documents & Start Session →
+               style="background-color: #2563eb; color: white; padding: 18px 36px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; display: inline-block; box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);">
+              📄 Start Interview Session →
             </a>
           </div>
+
+          ${deviceMode === 'cross' ? `
+          <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #f59e0b;">
+            <h4 style="color: #92400e; margin-top: 0; font-size: 16px;">🔗 Cross-Device Access</h4>
+            <p style="color: #92400e; line-height: 1.6; margin-bottom: 0;">
+              You can access this link from any device! Start on your phone and continue on your laptop, or vice versa. Your session will sync across all devices.
+            </p>
+          </div>
+          ` : ''}
 
           <div style="background-color: #fffbeb; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #f59e0b;">
             <h4 style="color: #92400e; margin-top: 0; font-size: 16px;">📋 What to Upload:</h4>
@@ -73,18 +85,18 @@ serve(async (req) => {
               <li><strong>Job description</strong> (file upload or paste URL)</li>
             </ul>
             <p style="color: #92400e; margin-top: 15px; margin-bottom: 0;">
-              Once uploaded, you'll be taken to the lobby to test your setup and then start your interview session.
+              Once uploaded, you'll immediately start your AI-powered interview session.
             </p>
           </div>
 
           <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-            <h4 style="color: #1f2937; margin-top: 0; font-size: 16px;">🔧 Quick Setup Tips:</h4>
-            <ul style="color: #4b5563; line-height: 1.6; margin: 0; padding-left: 20px;">
-              <li>Ensure your resume is clearly formatted and up-to-date</li>
-              <li>Have a stable internet connection for the best experience</li>
-              <li>Test your microphone and camera before starting</li>
-              <li>Your session expires automatically after the purchased duration</li>
-            </ul>
+            <h4 style="color: #1f2937; margin-top: 0; font-size: 16px;">⚡ Quick Start:</h4>
+            <ol style="color: #4b5563; line-height: 1.6; margin: 0; padding-left: 20px;">
+              <li>Click the "Start Interview Session" button above</li>
+              <li>Upload your resume and job description</li>
+              <li>Begin your interview immediately</li>
+              <li>Get real-time AI assistance throughout</li>
+            </ol>
           </div>
 
           <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; text-center;">
@@ -92,7 +104,7 @@ serve(async (req) => {
               <strong>Session ID:</strong> ${sessionId}
             </p>
             <p style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
-              This link is valid for 24 hours. If you need help, please contact our support team.
+              This link is secure and valid for 24 hours. Keep this email for your records.
             </p>
             <p style="color: #6b7280; font-size: 12px; margin: 15px 0 0 0;">
               © 2024 InterviewAce. All rights reserved.
@@ -108,7 +120,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         emailId: emailResponse.id,
-        message: 'Upload link email sent successfully'
+        message: 'Upload link email sent successfully',
+        uploadUrl: uploadUrl
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

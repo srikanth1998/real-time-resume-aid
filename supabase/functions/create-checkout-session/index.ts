@@ -13,8 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, planType, priceAmount, planName, duration, deviceMode = 'single' } = await req.json()
-    console.log('Received request:', { sessionId, planType, priceAmount, planName, duration, deviceMode })
+    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail } = await req.json()
+    console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail })
 
     // Initialize Supabase client with anon key for auth
     const supabaseClient = createClient(
@@ -40,26 +40,33 @@ serve(async (req) => {
 
     console.log('Authenticated user:', user.id)
 
-    // Use service role key to verify session
+    // Use service role key to create session
     const supabaseService = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Verify the session exists and belongs to the user
+    // Create a new session record for tracking
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .eq('user_id', user.id)
+      .insert({
+        user_id: user.id,
+        plan_type: planType,
+        duration_minutes: planType === 'basic' ? 30 : planType === 'pro' ? 120 : 60,
+        device_mode: deviceMode,
+        status: 'pending_payment',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
       .single()
 
     if (sessionError || !session) {
-      console.error('Session not found:', sessionError)
-      throw new Error('Session not found')
+      console.error('Error creating session:', sessionError)
+      throw new Error('Failed to create session')
     }
 
-    console.log('Found session:', session.id)
+    console.log('Created session:', session.id)
 
     // Initialize Stripe
     const stripe = new (await import('https://esm.sh/stripe@13.0.0')).default(
@@ -74,6 +81,7 @@ serve(async (req) => {
     // Create Stripe checkout session
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
+      customer_email: userEmail,
       line_items: [
         {
           price_data: {
@@ -88,12 +96,13 @@ serve(async (req) => {
         },
       ],
       mode: 'payment',
-      success_url: `${req.headers.get('origin')}/payment-success?session_id=${sessionId}`,
-      cancel_url: `${req.headers.get('origin')}/payment?session_id=${sessionId}`,
+      success_url: `${req.headers.get('origin')}/payment-success?session_id=${session.id}`,
+      cancel_url: `${req.headers.get('origin')}/payment?session_id=${session.id}`,
       metadata: {
-        session_id: sessionId,
+        session_id: session.id,
         plan_type: planType,
         device_mode: deviceMode,
+        user_email: userEmail,
       },
     })
 
@@ -106,14 +115,14 @@ serve(async (req) => {
         stripe_session_id: checkoutSession.id,
         updated_at: new Date().toISOString()
       })
-      .eq('id', sessionId)
+      .eq('id', session.id)
 
     if (updateError) {
       console.error('Error updating session:', updateError)
     }
 
     return new Response(
-      JSON.stringify({ url: checkoutSession.url }),
+      JSON.stringify({ url: checkoutSession.url, sessionId: session.id }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
