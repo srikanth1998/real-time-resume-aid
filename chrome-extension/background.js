@@ -60,7 +60,7 @@ async function startTranscription(tab) {
     // Create new offscreen document
     await createOffscreen();
     
-    // Wait for offscreen to be ready with better error handling
+    // Wait for offscreen to be ready - improved approach
     await waitForOffscreenReady();
     
     // Get stream ID
@@ -196,13 +196,26 @@ async function cleanupOffscreen() {
 async function waitForOffscreenReady() {
   console.log('Waiting for offscreen to be ready...');
   
-  // Give the offscreen document a moment to initialize
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Give the offscreen document more time to initialize
+  await new Promise(resolve => setTimeout(resolve, 1000));
   
-  for (let i = 0; i < 20; i++) { // Increased attempts
+  // Try to find existing offscreen document first
+  let foundExisting = false;
+  try {
+    const response = await sendMessageToOffscreen({ type: 'ping' }, 1000);
+    if (response?.success) {
+      console.log('✅ Found existing ready offscreen document');
+      return;
+    }
+  } catch (error) {
+    console.log('No existing offscreen found, will wait for new one...');
+  }
+  
+  // Wait for new offscreen to be ready
+  for (let i = 0; i < 30; i++) { // Increased attempts
     try {
       console.log(`Ping attempt ${i + 1}...`);
-      const response = await sendMessageToOffscreen({ type: 'ping' }, 2000); // Increased timeout
+      const response = await sendMessageToOffscreen({ type: 'ping' }, 3000); // Increased timeout
       if (response?.success) {
         console.log('✅ Offscreen is ready');
         return;
@@ -214,13 +227,13 @@ async function waitForOffscreenReady() {
     }
     
     // Wait longer between attempts
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
   
-  throw new Error('Offscreen document failed to become ready after 20 attempts');
+  throw new Error('Offscreen document failed to become ready after 30 attempts');
 }
 
-async function sendMessageToOffscreen(message, timeoutMs = 10000) {
+async function sendMessageToOffscreen(message, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
     if (!offscreenCreated) {
       reject(new Error('Offscreen document not created'));
@@ -271,6 +284,13 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     timestamp: message.timestamp,
     source: message.source
   });
+  
+  // Handle ready signal from offscreen
+  if (message.type === 'offscreen-ready') {
+    console.log('✅ Offscreen document reported ready');
+    sendResponse({ success: true });
+    return true;
+  }
   
   // Handle transcription results from offscreen
   if (message.type === 'transcription-result' && message.text && message.text.trim()) {
