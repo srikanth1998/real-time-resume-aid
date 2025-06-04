@@ -65,6 +65,11 @@ serve(async (req) => {
         throw new Error('No session_id found in Stripe metadata')
       }
 
+      if (!userEmail) {
+        console.error('[WEBHOOK] No user_email in metadata')
+        throw new Error('No user_email found in Stripe metadata')
+      }
+
       // Get session details
       const { data: sessionData, error: sessionError } = await supabaseClient
         .from('sessions')
@@ -81,6 +86,7 @@ serve(async (req) => {
 
       // Generate payment confirmation ID
       const paymentId = session.payment_intent || session.id
+      console.log('[WEBHOOK] Payment ID:', paymentId)
       
       // Update session status to pending_assets (ready for upload)
       const { error: updateError } = await supabaseClient
@@ -116,11 +122,13 @@ serve(async (req) => {
 
         if (emailError) {
           console.error('[WEBHOOK] Error sending email:', emailError)
+          throw emailError
         } else {
           console.log('[WEBHOOK] Upload link email sent successfully:', emailData)
         }
       } catch (emailErr) {
         console.error('[WEBHOOK] Email sending failed:', emailErr)
+        throw emailErr
       }
 
       console.log('[WEBHOOK] Payment processing completed for session:', sessionId)

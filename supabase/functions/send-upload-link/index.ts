@@ -119,7 +119,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        emailId: emailResponse.id,
+        emailId: emailResponse.data?.id,
         message: 'Upload link email sent successfully',
         uploadUrl: uploadUrl
       }),
