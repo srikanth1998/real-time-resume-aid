@@ -28,32 +28,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Check cache first for instant responses
-    const questionHash = await crypto.subtle.digest(
-      'SHA-256',
-      new TextEncoder().encode(question.toLowerCase().trim())
-    );
-    const hashArray = Array.from(new Uint8Array(questionHash));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    const { data: cachedAnswer } = await supabase
-      .from('answer_cache')
-      .select('answer')
-      .eq('session_id', sessionId)
-      .eq('question_hash', hashHex)
-      .single();
-
-    if (cachedAnswer) {
-      console.log('Cache hit! Returning cached answer');
-      return new Response(JSON.stringify({ 
-        answer: cachedAnswer.answer,
-        success: true,
-        cached: true
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     // Get session details and documents
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
@@ -181,21 +155,6 @@ Return plain text only:`;
               }
             }
 
-            // Cache the complete answer
-            try {
-              await supabase
-                .from('answer_cache')
-                .upsert({
-                  session_id: sessionId,
-                  question_hash: hashHex,
-                  question: question,
-                  answer: fullAnswer,
-                  created_at: new Date().toISOString()
-                });
-            } catch (cacheError) {
-              console.warn('Failed to cache answer:', cacheError);
-            }
-
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'done', fullAnswer })}\n\n`));
             controller.close();
           } catch (error) {
@@ -239,21 +198,6 @@ Return plain text only:`;
 
       const data = await response.json();
       const generatedAnswer = data.choices[0].message.content;
-
-      // Cache the answer
-      try {
-        await supabase
-          .from('answer_cache')
-          .upsert({
-            session_id: sessionId,
-            question_hash: hashHex,
-            question: question,
-            answer: generatedAnswer,
-            created_at: new Date().toISOString()
-          });
-      } catch (cacheError) {
-        console.warn('Failed to cache answer:', cacheError);
-      }
 
       return new Response(JSON.stringify({ 
         answer: generatedAnswer,

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,18 +41,6 @@ const Interview = () => {
   // Supabase configuration constants
   const SUPABASE_URL = "https://jafylkqbmvdptrqwwyed.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY";
-
-  // Predictive caching for common questions
-  const commonQuestions = [
-    "Tell me about yourself",
-    "What are your strengths?",
-    "What are your weaknesses?",
-    "Why do you want this job?",
-    "Why should we hire you?",
-    "Where do you see yourself in 5 years?",
-    "Tell me about a challenge you overcame",
-    "What motivates you?"
-  ];
 
   useEffect(() => {
     const checkSession = async () => {
@@ -111,9 +100,6 @@ const Interview = () => {
       
       // Check for extension and initialize
       checkAndInitializeExtension();
-      
-      // Start predictive caching
-      startPredictiveCaching();
     };
 
     checkSession();
@@ -186,30 +172,6 @@ const Interview = () => {
       });
     };
   }, [inputMode]);
-
-  const startPredictiveCaching = async () => {
-    console.log('🚀 Starting predictive caching for common questions...');
-    
-    // Cache common questions in background
-    for (const question of commonQuestions) {
-      try {
-        // Use non-streaming mode for caching
-        await supabase.functions.invoke('generate-interview-answer', {
-          body: {
-            sessionId: sessionId,
-            question: question,
-            streaming: false
-          }
-        });
-        console.log('✅ Cached answer for:', question);
-      } catch (error) {
-        console.warn('⚠️ Failed to cache answer for:', question, error);
-      }
-      
-      // Small delay to avoid overwhelming the API
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  };
 
   const initializeSpeechRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -788,7 +750,6 @@ const Interview = () => {
                             <p>• Get streaming AI responses</p>
                           </>
                         )}
-                        <p>• Predictive caching for instant answers</p>
                         <p>• Optimized for speed and accuracy</p>
                       </div>
                     </div>
