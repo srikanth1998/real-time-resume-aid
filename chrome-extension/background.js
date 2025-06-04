@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 console.log('InterviewAce transcription background script loaded');
@@ -60,7 +59,7 @@ async function startTranscription(tab) {
     // Create new offscreen document
     await createOffscreen();
     
-    // Wait for offscreen to be ready - improved approach
+    // Wait for offscreen to be ready
     await waitForOffscreenReady();
     
     // Get stream ID
@@ -75,14 +74,19 @@ async function startTranscription(tab) {
 
     console.log('Got stream ID:', streamId);
     
-    // Start transcription in offscreen
+    // Start transcription in offscreen with better error handling
+    console.log('Sending start-transcription message to offscreen...');
     const response = await sendMessageToOffscreen({
       type: 'start-transcription',
       streamId: streamId
     });
     
+    console.log('Offscreen response:', response);
+    
     if (!response?.success) {
-      throw new Error(response?.error || 'Failed to start transcription in offscreen');
+      const errorMsg = response?.error || 'Unknown error starting transcription';
+      console.error('❌ Offscreen failed to start transcription:', errorMsg);
+      throw new Error(`Failed to start transcription: ${errorMsg}`);
     }
     
     // Notify content script

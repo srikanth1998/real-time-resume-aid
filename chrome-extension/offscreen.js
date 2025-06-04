@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 let mediaRecorder = null;
@@ -25,18 +24,8 @@ let captureStartTime = 0;
 
 console.log('🔵 Offscreen document loaded and initializing...');
 
-// Initialize immediately when script loads
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('📋 DOM Content Loaded - Offscreen ready');
-  setupMessageHandlers();
-});
-
-// Also setup immediately in case DOM is already loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupMessageHandlers);
-} else {
-  setupMessageHandlers();
-}
+// Setup message handlers immediately
+setupMessageHandlers();
 
 function setupMessageHandlers() {
   console.log('🔧 Setting up message handlers in offscreen...');
@@ -92,15 +81,15 @@ function setupMessageHandlers() {
   console.log('✅ Message handlers set up successfully');
   
   // Send ready signal to background script after handlers are set up
-  setTimeout(() => {
-    console.log('📡 Sending ready signal to background...');
-    chrome.runtime.sendMessage({ type: 'offscreen-ready' }).catch((error) => {
-      console.warn('Could not send ready signal (background might not be listening yet):', error.message);
-    });
-  }, 100);
+  console.log('📡 Sending ready signal to background...');
+  chrome.runtime.sendMessage({ type: 'offscreen-ready' }).catch((error) => {
+    console.warn('Could not send ready signal (background might not be listening yet):', error.message);
+  });
 }
 
 async function startAudioCapture(streamId) {
+  console.log('🎬 Starting audio capture with stream ID:', streamId);
+  
   if (isRecording) {
     console.log('Already recording, stopping first...');
     await stopAudioCapture();
@@ -109,7 +98,8 @@ async function startAudioCapture(streamId) {
   try {
     console.log('📡 Getting user media with stream ID:', streamId);
     
-    mediaStream = await navigator.mediaDevices.getUserMedia({
+    // Request media stream with specific audio constraints
+    const constraints = {
       audio: {
         mandatory: {
           chromeMediaSource: 'tab',
@@ -117,7 +107,11 @@ async function startAudioCapture(streamId) {
         }
       },
       video: false
-    });
+    };
+    
+    console.log('🎯 Requesting media with constraints:', constraints);
+    
+    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
     
     console.log('✅ Got media stream, tracks:', mediaStream.getAudioTracks().length);
     
@@ -125,12 +119,24 @@ async function startAudioCapture(streamId) {
       throw new Error('No audio tracks found in stream');
     }
     
+    const audioTrack = mediaStream.getAudioTracks()[0];
+    console.log('🎵 Audio track details:', {
+      kind: audioTrack.kind,
+      label: audioTrack.label,
+      enabled: audioTrack.enabled,
+      readyState: audioTrack.readyState
+    });
+    
     // Create audio context for processing
+    console.log('🎧 Creating AudioContext...');
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
       sampleRate: 16000
     });
     
+    console.log('📊 AudioContext state:', audioContext.state);
+    
     // Create source from stream
+    console.log('🔗 Creating media stream source...');
     const source = audioContext.createMediaStreamSource(mediaStream);
     
     // Create gain node for volume control
@@ -145,7 +151,14 @@ async function startAudioCapture(streamId) {
     // Load the proper worklet module for transcription
     const workletUrl = chrome.runtime.getURL('audio-processor-worklet.js');
     console.log('Loading worklet from:', workletUrl);
-    await audioContext.audioWorklet.addModule(workletUrl);
+    
+    try {
+      await audioContext.audioWorklet.addModule(workletUrl);
+      console.log('✅ Worklet module loaded successfully');
+    } catch (workletError) {
+      console.error('❌ Failed to load worklet module:', workletError);
+      throw new Error(`Failed to load audio worklet: ${workletError.message}`);
+    }
     
     workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
     
@@ -166,11 +179,36 @@ async function startAudioCapture(streamId) {
     captureStartTime = 0;
     
     isRecording = true;
-    console.log('🎬 Audio capture and passthrough started');
+    console.log('🎬 Audio capture and passthrough started successfully');
     
   } catch (error) {
     console.error('💥 Error in startAudioCapture:', error);
-    throw error;
+    console.error('💥 Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Clean up any partial setup
+    if (audioContext) {
+      try {
+        await audioContext.close();
+        audioContext = null;
+      } catch (cleanupError) {
+        console.warn('Error cleaning up AudioContext:', cleanupError);
+      }
+    }
+    
+    if (mediaStream) {
+      try {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      } catch (cleanupError) {
+        console.warn('Error cleaning up media stream:', cleanupError);
+      }
+    }
+    
+    throw new Error(`Error starting tab capture: ${error.message}`);
   }
 }
 
