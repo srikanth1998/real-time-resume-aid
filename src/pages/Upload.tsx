@@ -45,14 +45,28 @@ const Upload = () => {
 
       try {
         // Fetch session details directly (no auth required since we have payment confirmation)
+        console.log('[UPLOAD] Fetching session from database...');
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
           .single();
 
-        if (error || !sessionData) {
-          console.error('[UPLOAD] Session not found:', error);
+        console.log('[UPLOAD] Database query result:', { sessionData, error });
+
+        if (error) {
+          console.error('[UPLOAD] Database error:', error);
+          toast({
+            title: "Database error",
+            description: `Failed to fetch session: ${error.message}`,
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
+
+        if (!sessionData) {
+          console.error('[UPLOAD] Session not found in database');
           toast({
             title: "Session not found",
             description: "The session ID is invalid or has expired.",
@@ -62,8 +76,23 @@ const Upload = () => {
           return;
         }
 
+        console.log('[UPLOAD] Session data:', {
+          id: sessionData.id,
+          status: sessionData.status,
+          stripe_payment_intent_id: sessionData.stripe_payment_intent_id,
+          stripe_session_id: sessionData.stripe_session_id
+        });
+
         // Verify payment ID matches
-        if (sessionData.stripe_payment_intent_id !== paymentId && sessionData.stripe_session_id !== paymentId) {
+        const paymentMatches = sessionData.stripe_payment_intent_id === paymentId || sessionData.stripe_session_id === paymentId;
+        console.log('[UPLOAD] Payment verification:', {
+          providedPaymentId: paymentId,
+          stripe_payment_intent_id: sessionData.stripe_payment_intent_id,
+          stripe_session_id: sessionData.stripe_session_id,
+          matches: paymentMatches
+        });
+
+        if (!paymentMatches) {
           console.error('[UPLOAD] Payment ID mismatch');
           toast({
             title: "Invalid payment confirmation",
@@ -89,7 +118,7 @@ const Upload = () => {
           console.error('[UPLOAD] Invalid session status for upload:', sessionData.status);
           toast({
             title: "Session not ready",
-            description: "This session is not ready for document upload.",
+            description: `This session is not ready for document upload. Current status: ${sessionData.status}`,
             variant: "destructive"
           });
           navigate('/');
