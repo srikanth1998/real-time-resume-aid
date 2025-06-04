@@ -1,1 +1,58 @@
+
+# The name of your project id from supabase, update this to your real id
 project_id = "jafylkqbmvdptrqwwyed"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+port = 54324
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://jafylkqbmvdptrqwwyed.supabase.co"]
+jwt_expiry = 3600
+refresh_token_rotation_enabled = true
+secure_password_change_enabled = true
+enable_manual_linking = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[functions.create-checkout-session]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.send-upload-link]
+verify_jwt = false
+
+[functions.test-webhook-config]
+verify_jwt = false
+
+[functions.cross-device-sync]
+verify_jwt = false
+
+[functions.generate-interview-answer]
+verify_jwt = false
+
+[functions.speech-to-text]
+verify_jwt = false
+
+[realtime]
+enabled = true
+ip_version = "ipv4"
+
+[storage]
+enabled = true
