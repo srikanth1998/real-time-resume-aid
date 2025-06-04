@@ -74,9 +74,8 @@ const Upload = () => {
       console.log('[UPLOAD] Starting verification process');
       setDebugInfo({ step: 'starting_verification', params: { sessionId, paymentId, confirmed } });
       
-      // TEMPORARILY DISABLE REDIRECTS FOR DEBUGGING
       if (!sessionId || !paymentId || confirmed !== 'true') {
-        console.error('[UPLOAD] Missing required parameters - BUT NOT REDIRECTING FOR DEBUG:', { sessionId: !!sessionId, paymentId: !!paymentId, confirmed });
+        console.error('[UPLOAD] Missing required parameters:', { sessionId: !!sessionId, paymentId: !!paymentId, confirmed });
         setDebugInfo({ 
           step: 'missing_params', 
           error: 'Missing required parameters',
@@ -87,8 +86,6 @@ const Upload = () => {
           description: "Please use the link from your payment confirmation email.",
           variant: "destructive"
         });
-        // COMMENTING OUT REDIRECT FOR DEBUG
-        // navigate('/');
         setLoading(false);
         return;
       }
@@ -97,11 +94,12 @@ const Upload = () => {
         console.log('[UPLOAD] Fetching session from database...');
         setDebugInfo({ step: 'fetching_session', sessionId });
         
+        // Use maybeSingle() instead of single() to handle cases where no session exists
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
-          .single();
+          .maybeSingle();
 
         console.log('[UPLOAD] Database query result:', { sessionData, error });
         setDebugInfo({ 
@@ -112,26 +110,24 @@ const Upload = () => {
 
         if (error) {
           console.error('[UPLOAD] Database error:', error);
+          setDebugInfo({ step: 'database_error', error: error.message });
           toast({
             title: "Database error",
             description: `Failed to fetch session: ${error.message}`,
             variant: "destructive"
           });
-          // COMMENTING OUT REDIRECT FOR DEBUG
-          // navigate('/');
           setLoading(false);
           return;
         }
 
         if (!sessionData) {
           console.error('[UPLOAD] Session not found in database');
+          setDebugInfo({ step: 'session_not_found', sessionId });
           toast({
             title: "Session not found",
             description: "The session ID is invalid or has expired.",
             variant: "destructive"
           });
-          // COMMENTING OUT REDIRECT FOR DEBUG
-          // navigate('/');
           setLoading(false);
           return;
         }
@@ -147,13 +143,12 @@ const Upload = () => {
 
         if (!paymentMatches) {
           console.error('[UPLOAD] Payment ID mismatch');
+          setDebugInfo({ step: 'payment_mismatch', paymentId, sessionData });
           toast({
             title: "Invalid payment confirmation",
             description: "The payment ID does not match this session.",
             variant: "destructive"
           });
-          // COMMENTING OUT REDIRECT FOR DEBUG
-          // navigate('/');
           setLoading(false);
           return;
         }
@@ -164,27 +159,22 @@ const Upload = () => {
         // Check session status and redirect accordingly
         if (sessionData.status === 'assets_received') {
           console.log('[UPLOAD] Assets already received, should redirect to lobby');
-          // COMMENTING OUT REDIRECT FOR DEBUG
-          // navigate(`/lobby?session_id=${sessionId}`);
           setDebugInfo({ step: 'should_redirect_lobby', reason: 'assets_received' });
-          setLoading(false);
+          navigate(`/lobby?session_id=${sessionId}`);
           return;
         } else if (sessionData.status === 'in_progress') {
           console.log('[UPLOAD] Session in progress, should redirect to interview');
-          // COMMENTING OUT REDIRECT FOR DEBUG
-          // navigate(`/interview?session_id=${sessionId}`);
           setDebugInfo({ step: 'should_redirect_interview', reason: 'in_progress' });
-          setLoading(false);
+          navigate(`/interview?session_id=${sessionId}`);
           return;
         } else if (sessionData.status !== 'pending_assets') {
           console.error('[UPLOAD] Invalid session status for upload:', sessionData.status);
+          setDebugInfo({ step: 'invalid_status', status: sessionData.status });
           toast({
             title: "Session not ready",
             description: `This session is not ready for document upload. Current status: ${sessionData.status}`,
             variant: "destructive"
           });
-          // COMMENTING OUT REDIRECT FOR DEBUG
-          // navigate('/');
           setLoading(false);
           return;
         }
@@ -200,8 +190,6 @@ const Upload = () => {
           description: "Failed to verify session. Please try again.",
           variant: "destructive"
         });
-        // COMMENTING OUT REDIRECT FOR DEBUG
-        // navigate('/');
       } finally {
         setLoading(false);
       }
