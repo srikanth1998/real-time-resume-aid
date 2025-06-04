@@ -4,7 +4,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, CreditCard, Clock, CheckCircle, Loader2, Monitor, Smartphone } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Brain, CreditCard, Clock, CheckCircle, Loader2, Monitor, Smartphone, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +15,7 @@ const Payment = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
 
   const planData = location.state?.plan;
 
@@ -37,14 +40,31 @@ const Payment = () => {
       return;
     }
 
+    if (!email) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // Get auth session if available
       const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession) {
-        navigate('/auth');
-        return;
-      }
 
       console.log('[PAYMENT] Creating checkout session for plan:', planData.id);
 
@@ -55,8 +75,11 @@ const Payment = () => {
           planName: planData.name,
           duration: planData.duration,
           deviceMode: planData.deviceMode,
-          userEmail: authSession.user.email
-        }
+          userEmail: email
+        },
+        headers: authSession ? {
+          Authorization: `Bearer ${authSession.access_token}`
+        } : {}
       });
 
       if (error) {
@@ -106,7 +129,7 @@ const Payment = () => {
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Payment</h1>
-        <p className="text-gray-600">Secure your interview session with Stripe</p>
+        <p className="text-gray-600">Enter your email and pay securely with Stripe</p>
       </div>
 
       <div className="max-w-2xl mx-auto">
@@ -148,6 +171,33 @@ const Payment = () => {
           </CardContent>
         </Card>
 
+        {/* Email Input */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Mail className="h-5 w-5 text-blue-600" />
+              <span>Your Email Address</span>
+            </CardTitle>
+            <CardDescription>
+              We'll send your session link to this email after payment
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="text-lg"
+                required
+              />
+            </div>
+          </CardContent>
+        </Card>
+
         {/* What Happens Next */}
         <Card className="mb-8">
           <CardHeader>
@@ -160,15 +210,15 @@ const Payment = () => {
             <div className="space-y-3">
               <div className="flex items-start space-x-3">
                 <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">1</span>
-                <span className="text-sm">Payment confirmation & email sent with upload link</span>
+                <span className="text-sm">Payment processed securely by Stripe</span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">2</span>
-                <span className="text-sm">Click email link to access upload page</span>
+                <span className="text-sm">Email sent with your session upload link</span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">3</span>
-                <span className="text-sm">Upload resume and job description</span>
+                <span className="text-sm">Click email link to upload documents</span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">4</span>
@@ -183,7 +233,7 @@ const Payment = () => {
           <CardContent className="pt-6">
             <Button
               onClick={handlePayment}
-              disabled={loading}
+              disabled={loading || !email}
               className="w-full py-6 text-lg font-semibold"
               size="lg"
             >

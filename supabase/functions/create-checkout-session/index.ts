@@ -16,29 +16,32 @@ serve(async (req) => {
     const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail } = await req.json()
     console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail })
 
+    if (!userEmail) {
+      throw new Error('User email is required')
+    }
+
     // Initialize Supabase client with anon key for auth
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
 
-    // Get the auth header and extract the JWT token
+    // Get the auth header and extract the JWT token (if provided)
     const authHeader = req.headers.get('authorization')
-    if (!authHeader) {
-      console.error('No authorization header')
-      throw new Error('No authorization header')
-    }
+    let userId = null
 
-    // Get user from JWT token
-    const jwt = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt)
-    
-    if (userError || !user) {
-      console.error('Authentication error:', userError)
-      throw new Error('User not authenticated')
+    if (authHeader) {
+      try {
+        const jwt = authHeader.replace('Bearer ', '')
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt)
+        if (user) {
+          userId = user.id
+          console.log('Authenticated user:', user.id)
+        }
+      } catch (authError) {
+        console.log('No valid auth, proceeding as guest checkout')
+      }
     }
-
-    console.log('Authenticated user:', user.id)
 
     // Use service role key to create session
     const supabaseService = createClient(
@@ -50,9 +53,10 @@ serve(async (req) => {
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         plan_type: planType,
-        duration_minutes: planType === 'basic' ? 30 : planType === 'pro' ? 120 : 60,
+        duration_minutes: planType === 'basic' ? 30 : planType === 'pro' ? 120 : planType === 'standard' ? 60 : planType === 'elite' ? 180 : 60,
+        price_cents: priceAmount,
         device_mode: deviceMode,
         status: 'pending_payment',
         created_at: new Date().toISOString(),
@@ -97,7 +101,7 @@ serve(async (req) => {
       ],
       mode: 'payment',
       success_url: `${req.headers.get('origin')}/payment-success?session_id=${session.id}`,
-      cancel_url: `${req.headers.get('origin')}/payment?session_id=${session.id}`,
+      cancel_url: `${req.headers.get('origin')}/payment?cancelled=true`,
       metadata: {
         session_id: session.id,
         plan_type: planType,

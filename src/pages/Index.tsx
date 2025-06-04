@@ -126,39 +126,11 @@ const Index = () => {
     setLoading(plan.id);
     
     try {
-      // Check if user is authenticated
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      
-      if (!authSession) {
-        // Redirect to auth with plan info
-        navigate('/auth', { state: { selectedPlan: { ...plan, deviceMode: selectedDeviceMode } } });
-        return;
-      }
-
       const finalPricing = calculatePrice(plan.basePriceCents, selectedDeviceMode);
 
-      // Create session record
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('sessions')
-        .insert({
-          user_id: authSession.user.id,
-          plan_type: plan.id as 'standard' | 'pro' | 'elite',
-          duration_minutes: plan.durationMinutes,
-          price_cents: finalPricing.cents,
-          device_mode: selectedDeviceMode,
-          status: 'pending_payment'
-        })
-        .select()
-        .single();
-
-      if (sessionError) {
-        throw sessionError;
-      }
-
-      // Redirect to payment
+      // Go directly to payment page with plan data
       navigate('/payment', { 
         state: { 
-          sessionId: sessionData.id, 
           plan: {
             ...plan,
             price: finalPricing.display,
@@ -169,7 +141,7 @@ const Index = () => {
       });
 
     } catch (error) {
-      console.error('Error creating session:', error);
+      console.error('Error starting session:', error);
       toast({
         title: "Error",
         description: "Failed to start session. Please try again.",
