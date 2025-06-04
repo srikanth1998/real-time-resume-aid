@@ -9,10 +9,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const Upload = () => {
+  console.log('[UPLOAD] =================================');
   console.log('[UPLOAD] Upload component is rendering');
   console.log('[UPLOAD] Current URL:', window.location.href);
   console.log('[UPLOAD] Current pathname:', window.location.pathname);
   console.log('[UPLOAD] Current search:', window.location.search);
+  console.log('[UPLOAD] =================================');
   
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -31,24 +33,26 @@ const Upload = () => {
   const [jobDescFile, setJobDescFile] = useState<File | null>(null);
   const [jobDescUrl, setJobDescUrl] = useState("");
   const [uploadMethod, setUploadMethod] = useState<"file" | "url">("file");
+  const [debugInfo, setDebugInfo] = useState<any>({});
 
-  // Force render a test message at the top
+  // Force render a test message at the top - VERY VISIBLE
   const renderTestMessage = () => {
     return (
       <div style={{ 
         position: 'fixed', 
-        top: '10px', 
-        left: '10px', 
-        right: '10px',
+        top: '0px', 
+        left: '0px', 
+        right: '0px',
         backgroundColor: '#ff0000', 
         color: 'white', 
-        padding: '20px', 
-        zIndex: 9999,
-        border: '3px solid yellow',
-        fontSize: '18px',
-        fontWeight: 'bold'
+        padding: '30px', 
+        zIndex: 99999,
+        border: '5px solid yellow',
+        fontSize: '24px',
+        fontWeight: 'bold',
+        textAlign: 'center'
       }}>
-        🚨 UPLOAD PAGE IS LOADING! 🚨
+        🚨🚨🚨 UPLOAD PAGE IS DEFINITELY LOADING! 🚨🚨🚨
         <br />
         Session ID: {sessionId || 'MISSING'}
         <br />
@@ -57,6 +61,8 @@ const Upload = () => {
         Confirmed: {confirmed || 'MISSING'}
         <br />
         Current URL: {window.location.href}
+        <br />
+        Current Route: {window.location.pathname}
       </div>
     );
   };
@@ -66,20 +72,31 @@ const Upload = () => {
     
     const verifySessionAndPayment = async () => {
       console.log('[UPLOAD] Starting verification process');
+      setDebugInfo({ step: 'starting_verification', params: { sessionId, paymentId, confirmed } });
       
+      // TEMPORARILY DISABLE REDIRECTS FOR DEBUGGING
       if (!sessionId || !paymentId || confirmed !== 'true') {
-        console.error('[UPLOAD] Missing required parameters:', { sessionId: !!sessionId, paymentId: !!paymentId, confirmed });
+        console.error('[UPLOAD] Missing required parameters - BUT NOT REDIRECTING FOR DEBUG:', { sessionId: !!sessionId, paymentId: !!paymentId, confirmed });
+        setDebugInfo({ 
+          step: 'missing_params', 
+          error: 'Missing required parameters',
+          params: { sessionId: !!sessionId, paymentId: !!paymentId, confirmed }
+        });
         toast({
           title: "Invalid access",
           description: "Please use the link from your payment confirmation email.",
           variant: "destructive"
         });
-        navigate('/');
+        // COMMENTING OUT REDIRECT FOR DEBUG
+        // navigate('/');
+        setLoading(false);
         return;
       }
 
       try {
         console.log('[UPLOAD] Fetching session from database...');
+        setDebugInfo({ step: 'fetching_session', sessionId });
+        
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
@@ -87,6 +104,11 @@ const Upload = () => {
           .single();
 
         console.log('[UPLOAD] Database query result:', { sessionData, error });
+        setDebugInfo({ 
+          step: 'database_result', 
+          sessionData: sessionData ? { id: sessionData.id, status: sessionData.status } : null, 
+          error: error?.message 
+        });
 
         if (error) {
           console.error('[UPLOAD] Database error:', error);
@@ -95,7 +117,9 @@ const Upload = () => {
             description: `Failed to fetch session: ${error.message}`,
             variant: "destructive"
           });
-          navigate('/');
+          // COMMENTING OUT REDIRECT FOR DEBUG
+          // navigate('/');
+          setLoading(false);
           return;
         }
 
@@ -106,7 +130,9 @@ const Upload = () => {
             description: "The session ID is invalid or has expired.",
             variant: "destructive"
           });
-          navigate('/');
+          // COMMENTING OUT REDIRECT FOR DEBUG
+          // navigate('/');
+          setLoading(false);
           return;
         }
 
@@ -126,20 +152,29 @@ const Upload = () => {
             description: "The payment ID does not match this session.",
             variant: "destructive"
           });
-          navigate('/');
+          // COMMENTING OUT REDIRECT FOR DEBUG
+          // navigate('/');
+          setLoading(false);
           return;
         }
 
         console.log('[UPLOAD] Session verified successfully:', sessionData.id);
+        setDebugInfo({ step: 'session_verified', sessionId: sessionData.id, status: sessionData.status });
 
         // Check session status and redirect accordingly
         if (sessionData.status === 'assets_received') {
-          console.log('[UPLOAD] Assets already received, redirecting to lobby');
-          navigate(`/lobby?session_id=${sessionId}`);
+          console.log('[UPLOAD] Assets already received, should redirect to lobby');
+          // COMMENTING OUT REDIRECT FOR DEBUG
+          // navigate(`/lobby?session_id=${sessionId}`);
+          setDebugInfo({ step: 'should_redirect_lobby', reason: 'assets_received' });
+          setLoading(false);
           return;
         } else if (sessionData.status === 'in_progress') {
-          console.log('[UPLOAD] Session in progress, redirecting to interview');
-          navigate(`/interview?session_id=${sessionId}`);
+          console.log('[UPLOAD] Session in progress, should redirect to interview');
+          // COMMENTING OUT REDIRECT FOR DEBUG
+          // navigate(`/interview?session_id=${sessionId}`);
+          setDebugInfo({ step: 'should_redirect_interview', reason: 'in_progress' });
+          setLoading(false);
           return;
         } else if (sessionData.status !== 'pending_assets') {
           console.error('[UPLOAD] Invalid session status for upload:', sessionData.status);
@@ -148,20 +183,25 @@ const Upload = () => {
             description: `This session is not ready for document upload. Current status: ${sessionData.status}`,
             variant: "destructive"
           });
-          navigate('/');
+          // COMMENTING OUT REDIRECT FOR DEBUG
+          // navigate('/');
+          setLoading(false);
           return;
         }
 
         setSession(sessionData);
+        setDebugInfo({ step: 'ready_for_upload', sessionId: sessionData.id });
         console.log('[UPLOAD] Ready for upload');
       } catch (error) {
         console.error('[UPLOAD] Error verifying session:', error);
+        setDebugInfo({ step: 'error', error: error.message });
         toast({
           title: "Error",
           description: "Failed to verify session. Please try again.",
           variant: "destructive"
         });
-        navigate('/');
+        // COMMENTING OUT REDIRECT FOR DEBUG
+        // navigate('/');
       } finally {
         setLoading(false);
       }
@@ -323,10 +363,14 @@ const Upload = () => {
     return (
       <div>
         {renderTestMessage()}
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4" style={{ paddingTop: '200px' }}>
           <div className="text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
             <p>Verifying payment and loading session...</p>
+            <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
+              <strong>Debug Info:</strong>
+              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
           </div>
         </div>
       </div>
@@ -337,9 +381,13 @@ const Upload = () => {
     return (
       <div>
         {renderTestMessage()}
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4" style={{ paddingTop: '200px' }}>
           <div className="text-center">
             <p>Session not found or invalid</p>
+            <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
+              <strong>Debug Info:</strong>
+              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
           </div>
         </div>
       </div>
@@ -349,7 +397,7 @@ const Upload = () => {
   return (
     <div>
       {renderTestMessage()}
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4" style={{ paddingTop: '200px' }}>
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-2 mb-4">
@@ -367,6 +415,10 @@ const Upload = () => {
             <p className="text-sm text-green-600">Session ID: {sessionId}</p>
             <p className="text-sm text-green-600">Payment ID: {paymentId}</p>
             <p className="text-sm text-green-600">Session Status: {session?.status}</p>
+            <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+              <strong>Debug Info:</strong>
+              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
           </div>
         </div>
 
