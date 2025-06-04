@@ -14,6 +14,8 @@ serve(async (req) => {
 
   try {
     console.log('[WEBHOOK] Starting webhook processing')
+    console.log('[WEBHOOK] Request method:', req.method)
+    console.log('[WEBHOOK] Request headers:', Object.fromEntries(req.headers.entries()))
     
     const signature = req.headers.get('stripe-signature')
     if (!signature) {
@@ -24,20 +26,39 @@ serve(async (req) => {
     const body = await req.text()
     console.log('[WEBHOOK] Received webhook body length:', body.length)
     
+    // Check if webhook secret is configured
+    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+    if (!webhookSecret) {
+      console.error('[WEBHOOK] STRIPE_WEBHOOK_SECRET not configured')
+      throw new Error('STRIPE_WEBHOOK_SECRET not configured')
+    }
+    
     // Initialize Stripe
+    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
+    if (!stripeKey) {
+      console.error('[WEBHOOK] STRIPE_SECRET_KEY not configured')
+      throw new Error('STRIPE_SECRET_KEY not configured')
+    }
+    
     const stripe = new (await import('https://esm.sh/stripe@13.0.0')).default(
-      Deno.env.get('STRIPE_SECRET_KEY') ?? '',
+      stripeKey,
       {
         apiVersion: '2023-10-16',
       }
     )
 
     // Verify webhook signature
-    const event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? ''
-    )
+    let event
+    try {
+      event = stripe.webhooks.constructEvent(
+        body,
+        signature,
+        webhookSecret
+      )
+    } catch (err) {
+      console.error('[WEBHOOK] Webhook signature verification failed:', err.message)
+      throw new Error(`Webhook signature verification failed: ${err.message}`)
+    }
 
     console.log('[WEBHOOK] Event type:', event.type)
     console.log('[WEBHOOK] Event ID:', event.id)
@@ -59,6 +80,7 @@ serve(async (req) => {
       console.log('[WEBHOOK] Plan type:', planType)
       console.log('[WEBHOOK] Device mode:', deviceMode)
       console.log('[WEBHOOK] User email:', userEmail)
+      console.log('[WEBHOOK] Full session metadata:', session.metadata)
 
       if (!sessionId) {
         console.error('[WEBHOOK] No session_id in metadata')
