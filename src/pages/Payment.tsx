@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Brain, ArrowLeft, CreditCard, Loader2 } from "lucide-react";
+import { Brain, ArrowLeft, CreditCard, Loader2, Smartphone, Monitor } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -67,7 +67,8 @@ const Payment = () => {
           planType: plan.id,
           priceAmount: plan.priceCents,
           planName: plan.name,
-          duration: plan.duration
+          duration: plan.duration,
+          deviceMode: plan.deviceMode || 'single'
         }
       });
 
@@ -102,6 +103,8 @@ const Payment = () => {
       </div>
     );
   }
+
+  const deviceMode = plan.deviceMode || 'single';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
@@ -144,6 +147,16 @@ const Payment = () => {
                 <p>• Resume & job description analysis</p>
                 <p>• Live speech-to-text</p>
                 <p>• Session transcript access</p>
+                <div className="flex items-center space-x-2 mt-3 pt-2 border-t border-blue-200">
+                  {deviceMode === 'single' ? (
+                    <Smartphone className="h-4 w-4" />
+                  ) : (
+                    <Monitor className="h-4 w-4" />
+                  )}
+                  <span className="font-medium">
+                    {deviceMode === 'single' ? 'Single Device' : 'Cross-Device Access'}
+                  </span>
+                </div>
               </div>
             </div>
 

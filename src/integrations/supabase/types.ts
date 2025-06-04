@@ -56,10 +56,46 @@ export type Database = {
           },
         ]
       }
+      session_connections: {
+        Row: {
+          connection_id: string
+          created_at: string
+          device_type: string
+          id: string
+          last_ping: string
+          session_id: string | null
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          device_type: string
+          id?: string
+          last_ping?: string
+          session_id?: string | null
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          device_type?: string
+          id?: string
+          last_ping?: string
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_connections_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sessions: {
         Row: {
           completed_at: string | null
           created_at: string
+          device_mode: string
           duration_minutes: number
           expires_at: string | null
           id: string
@@ -75,6 +111,7 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           created_at?: string
+          device_mode?: string
           duration_minutes: number
           expires_at?: string | null
           id?: string
@@ -90,6 +127,7 @@ export type Database = {
         Update: {
           completed_at?: string | null
           created_at?: string
+          device_mode?: string
           duration_minutes?: number
           expires_at?: string | null
           id?: string
@@ -165,7 +203,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_stale_connections: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       plan_type: "standard" | "pro" | "elite"

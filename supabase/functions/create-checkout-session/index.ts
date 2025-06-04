@@ -13,8 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, planType, priceAmount, planName, duration } = await req.json()
-    console.log('Received request:', { sessionId, planType, priceAmount, planName, duration })
+    const { sessionId, planType, priceAmount, planName, duration, deviceMode = 'single' } = await req.json()
+    console.log('Received request:', { sessionId, planType, priceAmount, planName, duration, deviceMode })
 
     // Initialize Supabase client with anon key for auth
     const supabaseClient = createClient(
@@ -69,6 +69,8 @@ serve(async (req) => {
       }
     )
 
+    const deviceModeText = deviceMode === 'cross' ? ' (Cross-Device)' : ''
+
     // Create Stripe checkout session
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -77,8 +79,8 @@ serve(async (req) => {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `InterviewAce ${planName} Plan`,
-              description: `${duration} of real-time interview assistance`,
+              name: `InterviewAce ${planName} Plan${deviceModeText}`,
+              description: `${duration} of real-time interview assistance${deviceModeText}`,
             },
             unit_amount: priceAmount,
           },
@@ -91,6 +93,7 @@ serve(async (req) => {
       metadata: {
         session_id: sessionId,
         plan_type: planType,
+        device_mode: deviceMode,
       },
     })
 
