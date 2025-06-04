@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const Upload = () => {
+  console.log('[UPLOAD] Upload component is loading');
+  
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -16,6 +19,8 @@ const Upload = () => {
   const sessionId = searchParams.get('session_id');
   const paymentId = searchParams.get('payment_id');
   const confirmed = searchParams.get('confirmed');
+  
+  console.log('[UPLOAD] URL parameters:', { sessionId, paymentId, confirmed });
   
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +31,7 @@ const Upload = () => {
   const [uploadMethod, setUploadMethod] = useState<"file" | "url">("file");
 
   useEffect(() => {
+    console.log('[UPLOAD] useEffect triggered');
     const verifySessionAndPayment = async () => {
       console.log('[UPLOAD] Verifying session and payment');
       console.log('[UPLOAD] Session ID:', sessionId);
@@ -317,6 +323,15 @@ const Upload = () => {
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Your Documents</h1>
         <p className="text-gray-600">Upload your resume and job description to start your interview</p>
+      </div>
+
+      {/* Test message to confirm component is rendering */}
+      <div className="max-w-4xl mx-auto mb-4">
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <p className="text-blue-800">✅ Upload page is loading correctly</p>
+          <p className="text-sm text-blue-600">Session ID: {sessionId}</p>
+          <p className="text-sm text-blue-600">Payment ID: {paymentId}</p>
+        </div>
       </div>
 
       <div className="max-w-4xl mx-auto">
