@@ -50,6 +50,18 @@ serve(async (req) => {
 
       console.log('Processing payment for session:', sessionId)
 
+      // Get session details to fetch user info
+      const { data: sessionData, error: sessionError } = await supabaseClient
+        .from('sessions')
+        .select('*, users(email)')
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError || !sessionData) {
+        console.error('Error fetching session:', sessionError)
+        throw new Error('Session not found')
+      }
+
       // Update session status to pending_assets (ready for upload)
       const { error: updateError } = await supabaseClient
         .from('sessions')
@@ -63,6 +75,27 @@ serve(async (req) => {
       if (updateError) {
         console.error('Error updating session status:', updateError)
         throw updateError
+      }
+
+      // Send email with upload link
+      try {
+        const { error: emailError } = await supabaseClient.functions.invoke('send-upload-link', {
+          body: {
+            email: sessionData.users?.email,
+            sessionId: sessionId,
+            planType: planType
+          }
+        })
+
+        if (emailError) {
+          console.error('Error sending email:', emailError)
+          // Don't fail the webhook if email fails, just log it
+        } else {
+          console.log('Upload link email sent successfully')
+        }
+      } catch (emailErr) {
+        console.error('Email sending failed:', emailErr)
+        // Continue without failing the webhook
       }
 
       console.log('Session updated successfully to pending_assets:', sessionId)

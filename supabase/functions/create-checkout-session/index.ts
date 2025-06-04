@@ -88,7 +88,7 @@ serve(async (req) => {
         },
       ],
       mode: 'payment',
-      success_url: `${req.headers.get('origin')}/upload?session_id=${sessionId}&payment_success=true`,
+      success_url: `${req.headers.get('origin')}/payment-success?session_id=${sessionId}`,
       cancel_url: `${req.headers.get('origin')}/payment?session_id=${sessionId}`,
       metadata: {
         session_id: sessionId,

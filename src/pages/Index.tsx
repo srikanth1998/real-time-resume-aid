@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +11,7 @@ const Index = () => {
   const [loading, setLoading] = useState<string | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [selectedDeviceMode, setSelectedDeviceMode] = useState<'single' | 'cross'>('single');
+  const [hasActiveSession, setHasActiveSession] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -22,12 +22,12 @@ const Index = () => {
         const { data: { session: authSession } } = await supabase.auth.getSession();
         
         if (authSession) {
-          // Check if user has any active sessions
+          // Only check for sessions that are actually in progress
           const { data: sessions, error } = await supabase
             .from('sessions')
             .select('*')
             .eq('user_id', authSession.user.id)
-            .in('status', ['assets_received', 'lobby_ready', 'in_progress'])
+            .in('status', ['in_progress'])
             .order('created_at', { ascending: false })
             .limit(1);
 
@@ -38,18 +38,12 @@ const Index = () => {
 
           if (sessions && sessions.length > 0) {
             const session = sessions[0];
+            setHasActiveSession(true);
             
-            // Redirect based on session status
-            switch (session.status) {
-              case 'assets_received':
-              case 'lobby_ready':
-                navigate(`/upload?session_id=${session.id}`);
-                return;
-              case 'in_progress':
-                navigate(`/interview?session_id=${session.id}`);
-                return;
-              default:
-                break;
+            // Only redirect if session is actually in progress
+            if (session.status === 'in_progress') {
+              navigate(`/interview?session_id=${session.id}`);
+              return;
             }
           }
         }
@@ -200,6 +194,13 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      {/* Active Session Banner */}
+      {hasActiveSession && (
+        <div className="bg-blue-600 text-white p-3 text-center">
+          <p className="font-medium">You have an active interview session running!</p>
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -410,7 +411,7 @@ const Index = () => {
               Choose Your Interview Duration
             </h2>
             <p className="text-xl text-gray-600">
-              One-time payment. No subscriptions. No refunds after session starts.
+              One-time payment. No subscriptions. Email setup link after payment.
             </p>
             {selectedDeviceMode === 'cross' && (
               <Badge className="mt-4 bg-orange-100 text-orange-800 text-lg px-4 py-2">
@@ -517,19 +518,19 @@ const Index = () => {
               },
               {
                 step: "2", 
-                title: "Upload Documents",
-                description: "Upload your resume and job description (PDF/Word)",
-                icon: "📄"
+                title: "Check Email",
+                description: "We'll send you a setup link via email",
+                icon: "📧"
               },
               {
                 step: "3",
-                title: "Pre-Session Check",
-                description: "Test your microphone and system compatibility",
-                icon: "🎤"
+                title: "Upload Documents",
+                description: "Upload your resume and job description",
+                icon: "📄"
               },
               {
                 step: "4",
-                title: "Live Interview",
+                title: "Start Interview",
                 description: "Get real-time AI assistance during your interview",
                 icon: "🧠"
               }
@@ -583,9 +584,9 @@ const Index = () => {
           <div className="text-sm text-gray-500">
             <p>© 2024 InterviewAce. All rights reserved.</p>
             <p className="mt-2">
-              <span className="hover:text-white cursor-pointer">Privacy Policy</span> • 
-              <span className="hover:text-white cursor-pointer ml-2">Terms of Service</span> • 
-              <span className="hover:text-white cursor-pointer ml-2">GDPR Compliance</span>
+              <span className="underline cursor-pointer hover:text-white">Privacy Policy</span> • 
+              <span className="underline cursor-pointer hover:text-white ml-2">Terms of Service</span> • 
+              <span className="underline cursor-pointer hover:text-white ml-2">GDPR Compliance</span>
             </p>
           </div>
         </div>
