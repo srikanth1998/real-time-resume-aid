@@ -115,6 +115,10 @@ serve(async (req) => {
           durationMinutes = 60
           priceCents = 2999
           break
+        case 'pro':
+          durationMinutes = 120
+          priceCents = 10800
+          break
         case 'enterprise':
           durationMinutes = 90
           priceCents = 4999
@@ -129,31 +133,55 @@ serve(async (req) => {
         priceCents
       })
 
-      // Create session in database
+      // Create session in database with explicit error checking
       console.log('[WEBHOOK] Creating session in database...')
-      const { data: sessionData, error: sessionError } = await supabaseClient
+      const sessionData = {
+        id: sessionId,
+        plan_type: planType,
+        device_mode: deviceMode,
+        duration_minutes: durationMinutes,
+        price_cents: priceCents,
+        status: 'pending_assets',
+        stripe_payment_intent_id: session.payment_intent,
+        stripe_session_id: session.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      console.log('[WEBHOOK] Attempting to insert session data:', sessionData)
+
+      const { data: insertedSession, error: sessionError } = await supabaseClient
         .from('sessions')
-        .insert({
-          id: sessionId,
-          plan_type: planType,
-          device_mode: deviceMode,
-          duration_minutes: durationMinutes,
-          price_cents: priceCents,
-          status: 'pending_assets',
-          stripe_payment_intent_id: session.payment_intent,
-          stripe_session_id: session.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        .insert(sessionData)
         .select()
         .single()
 
       if (sessionError) {
         console.error('[WEBHOOK] Error creating session:', sessionError)
+        console.error('[WEBHOOK] Session error details:', {
+          message: sessionError.message,
+          code: sessionError.code,
+          details: sessionError.details,
+          hint: sessionError.hint
+        })
         throw new Error(`Database error creating session: ${sessionError.message}`)
       }
 
-      console.log('[WEBHOOK] Session created successfully:', sessionData)
+      console.log('[WEBHOOK] Session created successfully:', insertedSession)
+
+      // Verify the session was actually created by checking the database
+      const { data: verificationData, error: verificationError } = await supabaseClient
+        .from('sessions')
+        .select('id, status, plan_type')
+        .eq('id', sessionId)
+        .single()
+
+      if (verificationError || !verificationData) {
+        console.error('[WEBHOOK] Session verification failed:', verificationError)
+        throw new Error('Session was not properly created in database')
+      }
+
+      console.log('[WEBHOOK] Session verification successful:', verificationData)
 
       // Generate payment confirmation ID
       const paymentId = session.payment_intent || session.id
