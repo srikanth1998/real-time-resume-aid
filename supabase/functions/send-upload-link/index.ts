@@ -32,8 +32,8 @@ serve(async (req) => {
     const resend = new Resend(resendApiKey)
     console.log('[EMAIL] Resend client initialized')
     
-    // Create the upload URL
-    const uploadUrl = `https://jafylkqbmvdptrqwwyed.supabase.co/upload?session_id=${sessionId}&payment_success=true`
+    // Create the direct upload URL with payment confirmation
+    const uploadUrl = `https://jafylkqbmvdptrqwwyed.supabase.co/upload?session_id=${sessionId}&payment_confirmed=true`
     console.log('[EMAIL] Upload URL:', uploadUrl)
 
     const deviceModeText = deviceMode === 'cross' ? ' (Cross-Device)' : ''
@@ -44,45 +44,46 @@ serve(async (req) => {
     const emailResponse = await resend.emails.send({
       from: "InterviewAce <onboarding@resend.dev>",
       to: [email],
-      subject: "🚀 Your InterviewAce Session is Ready - Upload Your Documents",
+      subject: "🚀 Payment Confirmed - Start Your InterviewAce Session",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
           <div style="text-align: center; margin-bottom: 30px;">
             <h1 style="color: #2563eb; font-size: 28px; margin-bottom: 10px;">🧠 InterviewAce</h1>
-            <h2 style="color: #1f2937; font-size: 24px; margin-bottom: 20px;">Payment Confirmed! 🎉</h2>
+            <h2 style="color: #1f2937; font-size: 24px; margin-bottom: 20px;">Payment Confirmed! Ready to Start 🎉</h2>
           </div>
 
           <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #0ea5e9;">
             <h3 style="color: #059669; margin-top: 0; font-size: 18px;">✅ Your ${planDisplayName} Plan${deviceModeText} is Active</h3>
             <p style="color: #374151; line-height: 1.6; margin-bottom: 0;">
-              Thank you for your payment! Your InterviewAce session is now ready to be set up. Click the button below to upload your documents and start your interview preparation.
+              Your payment has been processed successfully! Click the button below to upload your documents and begin your AI-powered interview preparation.
             </p>
           </div>
 
           <div style="text-align: center; margin: 30px 0;">
             <a href="${uploadUrl}" 
                style="background-color: #2563eb; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; display: inline-block; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.25);">
-              📄 Upload Your Documents →
+              📄 Upload Documents & Start Session →
             </a>
           </div>
 
           <div style="background-color: #fffbeb; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #f59e0b;">
-            <h4 style="color: #92400e; margin-top: 0; font-size: 16px;">📋 Next Steps:</h4>
-            <ol style="color: #92400e; line-height: 1.8; margin: 0; padding-left: 20px;">
-              <li><strong>Upload your resume</strong> (PDF, Word, or text format)</li>
-              <li><strong>Upload job description</strong> (file or paste URL)</li>
-              <li><strong>Test your setup</strong> in the lobby</li>
-              <li><strong>Start your interview</strong> with AI assistance</li>
-            </ol>
+            <h4 style="color: #92400e; margin-top: 0; font-size: 16px;">📋 What to Upload:</h4>
+            <ul style="color: #92400e; line-height: 1.8; margin: 0; padding-left: 20px;">
+              <li><strong>Your resume</strong> (PDF, Word, or text format)</li>
+              <li><strong>Job description</strong> (file upload or paste URL)</li>
+            </ul>
+            <p style="color: #92400e; margin-top: 15px; margin-bottom: 0;">
+              Once uploaded, you'll be taken to the lobby to test your setup and then start your interview session.
+            </p>
           </div>
 
           <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-            <h4 style="color: #1f2937; margin-top: 0; font-size: 16px;">🔧 Setup Instructions:</h4>
+            <h4 style="color: #1f2937; margin-top: 0; font-size: 16px;">🔧 Quick Setup Tips:</h4>
             <ul style="color: #4b5563; line-height: 1.6; margin: 0; padding-left: 20px;">
-              <li>Click the upload button above to access your session</li>
-              <li>Upload clear, well-formatted documents for best results</li>
-              <li>Test your microphone and camera in the lobby</li>
-              <li>Your session will expire automatically after your purchased duration</li>
+              <li>Ensure your resume is clearly formatted and up-to-date</li>
+              <li>Have a stable internet connection for the best experience</li>
+              <li>Test your microphone and camera before starting</li>
+              <li>Your session expires automatically after the purchased duration</li>
             </ul>
           </div>
 

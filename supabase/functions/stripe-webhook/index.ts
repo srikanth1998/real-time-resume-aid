@@ -96,7 +96,7 @@ serve(async (req) => {
 
       console.log('[WEBHOOK] Session updated to pending_assets')
 
-      // Send email with upload link - always attempt this
+      // Send email with direct upload link
       try {
         console.log('[WEBHOOK] Sending upload link email...')
         
@@ -111,13 +111,11 @@ serve(async (req) => {
 
         if (emailError) {
           console.error('[WEBHOOK] Error sending email:', emailError)
-          // Log error but don't fail the webhook
         } else {
           console.log('[WEBHOOK] Upload link email sent successfully:', emailData)
         }
       } catch (emailErr) {
         console.error('[WEBHOOK] Email sending failed:', emailErr)
-        // Continue without failing the webhook
       }
 
       console.log('[WEBHOOK] Payment processing completed for session:', sessionId)

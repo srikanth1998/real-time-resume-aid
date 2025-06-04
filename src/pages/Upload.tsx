@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ const Upload = () => {
   const { toast } = useToast();
   
   const sessionId = searchParams.get('session_id');
-  const paymentSuccess = searchParams.get('payment_success');
+  const paymentConfirmed = searchParams.get('payment_confirmed');
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -27,7 +26,7 @@ const Upload = () => {
   useEffect(() => {
     const checkSession = async () => {
       console.log('[UPLOAD] Starting session check for:', sessionId);
-      console.log('[UPLOAD] Payment success flag:', paymentSuccess);
+      console.log('[UPLOAD] Payment confirmed flag:', paymentConfirmed);
       
       if (!sessionId) {
         console.error('[UPLOAD] No session ID provided');
@@ -86,8 +85,8 @@ const Upload = () => {
           navigate(`/interview?session_id=${sessionId}`);
           return;
         } else if (sessionData.status === 'pending_payment') {
-          // If coming from payment success, update status
-          if (paymentSuccess === 'true') {
+          // If coming from payment confirmation email, update status
+          if (paymentConfirmed === 'true') {
             console.log('[UPLOAD] Updating session status from pending_payment to pending_assets');
             const { error: updateError } = await supabase
               .from('sessions')
@@ -140,7 +139,7 @@ const Upload = () => {
     };
 
     checkSession();
-  }, [sessionId, paymentSuccess, navigate, toast]);
+  }, [sessionId, paymentConfirmed, navigate, toast]);
 
   const validateFile = (file: File, type: string) => {
     const maxSize = 5 * 1024 * 1024; // 5MB
@@ -326,7 +325,7 @@ const Upload = () => {
       </div>
 
       <div className="max-w-4xl mx-auto">
-        {/* Session Info */}
+        {/* Payment Confirmation & Session Info */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
