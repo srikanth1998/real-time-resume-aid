@@ -32,8 +32,8 @@ serve(async (req) => {
     const resend = new Resend(resendApiKey)
     console.log('[EMAIL] Resend client initialized')
     
-    // Use the origin from the request header to build the correct URL
-    const origin = req.headers.get('origin') || 'https://loving-bose.lovable.app'
+    // Use the correct domain for your project
+    const origin = req.headers.get('origin') || 'https://preview--real-time-resume-aid.lovable.app'
     const uploadUrl = `${origin}/upload?session_id=${sessionId}&payment_id=${paymentId}&confirmed=true`
     console.log('[EMAIL] Upload URL:', uploadUrl)
 
