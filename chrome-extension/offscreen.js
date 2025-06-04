@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 let mediaRecorder = null;
@@ -23,16 +22,17 @@ let silenceGapMs = 1000;
 let isCapturingPhrase = false;
 let captureStartTime = 0;
 
-console.log('🔵 Offscreen document loaded');
+console.log('🔵 Offscreen document loaded and ready');
 
 // Handle messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('📨 Offscreen received message:', message.type);
   
+  // ALWAYS respond to ping messages immediately
   if (message.type === 'ping') {
-    console.log('🏓 Responding to ping');
+    console.log('🏓 Responding to ping with success');
     sendResponse({ success: true, message: 'pong' });
-    return;
+    return true; // Keep message channel open
   }
   
   if (message.type === 'start-transcription') {
@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           errorType: error.name
         });
       });
-    return true;
+    return true; // Keep message channel open for async response
   }
   
   if (message.type === 'stop-transcription') {
@@ -64,11 +64,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.error('❌ Error stopping audio capture:', error);
         sendResponse({ success: false, error: error.message });
       });
-    return true;
+    return true; // Keep message channel open for async response
   }
   
   console.warn('❓ Unknown message type:', message.type);
   sendResponse({ success: false, error: 'Unknown message type' });
+  return true;
 });
 
 async function startAudioCapture(streamId) {
@@ -715,4 +716,10 @@ window.addEventListener('beforeunload', () => {
   stopAudioCapture();
 });
 
+// Immediately signal that the offscreen document is ready
 console.log('✅ Offscreen script ready for dynamic real-time transcription with audio passthrough');
+
+// Send ready signal to background script
+chrome.runtime.sendMessage({ type: 'offscreen-ready' }).catch((error) => {
+  console.warn('Could not send ready signal (background might not be listening yet):', error.message);
+});

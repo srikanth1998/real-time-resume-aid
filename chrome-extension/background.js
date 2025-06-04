@@ -60,7 +60,7 @@ async function startTranscription(tab) {
     // Create new offscreen document
     await createOffscreen();
     
-    // Wait for offscreen to be ready
+    // Wait for offscreen to be ready with better error handling
     await waitForOffscreenReady();
     
     // Get stream ID
@@ -196,24 +196,31 @@ async function cleanupOffscreen() {
 async function waitForOffscreenReady() {
   console.log('Waiting for offscreen to be ready...');
   
-  for (let i = 0; i < 10; i++) {
+  // Give the offscreen document a moment to initialize
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  for (let i = 0; i < 20; i++) { // Increased attempts
     try {
-      const response = await sendMessageToOffscreen({ type: 'ping' }, 1000);
+      console.log(`Ping attempt ${i + 1}...`);
+      const response = await sendMessageToOffscreen({ type: 'ping' }, 2000); // Increased timeout
       if (response?.success) {
         console.log('✅ Offscreen is ready');
         return;
+      } else {
+        console.log(`Ping attempt ${i + 1} got invalid response:`, response);
       }
     } catch (error) {
       console.log(`Ping attempt ${i + 1} failed:`, error.message);
     }
     
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Wait longer between attempts
+    await new Promise(resolve => setTimeout(resolve, 300));
   }
   
-  throw new Error('Offscreen document failed to become ready after 10 attempts');
+  throw new Error('Offscreen document failed to become ready after 20 attempts');
 }
 
-async function sendMessageToOffscreen(message, timeoutMs = 5000) {
+async function sendMessageToOffscreen(message, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
     if (!offscreenCreated) {
       reject(new Error('Offscreen document not created'));
@@ -224,16 +231,21 @@ async function sendMessageToOffscreen(message, timeoutMs = 5000) {
       reject(new Error(`Message timeout after ${timeoutMs}ms`));
     }, timeoutMs);
     
-    chrome.runtime.sendMessage(message, (response) => {
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        clearTimeout(timeout);
+        
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        
+        resolve(response);
+      });
+    } catch (error) {
       clearTimeout(timeout);
-      
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      
-      resolve(response);
-    });
+      reject(error);
+    }
   });
 }
 
