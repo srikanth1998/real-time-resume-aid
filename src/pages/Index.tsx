@@ -27,7 +27,7 @@ const Index = () => {
             .from('sessions')
             .select('*')
             .eq('user_id', authSession.user.id)
-            .in('status', ['paid', 'active', 'pending_assets'])
+            .in('status', ['assets_received', 'lobby_ready', 'in_progress'])
             .order('created_at', { ascending: false })
             .limit(1);
 
@@ -41,11 +41,11 @@ const Index = () => {
             
             // Redirect based on session status
             switch (session.status) {
-              case 'paid':
-              case 'pending_assets':
+              case 'assets_received':
+              case 'lobby_ready':
                 navigate(`/upload?session_id=${session.id}`);
                 return;
-              case 'active':
+              case 'in_progress':
                 navigate(`/interview?session_id=${session.id}`);
                 return;
               default:
