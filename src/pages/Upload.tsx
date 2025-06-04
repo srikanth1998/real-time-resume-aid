@@ -25,7 +25,10 @@ const Upload = () => {
 
   useEffect(() => {
     const checkSession = async () => {
+      console.log('[UPLOAD] Starting session check for:', sessionId);
+      
       if (!sessionId) {
+        console.error('[UPLOAD] No session ID provided');
         toast({
           title: "No session found",
           description: "Please start a new session from the homepage.",
@@ -35,79 +38,109 @@ const Upload = () => {
         return;
       }
 
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession) {
-        navigate('/auth');
-        return;
-      }
+      try {
+        // Clear any existing file states to prevent showing old data
+        setResumeFile(null);
+        setJobDescFile(null);
+        setJobDescUrl("");
+        
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        if (!authSession) {
+          console.error('[UPLOAD] No auth session');
+          navigate('/auth');
+          return;
+        }
 
-      // Fetch session details
-      const { data: sessionData, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .eq('user_id', authSession.user.id)
-        .single();
+        console.log('[UPLOAD] Auth session found for user:', authSession.user.id);
 
-      if (error || !sessionData) {
-        toast({
-          title: "Session not found",
-          description: "Please start a new session.",
-          variant: "destructive"
-        });
-        navigate('/');
-        return;
-      }
+        // Fetch session details with fresh data
+        const { data: sessionData, error } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .eq('user_id', authSession.user.id)
+          .single();
 
-      // If coming from successful payment, allow pending_assets status
-      // Otherwise, check for proper status flow
-      if (paymentSuccess === 'true') {
-        // Coming from successful payment - allow if status is pending_assets or pending_payment
-        if (sessionData.status !== 'pending_assets' && sessionData.status !== 'pending_payment') {
+        if (error || !sessionData) {
+          console.error('[UPLOAD] Session not found:', error);
           toast({
-            title: "Session not ready",
-            description: "This session is not ready for document upload.",
+            title: "Session not found",
+            description: "Please start a new session.",
             variant: "destructive"
           });
           navigate('/');
           return;
         }
-        
-        // If still pending_payment after successful payment, update to pending_assets
-        if (sessionData.status === 'pending_payment') {
-          const { error: updateError } = await supabase
-            .from('sessions')
-            .update({
-              status: 'pending_assets',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', sessionId);
 
-          if (updateError) {
-            console.error('Error updating session status:', updateError);
-          } else {
-            sessionData.status = 'pending_assets';
+        console.log('[UPLOAD] Session found:', sessionData.id, 'Status:', sessionData.status);
+
+        // If coming from successful payment, allow pending_assets status
+        // Otherwise, check for proper status flow
+        if (paymentSuccess === 'true') {
+          console.log('[UPLOAD] Coming from payment success');
+          // Coming from successful payment - allow if status is pending_assets or pending_payment
+          if (sessionData.status !== 'pending_assets' && sessionData.status !== 'pending_payment') {
+            console.error('[UPLOAD] Invalid session status for payment success:', sessionData.status);
+            toast({
+              title: "Session not ready",
+              description: "This session is not ready for document upload.",
+              variant: "destructive"
+            });
+            navigate('/');
+            return;
           }
-        }
-      } else {
-        // Normal flow - must be pending_assets
-        if (sessionData.status !== 'pending_assets') {
+          
+          // If still pending_payment after successful payment, update to pending_assets
+          if (sessionData.status === 'pending_payment') {
+            console.log('[UPLOAD] Updating session status to pending_assets');
+            const { error: updateError } = await supabase
+              .from('sessions')
+              .update({
+                status: 'pending_assets',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', sessionId);
+
+            if (updateError) {
+              console.error('[UPLOAD] Error updating session status:', updateError);
+            } else {
+              sessionData.status = 'pending_assets';
+              console.log('[UPLOAD] Session status updated to pending_assets');
+            }
+          }
+        } else {
+          console.log('[UPLOAD] Normal flow - checking session status');
+          // Normal flow - must be pending_assets
           if (sessionData.status === 'assets_received') {
+            console.log('[UPLOAD] Assets already received, redirecting to lobby');
             navigate(`/lobby?session_id=${sessionId}`);
             return;
           }
-          toast({
-            title: "Session not ready",
-            description: "Please complete payment first.",
-            variant: "destructive"
-          });
-          navigate('/');
-          return;
+          if (sessionData.status !== 'pending_assets') {
+            console.error('[UPLOAD] Invalid session status:', sessionData.status);
+            toast({
+              title: "Session not ready",
+              description: "Please complete payment first.",
+              variant: "destructive"
+            });
+            navigate('/');
+            return;
+          }
         }
-      }
 
-      setSession(sessionData);
-      setLoading(false);
+        setSession(sessionData);
+        console.log('[UPLOAD] Session loaded successfully');
+      } catch (error) {
+        console.error('[UPLOAD] Error in session check:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load session. Please try again.",
+          variant: "destructive"
+        });
+        navigate('/');
+      } finally {
+        setLoading(false);
+      }
     };
 
     checkSession();
@@ -171,6 +204,8 @@ const Upload = () => {
   };
 
   const handleUpload = async () => {
+    console.log('[UPLOAD] Starting upload process');
+    
     if (!resumeFile) {
       toast({
         title: "Resume required",
@@ -204,13 +239,16 @@ const Upload = () => {
     setUploading(true);
 
     try {
+      console.log('[UPLOAD] Uploading resume...');
       // Upload resume
       await uploadFile(resumeFile, 'resume');
 
       // Handle job description
       if (uploadMethod === "file" && jobDescFile) {
+        console.log('[UPLOAD] Uploading job description file...');
         await uploadFile(jobDescFile, 'job_description');
       } else if (uploadMethod === "url") {
+        console.log('[UPLOAD] Saving job description URL...');
         // Save URL as document metadata
         const { error: dbError } = await supabase
           .from('documents')
@@ -229,6 +267,7 @@ const Upload = () => {
         }
       }
 
+      console.log('[UPLOAD] Updating session status to assets_received...');
       // Update session status
       const { error: updateError } = await supabase
         .from('sessions')
@@ -242,6 +281,7 @@ const Upload = () => {
         throw updateError;
       }
 
+      console.log('[UPLOAD] Upload completed successfully');
       toast({
         title: "Upload successful!",
         description: "Your documents have been uploaded and processed.",
@@ -251,7 +291,7 @@ const Upload = () => {
       navigate(`/lobby?session_id=${sessionId}`);
 
     } catch (error: any) {
-      console.error('Upload error:', error);
+      console.error('[UPLOAD] Upload error:', error);
       toast({
         title: "Upload failed",
         description: error.message || "Failed to upload documents. Please try again.",
