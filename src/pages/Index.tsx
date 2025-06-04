@@ -1,17 +1,67 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, Shield, Zap, Mic, Brain, Timer, Smartphone, Monitor, ArrowRight, SquareStack, Wifi } from "lucide-react";
+import { CheckCircle, Clock, Shield, Zap, Mic, Brain, Timer, Smartphone, Monitor, ArrowRight, SquareStack, Wifi, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [loading, setLoading] = useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [selectedDeviceMode, setSelectedDeviceMode] = useState<'single' | 'cross'>('single');
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Check for existing sessions on page load
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      try {
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        
+        if (authSession) {
+          // Check if user has any active sessions
+          const { data: sessions, error } = await supabase
+            .from('sessions')
+            .select('*')
+            .eq('user_id', authSession.user.id)
+            .in('status', ['paid', 'active', 'pending_assets'])
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (error) {
+            console.error('Error checking sessions:', error);
+            return;
+          }
+
+          if (sessions && sessions.length > 0) {
+            const session = sessions[0];
+            
+            // Redirect based on session status
+            switch (session.status) {
+              case 'paid':
+              case 'pending_assets':
+                navigate(`/upload?session_id=${session.id}`);
+                return;
+              case 'active':
+                navigate(`/interview?session_id=${session.id}`);
+                return;
+              default:
+                break;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking existing sessions:', error);
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+
+    checkExistingSession();
+  }, [navigate]);
 
   const calculatePrice = (basePriceCents: number, deviceMode: 'single' | 'cross') => {
     const finalPrice = deviceMode === 'cross' ? Math.round(basePriceCents * 1.2) : basePriceCents;
@@ -136,6 +186,18 @@ const Index = () => {
     }
   };
 
+  // Show loading while checking for existing sessions
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Checking your session...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Header */}
@@ -184,7 +246,7 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Device Setup Selection - Redesigned */}
+      {/* Device Setup Selection */}
       <section className="py-16 px-4 bg-white">
         <div className="container mx-auto max-w-5xl">
           <div className="text-center mb-12">
