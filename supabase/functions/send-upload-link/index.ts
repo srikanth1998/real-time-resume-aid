@@ -32,8 +32,9 @@ serve(async (req) => {
     const resend = new Resend(resendApiKey)
     console.log('[EMAIL] Resend client initialized')
     
-    // Create the upload URL with payment confirmation
-    const uploadUrl = `https://jafylkqbmvdptrqwwyed.supabase.co/upload?session_id=${sessionId}&payment_id=${paymentId}&confirmed=true`
+    // Use the origin from the request header to build the correct URL
+    const origin = req.headers.get('origin') || 'https://loving-bose.lovable.app'
+    const uploadUrl = `${origin}/upload?session_id=${sessionId}&payment_id=${paymentId}&confirmed=true`
     console.log('[EMAIL] Upload URL:', uploadUrl)
 
     const deviceModeText = deviceMode === 'cross' ? ' (Cross-Device)' : ''
