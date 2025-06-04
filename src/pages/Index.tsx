@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, Shield, Zap, Mic, Brain, Timer, Smartphone, Monitor } from "lucide-react";
+import { CheckCircle, Clock, Shield, Zap, Mic, Brain, Timer, Smartphone, Monitor, ArrowRight, Tabs, Wifi } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -185,73 +185,164 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Device Mode Selection */}
-      <section className="py-12 px-4 bg-gray-50">
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Choose Your Setup</h2>
-            <p className="text-lg text-gray-600">
-              Select how you'll use InterviewAce during your interview
+      {/* Device Setup Selection - Redesigned */}
+      <section className="py-16 px-4 bg-white">
+        <div className="container mx-auto max-w-5xl">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Choose Your Interview Setup</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              How will you use InterviewAce during your video interview? Select the setup that works best for you.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {/* Single Device Option */}
             <Card 
-              className={`cursor-pointer transition-all duration-300 ${
-                selectedDeviceMode === 'single' ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:shadow-lg'
+              className={`cursor-pointer transition-all duration-300 border-2 ${
+                selectedDeviceMode === 'single' 
+                  ? 'border-blue-500 bg-blue-50 shadow-lg scale-105' 
+                  : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
               }`}
               onClick={() => setSelectedDeviceMode('single')}
             >
-              <CardHeader className="text-center">
+              <CardHeader className="text-center pb-4">
                 <div className="flex justify-center mb-4">
-                  <Smartphone className="h-12 w-12 text-blue-600" />
+                  <div className="relative">
+                    <Monitor className="h-16 w-16 text-blue-600" />
+                    <Tabs className="h-6 w-6 text-blue-500 absolute -bottom-1 -right-1" />
+                  </div>
                 </div>
-                <CardTitle className="text-xl">Single Device</CardTitle>
-                <CardDescription>
-                  Use on one device only (mobile or desktop)
+                <CardTitle className="text-2xl text-gray-900">Single Device</CardTitle>
+                <CardDescription className="text-lg">
+                  Use one laptop/desktop for everything
                 </CardDescription>
+                {selectedDeviceMode === 'single' && (
+                  <Badge className="mt-2 bg-blue-600 text-white">Selected</Badge>
+                )}
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-blue-900 mb-3">How it works:</h4>
+                  <div className="space-y-3 text-sm text-blue-800">
+                    <div className="flex items-start space-x-3">
+                      <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">1</span>
+                      <span>Join video interview on Tab 1 (Zoom/Teams)</span>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">2</span>
+                      <span>Open InterviewAce on Tab 2</span>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">3</span>
+                      <span>Alt+Tab between interview and answers</span>
+                    </div>
+                  </div>
+                </div>
                 <ul className="space-y-2 text-sm text-gray-600">
-                  <li>• Perfect for phone interviews</li>
-                  <li>• Simple setup process</li>
-                  <li>• Standard pricing</li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>Simple one-device setup</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>Chrome extension captures audio</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>Standard pricing</span>
+                  </li>
                 </ul>
               </CardContent>
             </Card>
 
+            {/* Cross Device Option */}
             <Card 
-              className={`cursor-pointer transition-all duration-300 ${
-                selectedDeviceMode === 'cross' ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:shadow-lg'
+              className={`cursor-pointer transition-all duration-300 border-2 relative ${
+                selectedDeviceMode === 'cross' 
+                  ? 'border-orange-500 bg-orange-50 shadow-lg scale-105' 
+                  : 'border-gray-200 hover:border-orange-300 hover:shadow-md'
               }`}
               onClick={() => setSelectedDeviceMode('cross')}
             >
-              <CardHeader className="text-center">
+              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-orange-600 text-white">
+                Premium Experience
+              </Badge>
+              <CardHeader className="text-center pb-4 pt-6">
                 <div className="flex justify-center mb-4">
-                  <Monitor className="h-12 w-12 text-blue-600" />
+                  <div className="relative flex items-center space-x-2">
+                    <Monitor className="h-12 w-12 text-orange-600" />
+                    <Wifi className="h-6 w-6 text-orange-500" />
+                    <Smartphone className="h-10 w-10 text-orange-600" />
+                  </div>
                 </div>
-                <CardTitle className="text-xl">Cross-Device</CardTitle>
-                <CardDescription>
-                  Use on multiple devices simultaneously
+                <CardTitle className="text-2xl text-gray-900">Cross-Device</CardTitle>
+                <CardDescription className="text-lg">
+                  Laptop for interview + Phone/tablet for answers
                 </CardDescription>
+                {selectedDeviceMode === 'cross' && (
+                  <Badge className="mt-2 bg-orange-600 text-white">Selected</Badge>
+                )}
                 <Badge className="mt-2 bg-orange-100 text-orange-800">
                   +20% Premium
                 </Badge>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
+                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                  <h4 className="font-semibold text-orange-900 mb-3">How it works:</h4>
+                  <div className="space-y-3 text-sm text-orange-800">
+                    <div className="flex items-start space-x-3">
+                      <span className="bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">1</span>
+                      <span>Video interview on laptop (full focus)</span>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <span className="bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">2</span>
+                      <span>AI answers on phone/tablet (discrete)</span>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <span className="bg-orange-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">3</span>
+                      <span>Glance naturally at answers like notes</span>
+                    </div>
+                  </div>
+                </div>
                 <ul className="space-y-2 text-sm text-gray-600">
-                  <li>• Desktop + mobile access</li>
-                  <li>• Chrome extension support</li>
-                  <li>• Maximum flexibility</li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>No tab switching needed</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>More natural and professional</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>Discrete answer viewing</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span>Premium sync technology</span>
+                  </li>
                 </ul>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Visual Comparison */}
+          <div className="mt-12 text-center">
+            <div className="inline-flex items-center space-x-4 bg-gray-100 p-4 rounded-lg">
+              <div className="text-sm text-gray-600">
+                <strong>Single Device:</strong> Alt+Tab between meeting & answers
+              </div>
+              <ArrowRight className="h-4 w-4 text-gray-400" />
+              <div className="text-sm text-gray-600">
+                <strong>Cross-Device:</strong> Seamless, professional experience
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20 px-4 bg-white">
+      <section className="py-20 px-4 bg-gray-50">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -261,8 +352,8 @@ const Index = () => {
               One-time payment. No subscriptions. No refunds after session starts.
             </p>
             {selectedDeviceMode === 'cross' && (
-              <Badge className="mt-4 bg-orange-100 text-orange-800">
-                Cross-device pricing includes 20% premium
+              <Badge className="mt-4 bg-orange-100 text-orange-800 text-lg px-4 py-2">
+                Cross-device pricing includes 20% premium for enhanced experience
               </Badge>
             )}
           </div>
@@ -293,7 +384,7 @@ const Index = () => {
                       <span className="text-gray-600 ml-2">/ {plan.duration}</span>
                       {selectedDeviceMode === 'cross' && (
                         <div className="text-sm text-orange-600 mt-1">
-                          Base: ${(plan.basePriceCents / 100).toFixed(0)} + 20% cross-device
+                          Base: ${(plan.basePriceCents / 100).toFixed(0)} + 20% cross-device premium
                         </div>
                       )}
                     </div>
@@ -344,7 +435,7 @@ const Index = () => {
       </section>
 
       {/* How it Works */}
-      <section className="py-20 px-4 bg-gray-50">
+      <section className="py-20 px-4 bg-white">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -396,7 +487,7 @@ const Index = () => {
       </section>
 
       {/* Trust Indicators */}
-      <section className="py-16 px-4 bg-white">
+      <section className="py-16 px-4 bg-gray-50">
         <div className="container mx-auto max-w-4xl">
           <div className="grid md:grid-cols-3 gap-8 text-center">
             <div className="flex flex-col items-center">
