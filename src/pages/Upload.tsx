@@ -94,7 +94,17 @@ const Upload = () => {
         console.log('[UPLOAD] Fetching session from database...');
         setDebugInfo({ step: 'fetching_session', sessionId });
         
-        // Use maybeSingle() instead of single() to handle cases where no session exists
+        // First, let's check if ANY sessions exist to debug the issue
+        const { data: allSessions, error: allSessionsError } = await supabase
+          .from('sessions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        console.log('[UPLOAD] Recent sessions in database:', allSessions);
+        console.log('[UPLOAD] All sessions error:', allSessionsError);
+
+        // Now try to find our specific session
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
@@ -104,8 +114,22 @@ const Upload = () => {
         console.log('[UPLOAD] Database query result:', { sessionData, error });
         setDebugInfo({ 
           step: 'database_result', 
-          sessionData: sessionData ? { id: sessionData.id, status: sessionData.status } : null, 
-          error: error?.message 
+          sessionData: sessionData ? { 
+            id: sessionData.id, 
+            status: sessionData.status,
+            stripe_payment_intent_id: sessionData.stripe_payment_intent_id,
+            stripe_session_id: sessionData.stripe_session_id,
+            created_at: sessionData.created_at
+          } : null, 
+          error: error?.message,
+          searchedSessionId: sessionId,
+          allRecentSessions: allSessions?.map(s => ({ 
+            id: s.id, 
+            created_at: s.created_at, 
+            status: s.status,
+            stripe_payment_intent_id: s.stripe_payment_intent_id,
+            stripe_session_id: s.stripe_session_id
+          }))
         });
 
         if (error) {
@@ -122,17 +146,28 @@ const Upload = () => {
 
         if (!sessionData) {
           console.error('[UPLOAD] Session not found in database');
-          setDebugInfo({ step: 'session_not_found', sessionId });
+          setDebugInfo({ 
+            step: 'session_not_found', 
+            sessionId,
+            searchedSessionId: sessionId,
+            allRecentSessions: allSessions?.map(s => ({ 
+              id: s.id, 
+              created_at: s.created_at, 
+              status: s.status,
+              stripe_payment_intent_id: s.stripe_payment_intent_id,
+              stripe_session_id: s.stripe_session_id
+            }))
+          });
           toast({
             title: "Session not found",
-            description: "The session ID is invalid or has expired.",
+            description: `The session ID ${sessionId} was not found in the database. This might be a timing issue - please try again in a few moments.`,
             variant: "destructive"
           });
           setLoading(false);
           return;
         }
 
-        // Verify payment ID matches
+        // Verify payment ID matches - check both possible payment ID fields
         const paymentMatches = sessionData.stripe_payment_intent_id === paymentId || sessionData.stripe_session_id === paymentId;
         console.log('[UPLOAD] Payment verification:', {
           providedPaymentId: paymentId,
@@ -349,16 +384,17 @@ const Upload = () => {
 
   if (loading) {
     return (
-      <div>
-        {renderTestMessage()}
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4" style={{ paddingTop: '200px' }}>
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p>Verifying payment and loading session...</p>
-            <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
-              <strong>Debug Info:</strong>
-              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-2xl">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="mb-4">Verifying payment and loading session...</p>
+          <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
+            <strong>Debug Info:</strong>
+            <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(debugInfo, null, 2)}</pre>
+          </div>
+          <div className="mt-4 p-4 bg-yellow-100 rounded text-left text-sm">
+            <strong>If you see "session_not_found":</strong>
+            <p>This might be a timing issue. The webhook may still be processing your payment. Please wait 30 seconds and refresh the page.</p>
           </div>
         </div>
       </div>
@@ -367,15 +403,24 @@ const Upload = () => {
 
   if (!session) {
     return (
-      <div>
-        {renderTestMessage()}
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4" style={{ paddingTop: '200px' }}>
-          <div className="text-center">
-            <p>Session not found or invalid</p>
-            <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
-              <strong>Debug Info:</strong>
-              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-2xl">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Session Not Found</h1>
+          <p className="text-gray-600 mb-6">
+            We couldn't find your session in our database. This might be due to:
+          </p>
+          <ul className="text-left text-gray-600 mb-6 space-y-2">
+            <li>• Payment processing is still in progress (please wait and refresh)</li>
+            <li>• Invalid session ID or payment confirmation</li>
+            <li>• Database synchronization delay</li>
+          </ul>
+          <Button onClick={() => window.location.reload()} className="mb-6">
+            Refresh Page
+          </Button>
+          <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
+            <strong>Debug Info:</strong>
+            <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(debugInfo, null, 2)}</pre>
           </div>
         </div>
       </div>
@@ -383,176 +428,159 @@ const Upload = () => {
   }
 
   return (
-    <div>
-      {renderTestMessage()}
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4" style={{ paddingTop: '200px' }}>
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Brain className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Your Documents</h1>
-          <p className="text-gray-600">Upload your resume and job description to start your interview</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <div className="flex items-center justify-center space-x-2 mb-4">
+          <Brain className="h-8 w-8 text-blue-600" />
+          <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Your Documents</h1>
+        <p className="text-gray-600">Upload your resume and job description to start your interview</p>
+      </div>
 
-        {/* Debug information */}
-        <div className="max-w-4xl mx-auto mb-4">
-          <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-            <p className="text-green-800">✅ Upload page is working correctly!</p>
-            <p className="text-sm text-green-600">Session ID: {sessionId}</p>
-            <p className="text-sm text-green-600">Payment ID: {paymentId}</p>
-            <p className="text-sm text-green-600">Session Status: {session?.status}</p>
-            <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-              <strong>Debug Info:</strong>
-              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-            </div>
-          </div>
-        </div>
+      <div className="max-w-4xl mx-auto">
+        {/* Payment Confirmation */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span>Payment Confirmed - {session.plan_type.charAt(0).toUpperCase() + session.plan_type.slice(1)} Plan</span>
+            </CardTitle>
+            <CardDescription>
+              {session.duration_minutes} minutes • {session.device_mode === 'cross' ? 'Cross-Device Access' : 'Single Device'}
+            </CardDescription>
+          </CardHeader>
+        </Card>
 
-        <div className="max-w-4xl mx-auto">
-          {/* Payment Confirmation */}
-          <Card className="mb-8">
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Resume Upload */}
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-                <span>Payment Confirmed - {session.plan_type.charAt(0).toUpperCase() + session.plan_type.slice(1)} Plan</span>
+                <FileText className="h-5 w-5 text-blue-600" />
+                <span>Upload Resume</span>
               </CardTitle>
               <CardDescription>
-                {session.duration_minutes} minutes • {session.device_mode === 'cross' ? 'Cross-Device Access' : 'Single Device'}
+                Upload your current resume (PDF, Word, or Text - Max 5MB)
               </CardDescription>
             </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="resume">Select Resume File</Label>
+                  <Input
+                    id="resume"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt"
+                    onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+                    className="mt-2"
+                  />
+                </div>
+                {resumeFile && (
+                  <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm text-green-800">{resumeFile.name}</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
           </Card>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Resume Upload */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  <span>Upload Resume</span>
-                </CardTitle>
-                <CardDescription>
-                  Upload your current resume (PDF, Word, or Text - Max 5MB)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+          {/* Job Description Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Briefcase className="h-5 w-5 text-blue-600" />
+                <span>Job Description</span>
+              </CardTitle>
+              <CardDescription>
+                Upload job description file or provide a URL
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex space-x-2">
+                  <Button
+                    variant={uploadMethod === "file" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setUploadMethod("file")}
+                  >
+                    Upload File
+                  </Button>
+                  <Button
+                    variant={uploadMethod === "url" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setUploadMethod("url")}
+                  >
+                    Paste URL
+                  </Button>
+                </div>
+
+                {uploadMethod === "file" ? (
                   <div>
-                    <Label htmlFor="resume">Select Resume File</Label>
+                    <Label htmlFor="jobdesc">Select Job Description File</Label>
                     <Input
-                      id="resume"
+                      id="jobdesc"
                       type="file"
                       accept=".pdf,.doc,.docx,.txt"
-                      onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+                      onChange={(e) => setJobDescFile(e.target.files?.[0] || null)}
                       className="mt-2"
                     />
+                    {jobDescFile && (
+                      <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200 mt-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-800">{jobDescFile.name}</span>
+                      </div>
+                    )}
                   </div>
-                  {resumeFile && (
-                    <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm text-green-800">{resumeFile.name}</span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Job Description Upload */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Briefcase className="h-5 w-5 text-blue-600" />
-                  <span>Job Description</span>
-                </CardTitle>
-                <CardDescription>
-                  Upload job description file or provide a URL
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex space-x-2">
-                    <Button
-                      variant={uploadMethod === "file" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setUploadMethod("file")}
-                    >
-                      Upload File
-                    </Button>
-                    <Button
-                      variant={uploadMethod === "url" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setUploadMethod("url")}
-                    >
-                      Paste URL
-                    </Button>
+                ) : (
+                  <div>
+                    <Label htmlFor="joburl">Job Description URL</Label>
+                    <Input
+                      id="joburl"
+                      type="url"
+                      placeholder="https://company.com/jobs/..."
+                      value={jobDescUrl}
+                      onChange={(e) => setJobDescUrl(e.target.value)}
+                      className="mt-2"
+                    />
+                    {jobDescUrl && (
+                      <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200 mt-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-800">URL provided</span>
+                      </div>
+                    )}
                   </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-                  {uploadMethod === "file" ? (
-                    <div>
-                      <Label htmlFor="jobdesc">Select Job Description File</Label>
-                      <Input
-                        id="jobdesc"
-                        type="file"
-                        accept=".pdf,.doc,.docx,.txt"
-                        onChange={(e) => setJobDescFile(e.target.files?.[0] || null)}
-                        className="mt-2"
-                      />
-                      {jobDescFile && (
-                        <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200 mt-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span className="text-sm text-green-800">{jobDescFile.name}</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <Label htmlFor="joburl">Job Description URL</Label>
-                      <Input
-                        id="joburl"
-                        type="url"
-                        placeholder="https://company.com/jobs/..."
-                        value={jobDescUrl}
-                        onChange={(e) => setJobDescUrl(e.target.value)}
-                        className="mt-2"
-                      />
-                      {jobDescUrl && (
-                        <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200 mt-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span className="text-sm text-green-800">URL provided</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Upload Button */}
-          <div className="mt-8 text-center">
-            <Button
-              onClick={handleUpload}
-              disabled={uploading || !resumeFile || (uploadMethod === "file" && !jobDescFile) || (uploadMethod === "url" && !jobDescUrl.trim())}
-              className="w-full md:w-auto px-8 py-3 text-lg"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Uploading & Starting Interview...
-                </>
-              ) : (
-                <>
-                  <UploadIcon className="h-5 w-5 mr-2" />
-                  Upload & Start Interview
-                </>
-              )}
-            </Button>
-            
-            <p className="text-sm text-gray-500 mt-4">
-              Your documents are encrypted and will be automatically deleted after 24 hours
-            </p>
-          </div>
+        {/* Upload Button */}
+        <div className="mt-8 text-center">
+          <Button
+            onClick={handleUpload}
+            disabled={uploading || !resumeFile || (uploadMethod === "file" && !jobDescFile) || (uploadMethod === "url" && !jobDescUrl.trim())}
+            className="w-full md:w-auto px-8 py-3 text-lg"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                Uploading & Starting Interview...
+              </>
+            ) : (
+              <>
+                <UploadIcon className="h-5 w-5 mr-2" />
+                Upload & Start Interview
+              </>
+            )}
+          </Button>
+          
+          <p className="text-sm text-gray-500 mt-4">
+            Your documents are encrypted and will be automatically deleted after 24 hours
+          </p>
         </div>
       </div>
     </div>
