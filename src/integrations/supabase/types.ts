@@ -56,6 +56,36 @@ export type Database = {
           },
         ]
       }
+      email_otps: {
+        Row: {
+          attempts: number | null
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          otp_hash: string
+          used: boolean | null
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          otp_hash: string
+          used?: boolean | null
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          otp_hash?: string
+          used?: boolean | null
+        }
+        Relationships: []
+      }
       session_connections: {
         Row: {
           connection_id: string
@@ -203,6 +233,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_otps: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_stale_connections: {
         Args: Record<PropertyKey, never>
         Returns: undefined

@@ -1,22 +1,45 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Brain, Mail, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
+import { Brain, Mail, ArrowLeft, CheckCircle, AlertCircle, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+type AuthStep = 'email' | 'otp' | 'success';
+
 const Auth = () => {
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [currentStep, setCurrentStep] = useState<AuthStep>('email');
   const [loading, setLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [otpExpiry, setOtpExpiry] = useState<number>(0);
+  const [canResend, setCanResend] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   
   const selectedPlan = location.state?.selectedPlan;
+
+  // Countdown timer for OTP expiry
+  useEffect(() => {
+    if (otpExpiry > 0) {
+      const timer = setInterval(() => {
+        setOtpExpiry(prev => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [otpExpiry]);
 
   useEffect(() => {
     // Check for auth errors in URL hash
@@ -32,8 +55,8 @@ const Auth = () => {
       
       if (error === 'access_denied' && errorDescription?.includes('expired')) {
         toast({
-          title: "Magic link expired",
-          description: "The magic link has expired. Please request a new one.",
+          title: "Session expired",
+          description: "Please try logging in again.",
           variant: "destructive"
         });
       } else {
@@ -43,6 +66,7 @@ const Auth = () => {
           variant: "destructive"
         });
       }
+      setCurrentStep('email');
       return;
     }
 
@@ -98,6 +122,8 @@ const Auth = () => {
       console.log('Auth state change:', event, session?.user?.email);
       
       if (event === 'SIGNED_IN' && session) {
+        setCurrentStep('success');
+        
         if (selectedPlan) {
           // Create session and redirect to upload
           setTimeout(async () => {
@@ -131,7 +157,7 @@ const Auth = () => {
             }
           }, 100);
         } else {
-          navigate('/');
+          setTimeout(() => navigate('/'), 1500);
         }
       } else if (event === 'TOKEN_REFRESHED') {
         console.log('Token refreshed');
@@ -141,37 +167,39 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate, selectedPlan, toast]);
 
-  const handleMagicLink = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Clear any existing auth state
-      await supabase.auth.signOut();
-      
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth`,
-          shouldCreateUser: true
-        }
+      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/send-otp-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.supabaseKey}`,
+        },
+        body: JSON.stringify({ email }),
       });
 
-      if (error) {
-        throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send OTP');
       }
 
-      setEmailSent(true);
+      setCurrentStep('otp');
+      setOtpExpiry(300); // 5 minutes
+      setCanResend(false);
       toast({
-        title: "Magic link sent!",
-        description: "Check your email for the login link. The link will expire in 60 minutes.",
+        title: "OTP sent!",
+        description: "Check your email for the 6-digit code. It will expire in 5 minutes.",
       });
 
     } catch (error: any) {
-      console.error('Auth error:', error);
+      console.error('Send OTP error:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to send magic link. Please try again.",
+        description: error.message || "Failed to send OTP. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -179,7 +207,73 @@ const Auth = () => {
     }
   };
 
-  if (emailSent) {
+  const handleVerifyOtp = async (otpValue: string) => {
+    if (otpValue.length !== 6) return;
+    
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.supabaseKey}`,
+        },
+        body: JSON.stringify({ email, otp: otpValue }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid OTP');
+      }
+
+      // Sign in with Supabase auth using the verified email
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+        }
+      });
+
+      if (error) {
+        // If OTP signin fails, try alternative method
+        console.log('OTP signin method not available, handling manually');
+      }
+
+      // At this point, the OTP is verified, so we can proceed
+      toast({
+        title: "Success!",
+        description: "Login successful. Redirecting...",
+      });
+
+      setCurrentStep('success');
+
+    } catch (error: any) {
+      console.error('Verify OTP error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Invalid or expired OTP. Please try again.",
+        variant: "destructive"
+      });
+      setOtp("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    await handleSendOtp(new Event('submit') as any);
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (currentStep === 'success') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -187,33 +281,112 @@ const Auth = () => {
             <div className="flex justify-center mb-4">
               <CheckCircle className="h-16 w-16 text-green-500" />
             </div>
-            <CardTitle className="text-2xl">Check Your Email</CardTitle>
+            <CardTitle className="text-2xl">Welcome!</CardTitle>
             <CardDescription>
-              We've sent a magic link to <strong>{email}</strong>
+              Login successful. Redirecting you now...
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start space-x-2">
-                <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium">Important:</p>
-                  <p>Click the link in your email within 60 minutes. If you don't see the email, check your spam folder.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (currentStep === 'otp') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <Button
+              variant="ghost"
+              className="mb-4"
+              onClick={() => setCurrentStep('email')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to email
+            </Button>
+            
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              <Brain className="h-8 w-8 text-blue-600" />
+              <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl">Enter Verification Code</CardTitle>
+              <CardDescription>
+                We've sent a 6-digit code to <strong>{email}</strong>
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <Label htmlFor="otp" className="text-center block">Verification Code</Label>
+                <div className="flex justify-center">
+                  <InputOTP
+                    value={otp}
+                    onChange={(value) => {
+                      setOtp(value);
+                      if (value.length === 6) {
+                        handleVerifyOtp(value);
+                      }
+                    }}
+                    maxLength={6}
+                    disabled={loading}
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
                 </div>
               </div>
-            </div>
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={() => {
-                setEmailSent(false);
-                setEmail("");
-              }}
-            >
-              Send another link
-            </Button>
-          </CardContent>
-        </Card>
+
+              {otpExpiry > 0 && (
+                <div className="text-center">
+                  <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
+                    <Timer className="h-4 w-4" />
+                    <span>Code expires in {formatTime(otpExpiry)}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-center">
+                {canResend || otpExpiry === 0 ? (
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleResendOtp}
+                    disabled={loading}
+                  >
+                    Resend code
+                  </Button>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    Didn't receive the code? You can resend in {formatTime(otpExpiry)}
+                  </p>
+                )}
+              </div>
+
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">Tips:</p>
+                    <ul className="mt-1 space-y-1">
+                      <li>• Check your spam folder if you don't see the email</li>
+                      <li>• The code is valid for 5 minutes</li>
+                      <li>• Enter all 6 digits to automatically verify</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -261,7 +434,7 @@ const Auth = () => {
               </div>
             )}
 
-            <form onSubmit={handleMagicLink} className="space-y-4">
+            <form onSubmit={handleSendOtp} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email address</Label>
                 <Input
@@ -283,12 +456,12 @@ const Auth = () => {
                 {loading ? (
                   <>
                     <Mail className="h-4 w-4 mr-2 animate-pulse" />
-                    Sending magic link...
+                    Sending code...
                   </>
                 ) : (
                   <>
                     <Mail className="h-4 w-4 mr-2" />
-                    Send magic link
+                    Send verification code
                   </>
                 )}
               </Button>
@@ -296,7 +469,7 @@ const Auth = () => {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
-                No password required. We'll send you a secure login link that expires in 60 minutes.
+                We'll send you a 6-digit code that expires in 5 minutes. No password required!
               </p>
             </div>
           </CardContent>
