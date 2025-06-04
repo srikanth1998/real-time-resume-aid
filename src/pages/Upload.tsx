@@ -89,7 +89,7 @@ const Upload = () => {
           // If coming from payment success, update status
           if (paymentSuccess === 'true') {
             console.log('[UPLOAD] Updating session status from pending_payment to pending_assets');
-            const { error: updateError } = await supabaseClient
+            const { error: updateError } = await supabase
               .from('sessions')
               .update({
                 status: 'pending_assets',
