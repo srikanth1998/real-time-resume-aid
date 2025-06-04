@@ -37,6 +37,10 @@ const Interview = () => {
   const processingRef = useRef(false);
   const streamingAnswerRef = useRef("");
 
+  // Supabase configuration constants
+  const SUPABASE_URL = "https://jafylkqbmvdptrqwwyed.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY";
+
   // Predictive caching for common questions
   const commonQuestions = [
     "Tell me about yourself",
@@ -383,12 +387,12 @@ const Interview = () => {
     streamingAnswerRef.current = "";
 
     try {
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/generate-interview-answer`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-interview-answer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`,
-          'apikey': supabase.supabaseKey
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY
         },
         body: JSON.stringify({
           sessionId: sessionId,
