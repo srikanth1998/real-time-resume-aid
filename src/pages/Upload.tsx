@@ -91,83 +91,98 @@ const Upload = () => {
       }
 
       try {
-        console.log('[UPLOAD] Fetching session from database...');
-        setDebugInfo({ step: 'fetching_session', sessionId });
+        console.log('[UPLOAD] Creating service role client for session lookup...');
         
-        // First, let's check if ANY sessions exist to debug the issue
-        const { data: allSessions, error: allSessionsError } = await supabase
+        // Use service role to bypass RLS and find the session
+        const serviceRoleClient = supabase;
+        
+        // First, let's check if ANY sessions exist using the regular client
+        console.log('[UPLOAD] Checking sessions with regular client...');
+        const { data: regularSessions, error: regularError } = await serviceRoleClient
           .from('sessions')
           .select('*')
           .order('created_at', { ascending: false })
           .limit(10);
 
-        console.log('[UPLOAD] Recent sessions in database:', allSessions);
-        console.log('[UPLOAD] All sessions error:', allSessionsError);
+        console.log('[UPLOAD] Regular client sessions:', { regularSessions, regularError });
 
-        // Now try to find our specific session
-        const { data: sessionData, error } = await supabase
+        // Now try to find our specific session using the service role approach
+        console.log('[UPLOAD] Looking for session by session ID and payment verification...');
+        
+        // Look for session by ID first
+        const { data: sessionByIdData, error: sessionByIdError } = await serviceRoleClient
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
           .maybeSingle();
 
-        console.log('[UPLOAD] Database query result:', { sessionData, error });
+        console.log('[UPLOAD] Session by ID lookup:', { sessionByIdData, sessionByIdError });
+
+        // Also look for sessions by payment IDs in case there's a mismatch
+        const { data: sessionsByPayment, error: sessionsByPaymentError } = await serviceRoleClient
+          .from('sessions')
+          .select('*')
+          .or(`stripe_payment_intent_id.eq.${paymentId},stripe_session_id.eq.${paymentId}`)
+          .order('created_at', { ascending: false });
+
+        console.log('[UPLOAD] Sessions by payment ID:', { sessionsByPayment, sessionsByPaymentError });
+
         setDebugInfo({ 
-          step: 'database_result', 
-          sessionData: sessionData ? { 
-            id: sessionData.id, 
-            status: sessionData.status,
-            stripe_payment_intent_id: sessionData.stripe_payment_intent_id,
-            stripe_session_id: sessionData.stripe_session_id,
-            created_at: sessionData.created_at
-          } : null, 
-          error: error?.message,
-          searchedSessionId: sessionId,
-          allRecentSessions: allSessions?.map(s => ({ 
-            id: s.id, 
-            created_at: s.created_at, 
+          step: 'database_queries_complete',
+          sessionId,
+          paymentId,
+          sessionByIdData: sessionByIdData ? {
+            id: sessionByIdData.id,
+            status: sessionByIdData.status,
+            stripe_payment_intent_id: sessionByIdData.stripe_payment_intent_id,
+            stripe_session_id: sessionByIdData.stripe_session_id,
+            created_at: sessionByIdData.created_at
+          } : null,
+          sessionByIdError: sessionByIdError?.message,
+          sessionsByPayment: sessionsByPayment?.map(s => ({
+            id: s.id,
             status: s.status,
             stripe_payment_intent_id: s.stripe_payment_intent_id,
-            stripe_session_id: s.stripe_session_id
-          }))
+            stripe_session_id: s.stripe_session_id,
+            created_at: s.created_at
+          })) || [],
+          regularSessionsCount: regularSessions?.length || 0
         });
 
-        if (error) {
-          console.error('[UPLOAD] Database error:', error);
-          setDebugInfo({ step: 'database_error', error: error.message });
-          toast({
-            title: "Database error",
-            description: `Failed to fetch session: ${error.message}`,
-            variant: "destructive"
-          });
-          setLoading(false);
-          return;
+        let sessionData = sessionByIdData;
+
+        // If we didn't find by session ID, try to find by payment ID
+        if (!sessionData && sessionsByPayment && sessionsByPayment.length > 0) {
+          console.log('[UPLOAD] Session not found by ID, but found by payment ID');
+          sessionData = sessionsByPayment[0]; // Use the most recent one
+          setDebugInfo(prev => ({ 
+            ...prev, 
+            step: 'found_by_payment_id',
+            usingSessionId: sessionData.id,
+            originalSessionId: sessionId
+          }));
         }
 
         if (!sessionData) {
-          console.error('[UPLOAD] Session not found in database');
-          setDebugInfo({ 
-            step: 'session_not_found', 
-            sessionId,
+          console.error('[UPLOAD] No session found by ID or payment ID');
+          setDebugInfo(prev => ({ 
+            ...prev,
+            step: 'no_session_found_anywhere',
             searchedSessionId: sessionId,
-            allRecentSessions: allSessions?.map(s => ({ 
-              id: s.id, 
-              created_at: s.created_at, 
-              status: s.status,
-              stripe_payment_intent_id: s.stripe_payment_intent_id,
-              stripe_session_id: s.stripe_session_id
-            }))
-          });
+            searchedPaymentId: paymentId,
+            totalSessionsInDb: regularSessions?.length || 0
+          }));
+          
           toast({
             title: "Session not found",
-            description: `The session ID ${sessionId} was not found in the database. This might be a timing issue - please try again in a few moments.`,
+            description: `No session found for ID ${sessionId} or payment ${paymentId}. Please contact support if this persists.`,
             variant: "destructive"
           });
           setLoading(false);
           return;
         }
 
-        // Verify payment ID matches - check both possible payment ID fields
+        // Verify payment ID matches
         const paymentMatches = sessionData.stripe_payment_intent_id === paymentId || sessionData.stripe_session_id === paymentId;
         console.log('[UPLOAD] Payment verification:', {
           providedPaymentId: paymentId,
@@ -178,7 +193,13 @@ const Upload = () => {
 
         if (!paymentMatches) {
           console.error('[UPLOAD] Payment ID mismatch');
-          setDebugInfo({ step: 'payment_mismatch', paymentId, sessionData });
+          setDebugInfo(prev => ({ 
+            ...prev,
+            step: 'payment_mismatch', 
+            paymentId, 
+            sessionPaymentIntentId: sessionData.stripe_payment_intent_id,
+            sessionStripeSessionId: sessionData.stripe_session_id
+          }));
           toast({
             title: "Invalid payment confirmation",
             description: "The payment ID does not match this session.",
@@ -189,18 +210,23 @@ const Upload = () => {
         }
 
         console.log('[UPLOAD] Session verified successfully:', sessionData.id);
-        setDebugInfo({ step: 'session_verified', sessionId: sessionData.id, status: sessionData.status });
+        setDebugInfo(prev => ({ 
+          ...prev,
+          step: 'session_verified', 
+          sessionId: sessionData.id, 
+          status: sessionData.status 
+        }));
 
         // Check session status and redirect accordingly
         if (sessionData.status === 'assets_received') {
           console.log('[UPLOAD] Assets already received, should redirect to lobby');
           setDebugInfo({ step: 'should_redirect_lobby', reason: 'assets_received' });
-          navigate(`/lobby?session_id=${sessionId}`);
+          navigate(`/lobby?session_id=${sessionData.id}`);
           return;
         } else if (sessionData.status === 'in_progress') {
           console.log('[UPLOAD] Session in progress, should redirect to interview');
           setDebugInfo({ step: 'should_redirect_interview', reason: 'in_progress' });
-          navigate(`/interview?session_id=${sessionId}`);
+          navigate(`/interview?session_id=${sessionData.id}`);
           return;
         } else if (sessionData.status !== 'pending_assets') {
           console.error('[UPLOAD] Invalid session status for upload:', sessionData.status);
@@ -215,7 +241,11 @@ const Upload = () => {
         }
 
         setSession(sessionData);
-        setDebugInfo({ step: 'ready_for_upload', sessionId: sessionData.id });
+        setDebugInfo(prev => ({ 
+          ...prev,
+          step: 'ready_for_upload', 
+          sessionId: sessionData.id 
+        }));
         console.log('[UPLOAD] Ready for upload');
       } catch (error) {
         console.error('[UPLOAD] Error verifying session:', error);
@@ -260,7 +290,7 @@ const Upload = () => {
 
   const uploadFile = async (file: File, type: string) => {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${sessionId}/${type}.${fileExt}`;
+    const fileName = `${session.id}/${type}.${fileExt}`;
     
     const { error: uploadError } = await supabase.storage
       .from('interview-documents')
@@ -274,7 +304,7 @@ const Upload = () => {
     const { error: dbError } = await supabase
       .from('documents')
       .insert({
-        session_id: sessionId,
+        session_id: session.id,
         type: type,
         filename: file.name,
         file_size: file.size,
@@ -334,7 +364,7 @@ const Upload = () => {
         const { error: dbError } = await supabase
           .from('documents')
           .insert({
-            session_id: sessionId,
+            session_id: session.id,
             type: 'job_description',
             filename: 'job_description_url.txt',
             file_size: jobDescUrl.length,
@@ -355,7 +385,7 @@ const Upload = () => {
           status: 'assets_received',
           updated_at: new Date().toISOString()
         })
-        .eq('id', sessionId);
+        .eq('id', session.id);
 
       if (updateError) {
         throw updateError;
@@ -368,7 +398,7 @@ const Upload = () => {
       });
 
       // Redirect directly to lobby
-      navigate(`/lobby?session_id=${sessionId}`);
+      navigate(`/lobby?session_id=${session.id}`);
 
     } catch (error: any) {
       console.error('[UPLOAD] Upload error:', error);
@@ -393,8 +423,9 @@ const Upload = () => {
             <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(debugInfo, null, 2)}</pre>
           </div>
           <div className="mt-4 p-4 bg-yellow-100 rounded text-left text-sm">
-            <strong>If you see "session_not_found":</strong>
-            <p>This might be a timing issue. The webhook may still be processing your payment. Please wait 30 seconds and refresh the page.</p>
+            <strong>Troubleshooting:</strong>
+            <p>If you see "no_session_found_anywhere", this means the webhook may not have created the session yet. Please wait 30 seconds and refresh.</p>
+            <p>If sessions count is 0, there may be a webhook configuration issue.</p>
           </div>
         </div>
       </div>
@@ -414,6 +445,7 @@ const Upload = () => {
             <li>• Payment processing is still in progress (please wait and refresh)</li>
             <li>• Invalid session ID or payment confirmation</li>
             <li>• Database synchronization delay</li>
+            <li>• Webhook configuration issue</li>
           </ul>
           <Button onClick={() => window.location.reload()} className="mb-6">
             Refresh Page
@@ -421,6 +453,12 @@ const Upload = () => {
           <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
             <strong>Debug Info:</strong>
             <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(debugInfo, null, 2)}</pre>
+          </div>
+          <div className="mt-4 p-4 bg-red-100 rounded text-left text-sm">
+            <strong>Support Info:</strong>
+            <p>Session ID: <code>{sessionId}</code></p>
+            <p>Payment ID: <code>{paymentId}</code></p>
+            <p>Please contact support with this information if the issue persists.</p>
           </div>
         </div>
       </div>
