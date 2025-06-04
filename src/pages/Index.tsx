@@ -1,9 +1,8 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, Shield, Zap, Mic, Brain, Timer, Smartphone, Monitor, ArrowRight, Tabs, Wifi } from "lucide-react";
+import { CheckCircle, Clock, Shield, Zap, Mic, Brain, Timer, Smartphone, Monitor, ArrowRight, SquareStack, Wifi } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -209,7 +208,7 @@ const Index = () => {
                 <div className="flex justify-center mb-4">
                   <div className="relative">
                     <Monitor className="h-16 w-16 text-blue-600" />
-                    <Tabs className="h-6 w-6 text-blue-500 absolute -bottom-1 -right-1" />
+                    <SquareStack className="h-6 w-6 text-blue-500 absolute -bottom-1 -right-1" />
                   </div>
                 </div>
                 <CardTitle className="text-2xl text-gray-900">Single Device</CardTitle>

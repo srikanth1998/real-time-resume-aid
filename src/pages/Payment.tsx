@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Brain, ArrowLeft, CreditCard, Loader2, Smartphone, Monitor, Tabs, Wifi } from "lucide-react";
+import { Brain, ArrowLeft, CreditCard, Loader2, Smartphone, Monitor, SquareStack, Wifi } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -186,7 +186,7 @@ const Payment = () => {
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-1">
                     <Monitor className="h-5 w-5 text-blue-600" />
-                    <Tabs className="h-3 w-3 text-blue-500" />
+                    <SquareStack className="h-3 w-3 text-blue-500" />
                   </div>
                   <div className="text-sm text-blue-700">
                     <div className="font-medium">Single Device Mode</div>
