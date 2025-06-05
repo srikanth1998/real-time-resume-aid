@@ -212,8 +212,10 @@ const Lobby = () => {
       });
 
       // Navigate to interview interface
-      console.log('[LOBBY] Navigating to interview page');
-      navigate(`/interview?session_id=${sessionId}`);
+      console.log('[LOBBY] Navigating to interview page with session ID:', sessionId);
+      
+      // Use window.location.href for a clean navigation to ensure we get to the interview page
+      window.location.href = `/interview?session_id=${sessionId}`;
 
     } catch (error: any) {
       console.error('[LOBBY] Start interview error:', error);
