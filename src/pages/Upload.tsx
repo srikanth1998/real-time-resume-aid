@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -219,59 +218,59 @@ const Upload = () => {
     
     console.log('[UPLOAD] Uploading file:', { fileName, fileSize: file.size, fileType: file.type });
     
-    // First ensure the bucket exists and is properly configured
     try {
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-      console.log('[UPLOAD] Available buckets:', buckets);
-      
-      if (bucketsError) {
-        console.error('[UPLOAD] Error listing buckets:', bucketsError);
-        throw new Error('Storage not accessible');
+      // Upload the file with proper configuration
+      const { data, error: uploadError } = await supabase.storage
+        .from('interview-documents')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
+
+      console.log('[UPLOAD] Upload result:', { data, uploadError });
+
+      if (uploadError) {
+        console.error('[UPLOAD] Upload error details:', uploadError);
+        
+        // Provide more specific error messages
+        if (uploadError.message?.includes('not found')) {
+          throw new Error('Storage bucket not accessible. Please contact support.');
+        } else if (uploadError.message?.includes('policy')) {
+          throw new Error('Upload permission denied. Please verify your session.');
+        } else {
+          throw new Error(`Upload failed: ${uploadError.message}`);
+        }
       }
-      
-      const interviewBucket = buckets?.find(b => b.id === 'interview-documents');
-      if (!interviewBucket) {
-        console.error('[UPLOAD] interview-documents bucket not found');
-        throw new Error('Storage bucket not configured');
+
+      // Save document metadata
+      const { error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          session_id: session.id,
+          type: type,
+          filename: file.name,
+          file_size: file.size,
+          mime_type: file.type,
+          storage_path: fileName
+        });
+
+      if (dbError) {
+        console.error('[UPLOAD] Database error:', dbError);
+        
+        // Try to clean up the uploaded file if database insert failed
+        await supabase.storage
+          .from('interview-documents')
+          .remove([fileName]);
+          
+        throw new Error(`Failed to save document metadata: ${dbError.message}`);
       }
-    } catch (bucketError) {
-      console.error('[UPLOAD] Bucket verification failed:', bucketError);
-      throw bucketError;
+
+      console.log('[UPLOAD] File uploaded and metadata saved successfully');
+    } catch (error: any) {
+      console.error('[UPLOAD] Upload process error:', error);
+      throw error;
     }
-    
-    // Upload the file with proper error handling
-    const { data, error: uploadError } = await supabase.storage
-      .from('interview-documents')
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
-
-    console.log('[UPLOAD] Upload result:', { data, uploadError });
-
-    if (uploadError) {
-      console.error('[UPLOAD] Upload error details:', uploadError);
-      throw uploadError;
-    }
-
-    // Save document metadata with proper session context
-    const { error: dbError } = await supabase
-      .from('documents')
-      .insert({
-        session_id: session.id,
-        type: type,
-        filename: file.name,
-        file_size: file.size,
-        mime_type: file.type,
-        storage_path: fileName
-      });
-
-    if (dbError) {
-      console.error('[UPLOAD] Database error:', dbError);
-      throw dbError;
-    }
-
-    console.log('[UPLOAD] File uploaded and metadata saved successfully');
   };
 
   const handleUpload = async () => {
@@ -332,7 +331,7 @@ const Upload = () => {
 
         if (dbError) {
           console.error('[UPLOAD] URL save error:', dbError);
-          throw dbError;
+          throw new Error(`Failed to save job description URL: ${dbError.message}`);
         }
       }
 
@@ -347,7 +346,7 @@ const Upload = () => {
 
       if (updateError) {
         console.error('[UPLOAD] Session update error:', updateError);
-        throw updateError;
+        throw new Error(`Failed to update session status: ${updateError.message}`);
       }
 
       console.log('[UPLOAD] Upload completed successfully');
