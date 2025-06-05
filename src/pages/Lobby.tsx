@@ -178,7 +178,7 @@ const Lobby = () => {
       // First, double-check the current session state to avoid race conditions
       const { data: currentSessionData, error: fetchError } = await supabase
         .from('sessions')
-        .select('status, id')
+        .select('*')
         .eq('id', sessionId)
         .maybeSingle();
 
@@ -191,6 +191,8 @@ const Lobby = () => {
         throw new Error('Session not found');
       }
 
+      console.log('[LOBBY] Current session state before update:', currentSessionData);
+
       // If session is already in progress, just redirect
       if (currentSessionData.status === 'in_progress') {
         console.log('[LOBBY] Session was already started by another process');
@@ -198,8 +200,8 @@ const Lobby = () => {
         return;
       }
 
-      // Only proceed if session is in the correct state
-      if (currentSessionData.status !== 'assets_received') {
+      // Check if session is in a valid state to start
+      if (!['assets_received', 'pending_assets'].includes(currentSessionData.status)) {
         throw new Error(`Session is in ${currentSessionData.status} state, cannot start interview`);
       }
 
@@ -215,13 +217,14 @@ const Lobby = () => {
       };
 
       console.log('[LOBBY] Update data:', updateData);
+      console.log('[LOBBY] Attempting to update session from status:', currentSessionData.status);
 
-      // Update session status with strict state checking
+      // Update session status - use the current status we just fetched
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update(updateData)
         .eq('id', sessionId)
-        .eq('status', 'assets_received') // Only update if still in assets_received state
+        .eq('status', currentSessionData.status) // Use the actual current status
         .select();
 
       if (updateError) {
@@ -230,14 +233,16 @@ const Lobby = () => {
       }
 
       if (!updatedSession || updatedSession.length === 0) {
-        console.log('[LOBBY] No session was updated - checking current state...');
+        console.log('[LOBBY] No session was updated - checking what happened...');
         
-        // Check what happened to the session
+        // Check what the current state is now
         const { data: finalSession } = await supabase
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
           .maybeSingle();
+
+        console.log('[LOBBY] Session state after failed update:', finalSession);
 
         if (finalSession?.status === 'in_progress') {
           console.log('[LOBBY] Session was started by another process, redirecting...');
@@ -245,7 +250,7 @@ const Lobby = () => {
           return;
         }
         
-        throw new Error('Unable to start session. The session may have been modified by another process.');
+        throw new Error(`Unable to start session. Session was in ${currentSessionData.status} state but update failed. Current state: ${finalSession?.status || 'unknown'}`);
       }
 
       console.log('[LOBBY] Session updated successfully:', updatedSession[0]);
