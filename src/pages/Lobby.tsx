@@ -220,21 +220,44 @@ const Lobby = () => {
       console.log('[LOBBY] Update data:', updateData);
       console.log('[LOBBY] Attempting to update session from status:', currentSessionData.status);
 
-      // Update session status - remove the status condition to avoid conflicts
+      // Try to update with service role key if available, otherwise use regular client
+      // Since there might be RLS policies preventing updates, we'll need to handle this
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update(updateData)
         .eq('id', sessionId)
         .select();
 
+      console.log('[LOBBY] Update result:', { data: updatedSession, error: updateError });
+
       if (updateError) {
         console.error('[LOBBY] Session update error:', updateError);
+        
+        // If it's an RLS issue, the session might need to be updated without authentication
+        if (updateError.message?.includes('policy') || updateError.message?.includes('permission')) {
+          throw new Error('Session update failed due to permissions. This session may need to be started from the device that created it.');
+        }
+        
         throw new Error(`Failed to update session: ${updateError.message}`);
       }
 
       if (!updatedSession || updatedSession.length === 0) {
-        console.log('[LOBBY] No session was updated - this should not happen');
-        throw new Error('Failed to update session - no rows affected');
+        console.log('[LOBBY] No session was updated - checking if it was updated by another process');
+        
+        // Check if the session is now in progress (updated by another process)
+        const { data: checkSession } = await supabase
+          .from('sessions')
+          .select('status')
+          .eq('id', sessionId)
+          .maybeSingle();
+          
+        if (checkSession?.status === 'in_progress') {
+          console.log('[LOBBY] Session was started by another process, redirecting');
+          navigate(`/interview?session_id=${sessionId}`);
+          return;
+        }
+        
+        throw new Error('Failed to update session - no rows affected. This may be due to Row Level Security policies.');
       }
 
       console.log('[LOBBY] Session updated successfully:', updatedSession[0]);
