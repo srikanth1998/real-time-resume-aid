@@ -166,70 +166,65 @@ const Lobby = () => {
     setStarting(true);
 
     try {
-      console.log('[LOBBY] Current session object:', JSON.stringify(session, null, 2));
-      console.log('[LOBBY] Session ID for update:', sessionId);
-      console.log('[LOBBY] Session status before update:', session.status);
+      console.log('[LOBBY] Starting interview process');
+      console.log('[LOBBY] Session ID:', sessionId);
+      console.log('[LOBBY] Current session status:', session.status);
       
-      // Update session status and set start time
+      // Prepare update data
       const now = new Date();
       const expiresAt = new Date(now.getTime() + session.duration_minutes * 60 * 1000);
 
-      console.log('[LOBBY] Preparing update with:', {
-        sessionId,
-        currentStatus: session.status,
-        newStatus: 'in_progress',
-        startedAt: now.toISOString(),
-        expiresAt: expiresAt.toISOString()
-      });
-
-      // First, let's check what's actually in the database right now
-      console.log('[LOBBY] Checking current database state...');
-      const { data: preUpdateCheck, error: preCheckError } = await supabase
+      // First, get the current session state to use for optimistic concurrency control
+      console.log('[LOBBY] Fetching current session state for concurrency control...');
+      const { data: currentSession, error: fetchError } = await supabase
         .from('sessions')
         .select('*')
-        .eq('id', sessionId);
+        .eq('id', sessionId)
+        .maybeSingle();
 
-      console.log('[LOBBY] Pre-update database check result:', {
-        data: preUpdateCheck,
-        error: preCheckError,
-        count: preUpdateCheck?.length || 0
-      });
-
-      if (preCheckError) {
-        console.error('[LOBBY] Pre-update check failed:', preCheckError);
-        throw new Error(`Pre-update verification failed: ${preCheckError.message}`);
+      if (fetchError) {
+        console.error('[LOBBY] Error fetching current session:', fetchError);
+        throw new Error(`Failed to fetch session: ${fetchError.message}`);
       }
 
-      if (!preUpdateCheck || preUpdateCheck.length === 0) {
-        console.error('[LOBBY] No session found in database during pre-update check');
-        throw new Error('Session not found in database');
+      if (!currentSession) {
+        console.error('[LOBBY] Session not found during pre-update check');
+        throw new Error('Session not found. Please refresh and try again.');
       }
 
-      if (preUpdateCheck.length > 1) {
-        console.error('[LOBBY] Multiple sessions found with same ID:', preUpdateCheck);
-        throw new Error('Database integrity issue - multiple sessions with same ID');
+      console.log('[LOBBY] Current session state:', JSON.stringify(currentSession, null, 2));
+
+      // Check if session is in a valid state for starting
+      const validStatuses = ['assets_received', 'pending_assets'];
+      if (!validStatuses.includes(currentSession.status)) {
+        console.error('[LOBBY] Session status not valid for starting:', currentSession.status);
+        throw new Error(`Session cannot be started from status: ${currentSession.status}. Please refresh and check your session state.`);
       }
 
-      const currentDbSession = preUpdateCheck[0];
-      console.log('[LOBBY] Current session in database:', JSON.stringify(currentDbSession, null, 2));
-
-      if (currentDbSession.status !== 'assets_received') {
-        console.error('[LOBBY] Session status in DB is not assets_received:', currentDbSession.status);
-        throw new Error(`Session is no longer ready (current status: ${currentDbSession.status})`);
+      // If session is already in progress, redirect directly
+      if (currentSession.status === 'in_progress') {
+        console.log('[LOBBY] Session already in progress, redirecting...');
+        navigate(`/interview?session_id=${sessionId}`);
+        return;
       }
 
-      // Now perform the update
-      console.log('[LOBBY] Performing session update...');
+      // Attempt the update with optimistic concurrency control
+      console.log('[LOBBY] Attempting session update...');
+      const updateData = {
+        status: 'in_progress',
+        started_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        updated_at: now.toISOString()
+      };
+
+      console.log('[LOBBY] Update data:', JSON.stringify(updateData, null, 2));
+
+      // Use the updated_at timestamp from the current session for optimistic locking
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
-        .update({
-          status: 'in_progress',
-          started_at: now.toISOString(),
-          expires_at: expiresAt.toISOString(),
-          updated_at: now.toISOString()
-        })
+        .update(updateData)
         .eq('id', sessionId)
-        .eq('status', 'assets_received')
+        .eq('updated_at', currentSession.updated_at) // Optimistic concurrency control
         .select();
 
       console.log('[LOBBY] Update result:', {
@@ -240,24 +235,36 @@ const Lobby = () => {
 
       if (updateError) {
         console.error('[LOBBY] Session update error:', updateError);
-        throw new Error(`Failed to start session: ${updateError.message}`);
+        throw new Error(`Failed to update session: ${updateError.message}`);
       }
 
       if (!updatedSession || updatedSession.length === 0) {
-        console.error('[LOBBY] No session was updated - checking why...');
+        console.error('[LOBBY] No session was updated - concurrent modification detected');
         
-        // Let's check what the session status is now
-        const { data: postUpdateCheck, error: postCheckError } = await supabase
+        // Check what happened to the session
+        const { data: conflictSession, error: conflictError } = await supabase
           .from('sessions')
           .select('*')
-          .eq('id', sessionId);
+          .eq('id', sessionId)
+          .maybeSingle();
           
-        console.log('[LOBBY] Post-update check:', {
-          data: postUpdateCheck,
-          error: postCheckError
+        console.log('[LOBBY] Conflict check result:', {
+          data: conflictSession,
+          error: conflictError
         });
-        
-        throw new Error('Session could not be updated - it may have been modified by another process. Please refresh and try again.');
+
+        if (conflictSession) {
+          if (conflictSession.status === 'in_progress') {
+            console.log('[LOBBY] Session was started by another process, redirecting...');
+            navigate(`/interview?session_id=${sessionId}`);
+            return;
+          } else {
+            console.log('[LOBBY] Session was modified concurrently, current status:', conflictSession.status);
+            throw new Error('Session was modified by another process. Please refresh the page and try again.');
+          }
+        } else {
+          throw new Error('Session not found. Please refresh and try again.');
+        }
       }
 
       const finalSession = updatedSession[0];
@@ -279,9 +286,18 @@ const Lobby = () => {
         stack: error.stack,
         name: error.name
       });
+      
+      // Provide user-friendly error messages
+      let userMessage = "Please try again.";
+      if (error.message.includes('concurrent') || error.message.includes('modified by another process')) {
+        userMessage = "Please refresh the page and try again.";
+      } else if (error.message.includes('not found')) {
+        userMessage = "Please return to the homepage and start a new session.";
+      }
+
       toast({
         title: "Failed to start interview",
-        description: error.message || "Please try again.",
+        description: error.message || userMessage,
         variant: "destructive"
       });
     } finally {
