@@ -36,6 +36,8 @@ const Lobby = () => {
       }
 
       try {
+        console.log('[LOBBY] Checking session:', sessionId);
+        
         // Fetch session details without auth requirement
         const { data: sessionData, error } = await supabase
           .from('sessions')
@@ -44,7 +46,7 @@ const Lobby = () => {
           .single();
 
         if (error || !sessionData) {
-          console.error('Session verification error:', error);
+          console.error('[LOBBY] Session verification error:', error);
           toast({
             title: "Session not found",
             description: "Please start a new session.",
@@ -54,18 +56,23 @@ const Lobby = () => {
           return;
         }
 
+        console.log('[LOBBY] Session data:', sessionData);
+
         // Check session status and redirect accordingly
         if (sessionData.status === 'pending_assets') {
+          console.log('[LOBBY] Redirecting to upload');
           navigate(`/upload?session_id=${sessionId}`);
           return;
         }
 
         if (sessionData.status === 'in_progress') {
+          console.log('[LOBBY] Redirecting to interview');
           navigate(`/interview?session_id=${sessionId}`);
           return;
         }
 
         if (sessionData.status !== 'assets_received') {
+          console.log('[LOBBY] Session not ready, status:', sessionData.status);
           toast({
             title: "Session not ready",
             description: "Please complete the previous steps first.",
@@ -76,12 +83,12 @@ const Lobby = () => {
         }
 
         setSession(sessionData);
-        console.log('Session ready for lobby:', sessionData);
+        console.log('[LOBBY] Session ready for lobby:', sessionData);
         
         // Run system checks
         runSystemChecks();
       } catch (error) {
-        console.error('Error checking session:', error);
+        console.error('[LOBBY] Error checking session:', error);
         toast({
           title: "Error",
           description: "Failed to verify session. Please try again.",
@@ -97,6 +104,8 @@ const Lobby = () => {
   }, [sessionId, navigate, toast]);
 
   const runSystemChecks = async () => {
+    console.log('[LOBBY] Running system checks');
+    
     // Browser check
     const userAgent = navigator.userAgent;
     const isSupported = /Chrome|Firefox|Safari|Edge/.test(userAgent);
@@ -123,6 +132,8 @@ const Lobby = () => {
   };
 
   const handleStartInterview = async () => {
+    console.log('[LOBBY] Starting interview, system checks:', systemChecks);
+    
     if (!Object.values(systemChecks).every(check => check)) {
       toast({
         title: "System checks failed",
@@ -133,6 +144,7 @@ const Lobby = () => {
     }
 
     if (!session) {
+      console.error('[LOBBY] No session data available');
       toast({
         title: "Session error",
         description: "Session information not found.",
@@ -144,11 +156,13 @@ const Lobby = () => {
     setStarting(true);
 
     try {
+      console.log('[LOBBY] Updating session status to in_progress');
+      
       // Update session status and set start time
       const now = new Date();
       const expiresAt = new Date(now.getTime() + session.duration_minutes * 60 * 1000);
 
-      const { error: updateError } = await supabase
+      const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update({
           status: 'in_progress',
@@ -156,12 +170,16 @@ const Lobby = () => {
           expires_at: expiresAt.toISOString(),
           updated_at: now.toISOString()
         })
-        .eq('id', sessionId);
+        .eq('id', sessionId)
+        .select()
+        .single();
 
       if (updateError) {
-        console.error('Start interview error:', updateError);
-        throw updateError;
+        console.error('[LOBBY] Start interview error:', updateError);
+        throw new Error(`Failed to start session: ${updateError.message}`);
       }
+
+      console.log('[LOBBY] Session updated successfully:', updatedSession);
 
       toast({
         title: "Interview started!",
@@ -169,10 +187,11 @@ const Lobby = () => {
       });
 
       // Navigate to interview interface
+      console.log('[LOBBY] Navigating to interview page');
       navigate(`/interview?session_id=${sessionId}`);
 
     } catch (error: any) {
-      console.error('Start interview error:', error);
+      console.error('[LOBBY] Start interview error:', error);
       toast({
         title: "Failed to start interview",
         description: error.message || "Please try again.",
