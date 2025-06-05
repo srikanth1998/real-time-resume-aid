@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -166,7 +167,9 @@ const Lobby = () => {
     // If session is already in progress, just redirect
     if (session.status === 'in_progress') {
       console.log('[LOBBY] Session already in progress, redirecting');
-      navigate(`/interview?session_id=${sessionId}`);
+      const interviewUrl = `/interview?session_id=${sessionId}`;
+      console.log('[LOBBY] Redirecting to:', interviewUrl);
+      window.location.href = interviewUrl;
       return;
     }
 
@@ -186,7 +189,7 @@ const Lobby = () => {
         updated_at: now.toISOString()
       };
 
-      console.log('[LOBBY] Updating session to in_progress status');
+      console.log('[LOBBY] Updating session to in_progress status with data:', updateData);
 
       // Update session status
       const { data: updatedSession, error: updateError } = await supabase
@@ -211,11 +214,17 @@ const Lobby = () => {
         description: `Your ${session.duration_minutes}-minute session is now active.`,
       });
 
-      // Navigate to interview interface
-      console.log('[LOBBY] Navigating to interview page with session ID:', sessionId);
+      // Navigate to interview interface with detailed logging
+      const interviewUrl = `/interview?session_id=${sessionId}`;
+      console.log('[LOBBY] About to navigate to interview page with URL:', interviewUrl);
+      console.log('[LOBBY] Current location before navigation:', window.location.href);
+      console.log('[LOBBY] Session ID being passed:', sessionId);
       
-      // Use window.location.href for a clean navigation to ensure we get to the interview page
-      window.location.href = `/interview?session_id=${sessionId}`;
+      // Add a small delay to ensure the session update has been processed
+      setTimeout(() => {
+        console.log('[LOBBY] Executing navigation to:', interviewUrl);
+        window.location.href = interviewUrl;
+      }, 100);
 
     } catch (error: any) {
       console.error('[LOBBY] Start interview error:', error);
