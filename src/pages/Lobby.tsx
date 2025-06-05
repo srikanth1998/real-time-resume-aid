@@ -174,8 +174,8 @@ const Lobby = () => {
       const now = new Date();
       const expiresAt = new Date(now.getTime() + session.duration_minutes * 60 * 1000);
 
-      // First, get the current session state to use for optimistic concurrency control
-      console.log('[LOBBY] Fetching current session state for concurrency control...');
+      // Check current session state and validate it can be started
+      console.log('[LOBBY] Checking current session state...');
       const { data: currentSession, error: fetchError } = await supabase
         .from('sessions')
         .select('*')
@@ -194,13 +194,6 @@ const Lobby = () => {
 
       console.log('[LOBBY] Current session state:', JSON.stringify(currentSession, null, 2));
 
-      // Check if session is in a valid state for starting
-      const validStatuses = ['assets_received', 'pending_assets'];
-      if (!validStatuses.includes(currentSession.status)) {
-        console.error('[LOBBY] Session status not valid for starting:', currentSession.status);
-        throw new Error(`Session cannot be started from status: ${currentSession.status}. Please refresh and check your session state.`);
-      }
-
       // If session is already in progress, redirect directly
       if (currentSession.status === 'in_progress') {
         console.log('[LOBBY] Session already in progress, redirecting...');
@@ -208,8 +201,14 @@ const Lobby = () => {
         return;
       }
 
-      // Attempt the update with optimistic concurrency control
-      console.log('[LOBBY] Attempting session update...');
+      // Check if session is in a valid state for starting (allow both assets_received and pending_assets)
+      const validStatuses = ['assets_received', 'pending_assets'];
+      if (!validStatuses.includes(currentSession.status)) {
+        console.error('[LOBBY] Session status not valid for starting:', currentSession.status);
+        throw new Error(`Session cannot be started from status: ${currentSession.status}. Please refresh and check your session state.`);
+      }
+
+      // Prepare update data
       const updateData = {
         status: 'in_progress' as const,
         started_at: now.toISOString(),
@@ -219,12 +218,12 @@ const Lobby = () => {
 
       console.log('[LOBBY] Update data:', JSON.stringify(updateData, null, 2));
 
-      // Use the updated_at timestamp from the current session for optimistic locking
+      // Attempt the update with a more forgiving approach - just check session ID and that it's not in a finished state
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update(updateData)
         .eq('id', sessionId)
-        .eq('updated_at', currentSession.updated_at) // Optimistic concurrency control
+        .not('status', 'in', '(in_progress,completed,expired,cancelled)') // Don't update if already in these states
         .select();
 
       console.log('[LOBBY] Update result:', {
@@ -239,7 +238,7 @@ const Lobby = () => {
       }
 
       if (!updatedSession || updatedSession.length === 0) {
-        console.error('[LOBBY] No session was updated - concurrent modification detected');
+        console.log('[LOBBY] No session was updated - checking current state...');
         
         // Check what happened to the session
         const { data: conflictSession, error: conflictError } = await supabase
@@ -255,12 +254,14 @@ const Lobby = () => {
 
         if (conflictSession) {
           if (conflictSession.status === 'in_progress') {
-            console.log('[LOBBY] Session was started by another process, redirecting...');
+            console.log('[LOBBY] Session was already started, redirecting...');
             navigate(`/interview?session_id=${sessionId}`);
             return;
+          } else if (['completed', 'expired', 'cancelled'].includes(conflictSession.status)) {
+            throw new Error(`Session is ${conflictSession.status} and cannot be started. Please create a new session.`);
           } else {
-            console.log('[LOBBY] Session was modified concurrently, current status:', conflictSession.status);
-            throw new Error('Session was modified by another process. Please refresh the page and try again.');
+            console.log('[LOBBY] Session state changed, current status:', conflictSession.status);
+            throw new Error('Session state changed. Please refresh the page and try again.');
           }
         } else {
           throw new Error('Session not found. Please refresh and try again.');
@@ -289,10 +290,13 @@ const Lobby = () => {
       
       // Provide user-friendly error messages
       let userMessage = "Please try again.";
-      if (error.message.includes('concurrent') || error.message.includes('modified by another process')) {
-        userMessage = "Please refresh the page and try again.";
-      } else if (error.message.includes('not found')) {
+      if (error.message.includes('already started') || error.message.includes('in_progress')) {
+        userMessage = "Session already started. Redirecting...";
+        setTimeout(() => navigate(`/interview?session_id=${sessionId}`), 1000);
+      } else if (error.message.includes('completed') || error.message.includes('expired') || error.message.includes('cancelled')) {
         userMessage = "Please return to the homepage and start a new session.";
+      } else if (error.message.includes('state changed') || error.message.includes('not found')) {
+        userMessage = "Please refresh the page and try again.";
       }
 
       toast({
