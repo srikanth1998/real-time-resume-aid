@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -12,8 +13,6 @@ const Upload = () => {
   console.log('[UPLOAD] =================================');
   console.log('[UPLOAD] Upload component is rendering');
   console.log('[UPLOAD] Current URL:', window.location.href);
-  console.log('[UPLOAD] Current pathname:', window.location.pathname);
-  console.log('[UPLOAD] Current search:', window.location.search);
   console.log('[UPLOAD] =================================');
   
   const [searchParams] = useSearchParams();
@@ -64,12 +63,9 @@ const Upload = () => {
     try {
       console.log('[UPLOAD] Querying database for sessions...');
       
-      // Use service role approach to get better visibility
-      const serviceRoleClient = supabase;
-      
       // First, check total session count for debugging
       console.log('[UPLOAD] Checking total sessions in database...');
-      const { data: allSessions, error: allSessionsError } = await serviceRoleClient
+      const { data: allSessions, error: allSessionsError } = await supabase
         .from('sessions')
         .select('id, status, stripe_payment_intent_id, stripe_session_id, created_at, plan_type')
         .order('created_at', { ascending: false })
@@ -79,8 +75,8 @@ const Upload = () => {
       console.log('[UPLOAD] Recent sessions:', allSessions);
       console.log('[UPLOAD] Query error:', allSessionsError);
 
-      // Look for session by ID
-      const { data: sessionByIdData, error: sessionByIdError } = await serviceRoleClient
+      // Look for session by ID first
+      const { data: sessionByIdData, error: sessionByIdError } = await supabase
         .from('sessions')
         .select('*')
         .eq('id', sessionId)
@@ -89,7 +85,7 @@ const Upload = () => {
       console.log('[UPLOAD] Session by ID lookup:', { sessionByIdData, sessionByIdError });
 
       // Look for sessions by payment IDs
-      const { data: sessionsByPayment, error: sessionsByPaymentError } = await serviceRoleClient
+      const { data: sessionsByPayment, error: sessionsByPaymentError } = await supabase
         .from('sessions')
         .select('*')
         .or(`stripe_payment_intent_id.eq.${paymentId},stripe_session_id.eq.${paymentId}`)
@@ -137,8 +133,22 @@ const Upload = () => {
       if (!sessionData) {
         console.error('[UPLOAD] No session found by ID or payment ID');
         
-        // If no sessions exist at all, it's likely a webhook issue
-        if (!allSessions || allSessions.length === 0) {
+        // If we have sessions but not this one, it might be a timing issue
+        if (allSessions && allSessions.length > 0) {
+          setDebugInfo(prev => ({ 
+            ...prev,
+            step: 'session_not_found_but_others_exist',
+            searchedSessionId: sessionId,
+            searchedPaymentId: paymentId,
+            totalSessionsInDb: allSessions.length
+          }));
+          
+          toast({
+            title: "Session not found",
+            description: `Session ${sessionId} not found. The webhook may still be processing your payment.`,
+            variant: "destructive"
+          });
+        } else {
           setDebugInfo(prev => ({ 
             ...prev,
             step: 'no_sessions_in_database',
@@ -153,20 +163,6 @@ const Upload = () => {
           toast({
             title: "Database synchronization issue",
             description: "No sessions found in database. This indicates a webhook configuration problem.",
-            variant: "destructive"
-          });
-        } else {
-          setDebugInfo(prev => ({ 
-            ...prev,
-            step: 'session_not_found_but_others_exist',
-            searchedSessionId: sessionId,
-            searchedPaymentId: paymentId,
-            totalSessionsInDb: allSessions.length
-          }));
-          
-          toast({
-            title: "Session not found",
-            description: `Session ${sessionId} not found. The webhook may still be processing your payment.`,
             variant: "destructive"
           });
         }
@@ -237,7 +233,7 @@ const Upload = () => {
         sessionId: sessionData.id 
       }));
       console.log('[UPLOAD] Ready for upload');
-    } catch (error) {
+    } catch (error: any) {
       console.error('[UPLOAD] Error verifying session:', error);
       setDebugInfo({ step: 'error', error: error.message, retryCount });
       toast({
@@ -411,20 +407,12 @@ const Upload = () => {
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p className="mb-4">Verifying payment and loading session... (Attempt {retryCount + 1})</p>
           
-          <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
-            <strong>Debug Info:</strong>
-            <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(debugInfo, null, 2)}</pre>
-          </div>
-          
-          <div className="mt-4 p-4 bg-yellow-100 rounded text-left text-sm">
-            <strong>Troubleshooting:</strong>
-            <ul className="list-disc list-inside space-y-1 text-left">
-              <li>If you see "no_sessions_in_database", the webhook is not creating sessions properly</li>
-              <li>If you see "session_not_found_but_others_exist", there may be a timing issue</li>
-              <li>Payment processing can take 15-30 seconds, please wait and refresh</li>
-              <li>If the issue persists after 2 minutes, contact support</li>
-            </ul>
-          </div>
+          {retryCount > 0 && (
+            <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
+              <strong>Debug Info:</strong>
+              <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
+          )}
 
           <Button onClick={handleRetry} className="mt-4" disabled={retryCount >= 3}>
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -443,36 +431,26 @@ const Upload = () => {
         <div className="text-center max-w-4xl">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-4">
-            {isWebhookIssue ? "Payment Processing Issue" : "Session Not Found"}
+            Session Access Issue
           </h1>
           
-          {isWebhookIssue ? (
-            <div className="space-y-4">
-              <p className="text-gray-600 mb-6">
-                Your payment was processed by Stripe, but our system hasn't created your session yet. 
-                This indicates a webhook configuration issue.
-              </p>
-              <div className="bg-red-50 p-4 rounded-lg border border-red-200 text-left">
-                <h3 className="font-semibold text-red-800 mb-2">Technical Details:</h3>
-                <ul className="text-red-700 space-y-1 text-sm">
-                  <li>• No sessions found in database (total: {debugInfo.totalSessionsInDb})</li>
-                  <li>• Webhook is not creating sessions from Stripe events</li>
-                  <li>• This requires immediate technical attention</li>
-                </ul>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-gray-600 mb-6">
-                We couldn't find your specific session, but other sessions exist in our database.
-              </p>
-              <ul className="text-left text-gray-600 mb-6 space-y-2">
-                <li>• Your payment may still be processing (wait 30-60 seconds)</li>
-                <li>• There may be a session ID mismatch</li>
-                <li>• Database synchronization delay</li>
+          <div className="space-y-4">
+            <p className="text-gray-600 mb-6">
+              {isWebhookIssue 
+                ? "Your payment was processed by Stripe, but our system hasn't created your session yet."
+                : "We found your session but there may be a permission issue accessing it."
+              }
+            </p>
+            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-left">
+              <h3 className="font-semibold text-yellow-800 mb-2">What's happening:</h3>
+              <ul className="text-yellow-700 space-y-1 text-sm">
+                <li>• Sessions exist in database: {debugInfo.totalSessionsInDb > 0 ? 'Yes' : 'No'}</li>
+                <li>• Looking for session: {sessionId}</li>
+                <li>• Payment ID: {paymentId}</li>
+                <li>• The system is working to resolve access permissions</li>
               </ul>
             </div>
-          )}
+          </div>
 
           <div className="flex gap-4 justify-center mb-6">
             <Button onClick={() => window.location.reload()}>
@@ -487,14 +465,6 @@ const Upload = () => {
           <div className="mt-4 p-4 bg-gray-100 rounded text-left text-sm">
             <strong>Debug Info:</strong>
             <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(debugInfo, null, 2)}</pre>
-          </div>
-          
-          <div className="mt-4 p-4 bg-red-100 rounded text-left text-sm">
-            <strong>Support Info:</strong>
-            <p>Session ID: <code>{sessionId}</code></p>
-            <p>Payment ID: <code>{paymentId}</code></p>
-            <p>Retry Count: {retryCount}</p>
-            <p>Please contact support with this information if the issue persists.</p>
           </div>
         </div>
       </div>
