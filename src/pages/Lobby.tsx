@@ -166,35 +166,60 @@ const Lobby = () => {
     setStarting(true);
 
     try {
-      console.log('[LOBBY] Updating session status to in_progress');
+      console.log('[LOBBY] Current session object:', JSON.stringify(session, null, 2));
+      console.log('[LOBBY] Session ID for update:', sessionId);
+      console.log('[LOBBY] Session status before update:', session.status);
       
       // Update session status and set start time
       const now = new Date();
       const expiresAt = new Date(now.getTime() + session.duration_minutes * 60 * 1000);
 
-      // First, verify the session still exists and is in the correct state
-      const { data: currentSession, error: checkError } = await supabase
+      console.log('[LOBBY] Preparing update with:', {
+        sessionId,
+        currentStatus: session.status,
+        newStatus: 'in_progress',
+        startedAt: now.toISOString(),
+        expiresAt: expiresAt.toISOString()
+      });
+
+      // First, let's check what's actually in the database right now
+      console.log('[LOBBY] Checking current database state...');
+      const { data: preUpdateCheck, error: preCheckError } = await supabase
         .from('sessions')
         .select('*')
-        .eq('id', sessionId)
-        .maybeSingle();
+        .eq('id', sessionId);
 
-      if (checkError) {
-        console.error('[LOBBY] Session check error:', checkError);
-        throw new Error(`Session verification failed: ${checkError.message}`);
+      console.log('[LOBBY] Pre-update database check result:', {
+        data: preUpdateCheck,
+        error: preCheckError,
+        count: preUpdateCheck?.length || 0
+      });
+
+      if (preCheckError) {
+        console.error('[LOBBY] Pre-update check failed:', preCheckError);
+        throw new Error(`Pre-update verification failed: ${preCheckError.message}`);
       }
 
-      if (!currentSession) {
-        console.error('[LOBBY] Session not found during update');
-        throw new Error('Session not found');
+      if (!preUpdateCheck || preUpdateCheck.length === 0) {
+        console.error('[LOBBY] No session found in database during pre-update check');
+        throw new Error('Session not found in database');
       }
 
-      if (currentSession.status !== 'assets_received') {
-        console.error('[LOBBY] Session status changed:', currentSession.status);
-        throw new Error(`Session is no longer ready (status: ${currentSession.status})`);
+      if (preUpdateCheck.length > 1) {
+        console.error('[LOBBY] Multiple sessions found with same ID:', preUpdateCheck);
+        throw new Error('Database integrity issue - multiple sessions with same ID');
       }
 
-      // Now update the session
+      const currentDbSession = preUpdateCheck[0];
+      console.log('[LOBBY] Current session in database:', JSON.stringify(currentDbSession, null, 2));
+
+      if (currentDbSession.status !== 'assets_received') {
+        console.error('[LOBBY] Session status in DB is not assets_received:', currentDbSession.status);
+        throw new Error(`Session is no longer ready (current status: ${currentDbSession.status})`);
+      }
+
+      // Now perform the update
+      console.log('[LOBBY] Performing session update...');
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update({
@@ -204,21 +229,39 @@ const Lobby = () => {
           updated_at: now.toISOString()
         })
         .eq('id', sessionId)
-        .eq('status', 'assets_received') // Ensure we only update if still in correct state
-        .select()
-        .maybeSingle();
+        .eq('status', 'assets_received')
+        .select();
+
+      console.log('[LOBBY] Update result:', {
+        data: updatedSession,
+        error: updateError,
+        dataCount: updatedSession?.length || 0
+      });
 
       if (updateError) {
         console.error('[LOBBY] Session update error:', updateError);
         throw new Error(`Failed to start session: ${updateError.message}`);
       }
 
-      if (!updatedSession) {
-        console.error('[LOBBY] No session was updated - may have been modified by another process');
-        throw new Error('Session could not be started - please refresh and try again');
+      if (!updatedSession || updatedSession.length === 0) {
+        console.error('[LOBBY] No session was updated - checking why...');
+        
+        // Let's check what the session status is now
+        const { data: postUpdateCheck, error: postCheckError } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', sessionId);
+          
+        console.log('[LOBBY] Post-update check:', {
+          data: postUpdateCheck,
+          error: postCheckError
+        });
+        
+        throw new Error('Session could not be updated - it may have been modified by another process. Please refresh and try again.');
       }
 
-      console.log('[LOBBY] Session updated successfully:', updatedSession);
+      const finalSession = updatedSession[0];
+      console.log('[LOBBY] Session updated successfully:', JSON.stringify(finalSession, null, 2));
 
       toast({
         title: "Interview started!",
@@ -231,6 +274,11 @@ const Lobby = () => {
 
     } catch (error: any) {
       console.error('[LOBBY] Start interview error:', error);
+      console.error('[LOBBY] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       toast({
         title: "Failed to start interview",
         description: error.message || "Please try again.",
