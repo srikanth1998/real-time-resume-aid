@@ -211,7 +211,7 @@ const Lobby = () => {
       // Attempt the update with optimistic concurrency control
       console.log('[LOBBY] Attempting session update...');
       const updateData = {
-        status: 'in_progress',
+        status: 'in_progress' as const,
         started_at: now.toISOString(),
         expires_at: expiresAt.toISOString(),
         updated_at: now.toISOString()
