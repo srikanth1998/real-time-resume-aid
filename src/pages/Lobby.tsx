@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -219,12 +220,11 @@ const Lobby = () => {
       console.log('[LOBBY] Update data:', updateData);
       console.log('[LOBBY] Attempting to update session from status:', currentSessionData.status);
 
-      // Update session status - use the current status we just fetched
+      // Update session status - remove the status condition to avoid conflicts
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update(updateData)
         .eq('id', sessionId)
-        .eq('status', currentSessionData.status) // Use the actual current status
         .select();
 
       if (updateError) {
@@ -233,24 +233,8 @@ const Lobby = () => {
       }
 
       if (!updatedSession || updatedSession.length === 0) {
-        console.log('[LOBBY] No session was updated - checking what happened...');
-        
-        // Check what the current state is now
-        const { data: finalSession } = await supabase
-          .from('sessions')
-          .select('*')
-          .eq('id', sessionId)
-          .maybeSingle();
-
-        console.log('[LOBBY] Session state after failed update:', finalSession);
-
-        if (finalSession?.status === 'in_progress') {
-          console.log('[LOBBY] Session was started by another process, redirecting...');
-          navigate(`/interview?session_id=${sessionId}`);
-          return;
-        }
-        
-        throw new Error(`Unable to start session. Session was in ${currentSessionData.status} state but update failed. Current state: ${finalSession?.status || 'unknown'}`);
+        console.log('[LOBBY] No session was updated - this should not happen');
+        throw new Error('Failed to update session - no rows affected');
       }
 
       console.log('[LOBBY] Session updated successfully:', updatedSession[0]);
