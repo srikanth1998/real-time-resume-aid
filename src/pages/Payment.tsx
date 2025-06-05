@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Brain, CreditCard, Clock, CheckCircle, Loader2, Monitor, Smartphone, Mail } from "lucide-react";
+import { Brain, CreditCard, Clock, CheckCircle, Loader2, Monitor, Smartphone, Mail, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,9 +15,9 @@ const Payment = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState("");
 
   const planData = location.state?.plan;
+  const verifiedEmail = location.state?.verifiedEmail;
 
   useEffect(() => {
     if (!planData) {
@@ -27,34 +27,25 @@ const Payment = () => {
         variant: "destructive"
       });
       navigate('/');
+      return;
     }
-  }, [planData, navigate, toast]);
+
+    if (!verifiedEmail) {
+      toast({
+        title: "Email verification required",
+        description: "Please verify your email first.",
+        variant: "destructive"
+      });
+      navigate('/auth', { state: { selectedPlan: planData } });
+      return;
+    }
+  }, [planData, verifiedEmail, navigate, toast]);
 
   const handlePayment = async () => {
-    if (!planData) {
+    if (!planData || !verifiedEmail) {
       toast({
         title: "Missing information",
-        description: "Plan data is missing.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!email) {
-      toast({
-        title: "Email required",
-        description: "Please enter your email address.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      toast({
-        title: "Invalid email",
-        description: "Please enter a valid email address.",
+        description: "Plan data or verified email is missing.",
         variant: "destructive"
       });
       return;
@@ -63,9 +54,6 @@ const Payment = () => {
     setLoading(true);
 
     try {
-      // Get auth session if available
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-
       console.log('[PAYMENT] Creating checkout session for plan:', planData.id);
 
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
@@ -75,11 +63,8 @@ const Payment = () => {
           planName: planData.name,
           duration: planData.duration,
           deviceMode: planData.deviceMode,
-          userEmail: email
-        },
-        headers: authSession ? {
-          Authorization: `Bearer ${authSession.access_token}`
-        } : {}
+          userEmail: verifiedEmail
+        }
       });
 
       if (error) {
@@ -105,12 +90,12 @@ const Payment = () => {
     }
   };
 
-  if (!planData) {
+  if (!planData || !verifiedEmail) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
         <Card className="max-w-md">
           <CardContent className="pt-6 text-center">
-            <p className="text-gray-600 mb-4">Plan information not found.</p>
+            <p className="text-gray-600 mb-4">Missing required information.</p>
             <Button onClick={() => navigate('/')}>
               Return to Homepage
             </Button>
@@ -129,7 +114,7 @@ const Payment = () => {
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Payment</h1>
-        <p className="text-gray-600">Enter your email and pay securely with Stripe</p>
+        <p className="text-gray-600">Secure payment with verified email address</p>
       </div>
 
       <div className="max-w-2xl mx-auto">
@@ -171,29 +156,34 @@ const Payment = () => {
           </CardContent>
         </Card>
 
-        {/* Email Input */}
+        {/* Verified Email Display */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Mail className="h-5 w-5 text-blue-600" />
-              <span>Your Email Address</span>
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span>Verified Email Address</span>
             </CardTitle>
             <CardDescription>
-              We'll send your session link to this email after payment
+              Your session link will be sent to this verified email after payment
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="text-lg"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  value={verifiedEmail}
+                  readOnly
+                  className="text-lg bg-green-50 border-green-300 pr-10"
+                />
+                <Lock className="absolute right-3 top-3 h-5 w-5 text-green-600" />
+              </div>
+              <p className="text-sm text-green-600 flex items-center space-x-1">
+                <CheckCircle className="h-4 w-4" />
+                <span>Email verified with OTP</span>
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -233,7 +223,7 @@ const Payment = () => {
           <CardContent className="pt-6">
             <Button
               onClick={handlePayment}
-              disabled={loading || !email}
+              disabled={loading}
               className="w-full py-6 text-lg font-semibold"
               size="lg"
             >

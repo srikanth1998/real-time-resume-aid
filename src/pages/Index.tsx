@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,10 +129,10 @@ const Index = () => {
     try {
       const finalPricing = calculatePrice(plan.basePriceCents, selectedDeviceMode);
 
-      // Go directly to payment page with plan data
-      navigate('/payment', { 
+      // Redirect to auth page first for email verification
+      navigate('/auth', { 
         state: { 
-          plan: {
+          selectedPlan: {
             ...plan,
             price: finalPricing.display,
             priceCents: finalPricing.cents,
@@ -484,15 +485,15 @@ const Index = () => {
             {[
               {
                 step: "1",
-                title: "Choose & Pay",
-                description: "Select your plan and complete secure payment",
-                icon: "💳"
+                title: "Verify Email",
+                description: "Enter email and verify with OTP code",
+                icon: "📧"
               },
               {
                 step: "2", 
-                title: "Check Email",
-                description: "We'll send you a setup link via email",
-                icon: "📧"
+                title: "Choose & Pay",
+                description: "Select your plan and complete secure payment",
+                icon: "💳"
               },
               {
                 step: "3",

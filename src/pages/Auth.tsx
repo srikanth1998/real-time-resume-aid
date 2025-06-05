@@ -6,7 +6,6 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Brain, Mail, ArrowLeft, CheckCircle, AlertCircle, Timer } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 type AuthStep = 'email' | 'otp' | 'success';
@@ -74,101 +73,10 @@ const Auth = () => {
       return;
     }
 
-    // Check if user is already authenticated
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        if (selectedPlan) {
-          // Create a new session for the selected plan
-          try {
-            const { data: newSession, error } = await supabase
-              .from('sessions')
-              .insert({
-                user_id: session.user.id,
-                plan_type: selectedPlan.id as 'standard' | 'pro' | 'elite',
-                duration_minutes: selectedPlan.durationMinutes,
-                price_cents: selectedPlan.priceCents,
-                status: 'pending_assets'
-              })
-              .select()
-              .single();
-
-            if (error) {
-              console.error('Error creating session:', error);
-              toast({
-                title: "Error",
-                description: "Failed to create session. Please try again.",
-                variant: "destructive"
-              });
-              return;
-            }
-
-            // Redirect to upload page with session ID
-            navigate(`/upload?session_id=${newSession.id}`);
-          } catch (error) {
-            console.error('Session creation error:', error);
-            toast({
-              title: "Error",
-              description: "Failed to create session. Please try again.",
-              variant: "destructive"
-            });
-          }
-        } else {
-          navigate('/');
-        }
-      }
-    };
-    
-    checkUser();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.email);
-      
-      if (event === 'SIGNED_IN' && session) {
-        setCurrentStep('success');
-        
-        if (selectedPlan) {
-          // Create session and redirect to upload
-          setTimeout(async () => {
-            try {
-              const { data: newSession, error } = await supabase
-                .from('sessions')
-                .insert({
-                  user_id: session.user.id,
-                  plan_type: selectedPlan.id as 'standard' | 'pro' | 'elite',
-                  duration_minutes: selectedPlan.durationMinutes,
-                  price_cents: selectedPlan.priceCents,
-                  status: 'pending_assets'
-                })
-                .select()
-                .single();
-
-              if (error) {
-                console.error('Error creating session:', error);
-                toast({
-                  title: "Error",
-                  description: "Failed to create session. Please try again.",
-                  variant: "destructive"
-                });
-                return;
-              }
-
-              navigate(`/upload?session_id=${newSession.id}`);
-            } catch (error) {
-              console.error('Session creation error:', error);
-              navigate('/');
-            }
-          }, 100);
-        } else {
-          setTimeout(() => navigate('/'), 1500);
-        }
-      } else if (event === 'TOKEN_REFRESHED') {
-        console.log('Token refreshed');
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    // If no plan is selected, redirect to homepage
+    if (!selectedPlan) {
+      navigate('/');
+    }
   }, [navigate, selectedPlan, toast]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -227,7 +135,7 @@ const Auth = () => {
 
       console.log('Verifying OTP:', { email, otpLength: otpValue.length });
 
-      // First verify the OTP
+      // Verify the OTP
       const response = await fetch(`${SUPABASE_URL}/functions/v1/verify-otp`, {
         method: 'POST',
         headers: {
@@ -244,35 +152,23 @@ const Auth = () => {
         throw new Error(data.error || 'Invalid OTP');
       }
 
-      console.log('OTP verified successfully, creating user session...');
-
-      // Create or get user in our users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .upsert({ email }, { onConflict: 'email' })
-        .select()
-        .single();
-
-      if (userError) {
-        console.error('Error creating/getting user:', userError);
-        throw new Error('Failed to create user record');
-      }
+      console.log('OTP verified successfully, redirecting to payment...');
 
       toast({
-        title: "Success!",
-        description: "Login successful. Redirecting...",
+        title: "Email verified!",
+        description: "Redirecting to payment...",
       });
 
       setCurrentStep('success');
 
-      // Redirect after success
+      // Redirect to payment with verified email and plan data
       setTimeout(() => {
-        if (selectedPlan) {
-          // For plan selection flow, redirect to payment
-          navigate('/payment', { state: { selectedPlan, userEmail: email } });
-        } else {
-          navigate('/');
-        }
+        navigate('/payment', { 
+          state: { 
+            plan: selectedPlan,
+            verifiedEmail: email
+          } 
+        });
       }, 1500);
 
     } catch (error: any) {
@@ -331,9 +227,9 @@ const Auth = () => {
             <div className="flex justify-center mb-4">
               <CheckCircle className="h-16 w-16 text-green-500" />
             </div>
-            <CardTitle className="text-2xl">Welcome!</CardTitle>
+            <CardTitle className="text-2xl">Email Verified!</CardTitle>
             <CardDescription>
-              Login successful. Redirecting you now...
+              Redirecting to payment...
             </CardDescription>
           </CardHeader>
         </Card>
@@ -468,10 +364,10 @@ const Auth = () => {
 
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Welcome Back</CardTitle>
+            <CardTitle className="text-2xl">Verify Your Email</CardTitle>
             <CardDescription>
               {selectedPlan 
-                ? `Continue with your ${selectedPlan.name} plan`
+                ? `Complete email verification for your ${selectedPlan.name} plan`
                 : "Enter your email to get started"
               }
             </CardDescription>
@@ -524,7 +420,7 @@ const Auth = () => {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
-                We'll send you a 6-digit code that expires in 5 minutes. No password required!
+                We'll send you a 6-digit code to verify your email address before payment.
               </p>
             </div>
           </CardContent>

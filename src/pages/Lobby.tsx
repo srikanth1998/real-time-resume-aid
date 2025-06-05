@@ -35,49 +35,62 @@ const Lobby = () => {
         return;
       }
 
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession) {
-        navigate('/auth');
-        return;
-      }
+      try {
+        // Fetch session details without auth requirement
+        const { data: sessionData, error } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .single();
 
-      // Fetch session details
-      const { data: sessionData, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .eq('user_id', authSession.user.id)
-        .single();
+        if (error || !sessionData) {
+          console.error('Session verification error:', error);
+          toast({
+            title: "Session not found",
+            description: "Please start a new session.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
 
-      if (error || !sessionData) {
-        toast({
-          title: "Session not found",
-          description: "Please start a new session.",
-          variant: "destructive"
-        });
-        navigate('/');
-        return;
-      }
-
-      if (sessionData.status !== 'assets_received') {
+        // Check session status and redirect accordingly
         if (sessionData.status === 'pending_assets') {
           navigate(`/upload?session_id=${sessionId}`);
           return;
         }
+
+        if (sessionData.status === 'in_progress') {
+          navigate(`/interview?session_id=${sessionId}`);
+          return;
+        }
+
+        if (sessionData.status !== 'assets_received') {
+          toast({
+            title: "Session not ready",
+            description: "Please complete the previous steps first.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
+
+        setSession(sessionData);
+        console.log('Session ready for lobby:', sessionData);
+        
+        // Run system checks
+        runSystemChecks();
+      } catch (error) {
+        console.error('Error checking session:', error);
         toast({
-          title: "Session not ready",
-          description: "Please complete the previous steps first.",
+          title: "Error",
+          description: "Failed to verify session. Please try again.",
           variant: "destructive"
         });
         navigate('/');
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      setSession(sessionData);
-      setLoading(false);
-      
-      // Run system checks
-      runSystemChecks();
     };
 
     checkSession();
@@ -119,6 +132,15 @@ const Lobby = () => {
       return;
     }
 
+    if (!session) {
+      toast({
+        title: "Session error",
+        description: "Session information not found.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setStarting(true);
 
     try {
@@ -137,6 +159,7 @@ const Lobby = () => {
         .eq('id', sessionId);
 
       if (updateError) {
+        console.error('Start interview error:', updateError);
         throw updateError;
       }
 
