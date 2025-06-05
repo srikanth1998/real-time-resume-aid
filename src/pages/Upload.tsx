@@ -63,18 +63,6 @@ const Upload = () => {
     try {
       console.log('[UPLOAD] Querying database for sessions...');
       
-      // First, check total session count for debugging
-      console.log('[UPLOAD] Checking total sessions in database...');
-      const { data: allSessions, error: allSessionsError } = await supabase
-        .from('sessions')
-        .select('id, status, stripe_payment_intent_id, stripe_session_id, created_at, plan_type')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      console.log('[UPLOAD] Total sessions found:', allSessions?.length || 0);
-      console.log('[UPLOAD] Recent sessions:', allSessions);
-      console.log('[UPLOAD] Query error:', allSessionsError);
-
       // Look for session by ID first
       const { data: sessionByIdData, error: sessionByIdError } = await supabase
         .from('sessions')
@@ -93,35 +81,6 @@ const Upload = () => {
 
       console.log('[UPLOAD] Sessions by payment ID:', { sessionsByPayment, sessionsByPaymentError });
 
-      setDebugInfo({ 
-        step: 'database_queries_complete',
-        sessionId,
-        paymentId,
-        retryCount,
-        totalSessionsInDb: allSessions?.length || 0,
-        sessionByIdData: sessionByIdData ? {
-          id: sessionByIdData.id,
-          status: sessionByIdData.status,
-          stripe_payment_intent_id: sessionByIdData.stripe_payment_intent_id,
-          stripe_session_id: sessionByIdData.stripe_session_id,
-          created_at: sessionByIdData.created_at
-        } : null,
-        sessionByIdError: sessionByIdError?.message,
-        sessionsByPayment: sessionsByPayment?.map(s => ({
-          id: s.id,
-          status: s.status,
-          stripe_payment_intent_id: s.stripe_payment_intent_id,
-          stripe_session_id: s.stripe_session_id,
-          created_at: s.created_at
-        })) || [],
-        recentSessions: allSessions?.slice(0, 5).map(s => ({
-          id: s.id,
-          status: s.status,
-          stripe_payment_intent_id: s.stripe_payment_intent_id,
-          created_at: s.created_at
-        })) || []
-      });
-
       let sessionData = sessionByIdData;
 
       // If we didn't find by session ID, try to find by payment ID
@@ -132,40 +91,18 @@ const Upload = () => {
 
       if (!sessionData) {
         console.error('[UPLOAD] No session found by ID or payment ID');
+        setDebugInfo(prev => ({ 
+          ...prev,
+          step: 'session_not_found',
+          searchedSessionId: sessionId,
+          searchedPaymentId: paymentId
+        }));
         
-        // If we have sessions but not this one, it might be a timing issue
-        if (allSessions && allSessions.length > 0) {
-          setDebugInfo(prev => ({ 
-            ...prev,
-            step: 'session_not_found_but_others_exist',
-            searchedSessionId: sessionId,
-            searchedPaymentId: paymentId,
-            totalSessionsInDb: allSessions.length
-          }));
-          
-          toast({
-            title: "Session not found",
-            description: `Session ${sessionId} not found. The webhook may still be processing your payment.`,
-            variant: "destructive"
-          });
-        } else {
-          setDebugInfo(prev => ({ 
-            ...prev,
-            step: 'no_sessions_in_database',
-            possibleCauses: [
-              'Webhook not configured properly',
-              'Webhook endpoint not receiving Stripe events',
-              'Database connection issues in webhook',
-              'Webhook secret mismatch'
-            ]
-          }));
-          
-          toast({
-            title: "Database synchronization issue",
-            description: "No sessions found in database. This indicates a webhook configuration problem.",
-            variant: "destructive"
-          });
-        }
+        toast({
+          title: "Session not found",
+          description: `Session ${sessionId} not found. The webhook may still be processing your payment.`,
+          variant: "destructive"
+        });
         setLoading(false);
         return;
       }
@@ -280,15 +217,44 @@ const Upload = () => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${session.id}/${type}.${fileExt}`;
     
-    const { error: uploadError } = await supabase.storage
+    console.log('[UPLOAD] Uploading file:', { fileName, fileSize: file.size, fileType: file.type });
+    
+    // First ensure the bucket exists and is properly configured
+    try {
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      console.log('[UPLOAD] Available buckets:', buckets);
+      
+      if (bucketsError) {
+        console.error('[UPLOAD] Error listing buckets:', bucketsError);
+        throw new Error('Storage not accessible');
+      }
+      
+      const interviewBucket = buckets?.find(b => b.id === 'interview-documents');
+      if (!interviewBucket) {
+        console.error('[UPLOAD] interview-documents bucket not found');
+        throw new Error('Storage bucket not configured');
+      }
+    } catch (bucketError) {
+      console.error('[UPLOAD] Bucket verification failed:', bucketError);
+      throw bucketError;
+    }
+    
+    // Upload the file with proper error handling
+    const { data, error: uploadError } = await supabase.storage
       .from('interview-documents')
-      .upload(fileName, file);
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    console.log('[UPLOAD] Upload result:', { data, uploadError });
 
     if (uploadError) {
+      console.error('[UPLOAD] Upload error details:', uploadError);
       throw uploadError;
     }
 
-    // Save document metadata
+    // Save document metadata with proper session context
     const { error: dbError } = await supabase
       .from('documents')
       .insert({
@@ -301,8 +267,11 @@ const Upload = () => {
       });
 
     if (dbError) {
+      console.error('[UPLOAD] Database error:', dbError);
       throw dbError;
     }
+
+    console.log('[UPLOAD] File uploaded and metadata saved successfully');
   };
 
   const handleUpload = async () => {
@@ -362,6 +331,7 @@ const Upload = () => {
           });
 
         if (dbError) {
+          console.error('[UPLOAD] URL save error:', dbError);
           throw dbError;
         }
       }
@@ -376,6 +346,7 @@ const Upload = () => {
         .eq('id', session.id);
 
       if (updateError) {
+        console.error('[UPLOAD] Session update error:', updateError);
         throw updateError;
       }
 
@@ -424,8 +395,6 @@ const Upload = () => {
   }
 
   if (!session) {
-    const isWebhookIssue = debugInfo.totalSessionsInDb === 0;
-    
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
         <div className="text-center max-w-4xl">
@@ -436,15 +405,11 @@ const Upload = () => {
           
           <div className="space-y-4">
             <p className="text-gray-600 mb-6">
-              {isWebhookIssue 
-                ? "Your payment was processed by Stripe, but our system hasn't created your session yet."
-                : "We found your session but there may be a permission issue accessing it."
-              }
+              We couldn't find your session. This may be a temporary issue.
             </p>
             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-left">
               <h3 className="font-semibold text-yellow-800 mb-2">What's happening:</h3>
               <ul className="text-yellow-700 space-y-1 text-sm">
-                <li>• Sessions exist in database: {debugInfo.totalSessionsInDb > 0 ? 'Yes' : 'No'}</li>
                 <li>• Looking for session: {sessionId}</li>
                 <li>• Payment ID: {paymentId}</li>
                 <li>• The system is working to resolve access permissions</li>
