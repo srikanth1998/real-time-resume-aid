@@ -15,16 +15,11 @@ const Upload = () => {
   const { toast } = useToast();
   
   const sessionId = searchParams.get('session_id');
-  const paymentId = searchParams.get('payment_id');
-  const confirmed = searchParams.get('confirmed');
-  
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescFile, setJobDescFile] = useState<File | null>(null);
-  const [jobDescUrl, setJobDescUrl] = useState("");
-  const [uploadMethod, setUploadMethod] = useState<"file" | "url">("file");
 
   useEffect(() => {
     const checkSession = async () => {
@@ -38,44 +33,13 @@ const Upload = () => {
         return;
       }
 
-      console.log('Upload page - checking session:', { sessionId, paymentId, confirmed });
-
-      // If coming from email link (has confirmed=true and payment_id), don't require authentication
-      if (confirmed === 'true' && paymentId) {
-        console.log('Email link access - bypassing auth check');
-        
-        // Fetch session details without auth requirement
-        const { data: sessionData, error } = await supabase
-          .from('sessions')
-          .select('*')
-          .eq('id', sessionId)
-          .single();
-
-        if (error || !sessionData) {
-          console.error('Session not found:', error);
-          toast({
-            title: "Session not found",
-            description: "Please start a new session.",
-            variant: "destructive"
-          });
-          navigate('/');
-          return;
-        }
-
-        console.log('Session found:', sessionData);
-        setSession(sessionData);
-        setLoading(false);
-        return;
-      }
-
-      // Normal auth flow for authenticated users
       const { data: { session: authSession } } = await supabase.auth.getSession();
       if (!authSession) {
         navigate('/auth');
         return;
       }
 
-      // Fetch session details with auth requirement
+      // Fetch session details
       const { data: sessionData, error } = await supabase
         .from('sessions')
         .select('*')
@@ -98,11 +62,11 @@ const Upload = () => {
     };
 
     checkSession();
-  }, [sessionId, paymentId, confirmed, navigate, toast]);
+  }, [sessionId, navigate, toast]);
 
   const validateFile = (file: File, type: string) => {
     const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    const allowedTypes = ['application/pdf'];
     
     if (file.size > maxSize) {
       toast({
@@ -116,7 +80,7 @@ const Upload = () => {
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
-        description: `${type} must be PDF, Word document, or text file`,
+        description: `${type} must be a PDF file`,
         variant: "destructive"
       });
       return false;
@@ -126,9 +90,8 @@ const Upload = () => {
   };
 
   const uploadFile = async (file: File, type: string) => {
-    // For email link access, we need to create a temporary file path
     const fileExt = file.name.split('.').pop();
-    const fileName = `temp/${sessionId}/${type}.${fileExt}`;
+    const fileName = `${sessionId}/${type}.${fileExt}`;
     
     const { error: uploadError } = await supabase.storage
       .from('interview-documents')
@@ -156,68 +119,25 @@ const Upload = () => {
   };
 
   const handleUpload = async () => {
-    if (!resumeFile) {
+    if (!resumeFile || !jobDescFile) {
       toast({
-        title: "Resume required",
-        description: "Please select your resume file",
+        title: "Files required",
+        description: "Please select both resume and job description files",
         variant: "destructive"
       });
       return;
     }
 
-    if (uploadMethod === "file" && !jobDescFile) {
-      toast({
-        title: "Job description required",
-        description: "Please select a job description file or enter a URL",
-        variant: "destructive"
-      });
+    if (!validateFile(resumeFile, "Resume") || !validateFile(jobDescFile, "Job description")) {
       return;
     }
-
-    if (uploadMethod === "url" && !jobDescUrl.trim()) {
-      toast({
-        title: "Job description URL required",
-        description: "Please enter a job description URL",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!validateFile(resumeFile, "Resume")) return;
-    if (uploadMethod === "file" && jobDescFile && !validateFile(jobDescFile, "Job description")) return;
 
     setUploading(true);
 
     try {
-      console.log('Starting upload process...');
-      
-      // Upload resume
+      // Upload both files
       await uploadFile(resumeFile, 'resume');
-      console.log('Resume uploaded successfully');
-
-      // Handle job description
-      if (uploadMethod === "file" && jobDescFile) {
-        await uploadFile(jobDescFile, 'job_description');
-        console.log('Job description file uploaded successfully');
-      } else if (uploadMethod === "url") {
-        // Save URL as document metadata
-        const { error: dbError } = await supabase
-          .from('documents')
-          .insert({
-            session_id: sessionId,
-            type: 'job_description',
-            filename: 'job_description_url.txt',
-            file_size: jobDescUrl.length,
-            mime_type: 'text/plain',
-            storage_path: jobDescUrl,
-            parsed_content: jobDescUrl
-          });
-
-        if (dbError) {
-          throw dbError;
-        }
-        console.log('Job description URL saved successfully');
-      }
+      await uploadFile(jobDescFile, 'job_description');
 
       // Update session status
       const { error: updateError } = await supabase
@@ -229,11 +149,8 @@ const Upload = () => {
         .eq('id', sessionId);
 
       if (updateError) {
-        console.error('Error updating session status:', updateError);
         throw updateError;
       }
-
-      console.log('Session status updated to assets_received');
 
       toast({
         title: "Upload successful!",
@@ -305,7 +222,7 @@ const Upload = () => {
                 <span>Upload Resume</span>
               </CardTitle>
               <CardDescription>
-                Upload your current resume (PDF, Word, or Text - Max 5MB)
+                Upload your current resume (PDF only - Max 5MB)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -315,7 +232,7 @@ const Upload = () => {
                   <Input
                     id="resume"
                     type="file"
-                    accept=".pdf,.doc,.docx,.txt"
+                    accept=".pdf"
                     onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
                     className="mt-2"
                   />
@@ -335,66 +252,28 @@ const Upload = () => {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Briefcase className="h-5 w-5 text-blue-600" />
-                <span>Job Description</span>
+                <span>Upload Job Description</span>
               </CardTitle>
               <CardDescription>
-                Upload job description file or provide a URL
+                Upload the job description (PDF only - Max 5MB)
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Upload Method Toggle */}
-                <div className="flex space-x-2">
-                  <Button
-                    variant={uploadMethod === "file" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUploadMethod("file")}
-                  >
-                    Upload File
-                  </Button>
-                  <Button
-                    variant={uploadMethod === "url" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUploadMethod("url")}
-                  >
-                    Paste URL
-                  </Button>
+                <div>
+                  <Label htmlFor="jobdesc">Select Job Description File</Label>
+                  <Input
+                    id="jobdesc"
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setJobDescFile(e.target.files?.[0] || null)}
+                    className="mt-2"
+                  />
                 </div>
-
-                {uploadMethod === "file" ? (
-                  <div>
-                    <Label htmlFor="jobdesc">Select Job Description File</Label>
-                    <Input
-                      id="jobdesc"
-                      type="file"
-                      accept=".pdf,.doc,.docx,.txt"
-                      onChange={(e) => setJobDescFile(e.target.files?.[0] || null)}
-                      className="mt-2"
-                    />
-                    {jobDescFile && (
-                      <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200 mt-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm text-green-800">{jobDescFile.name}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div>
-                    <Label htmlFor="joburl">Job Description URL</Label>
-                    <Input
-                      id="joburl"
-                      type="url"
-                      placeholder="https://company.com/jobs/..."
-                      value={jobDescUrl}
-                      onChange={(e) => setJobDescUrl(e.target.value)}
-                      className="mt-2"
-                    />
-                    {jobDescUrl && (
-                      <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200 mt-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm text-green-800">URL provided</span>
-                      </div>
-                    )}
+                {jobDescFile && (
+                  <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm text-green-800">{jobDescFile.name}</span>
                   </div>
                 )}
               </div>
@@ -438,7 +317,7 @@ const Upload = () => {
         <div className="mt-8 text-center">
           <Button
             onClick={handleUpload}
-            disabled={uploading || !resumeFile || (uploadMethod === "file" && !jobDescFile) || (uploadMethod === "url" && !jobDescUrl.trim())}
+            disabled={uploading || !resumeFile || !jobDescFile}
             className="w-full md:w-auto px-8 py-3 text-lg"
           >
             {uploading ? (
