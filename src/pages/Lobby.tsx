@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -167,48 +168,11 @@ const Lobby = () => {
 
     try {
       console.log('[LOBBY] Starting interview process');
-      console.log('[LOBBY] Session ID:', sessionId);
-      console.log('[LOBBY] Current session status:', session.status);
       
       // Prepare update data
       const now = new Date();
       const expiresAt = new Date(now.getTime() + session.duration_minutes * 60 * 1000);
 
-      // Check current session state and validate it can be started
-      console.log('[LOBBY] Checking current session state...');
-      const { data: currentSession, error: fetchError } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .maybeSingle();
-
-      if (fetchError) {
-        console.error('[LOBBY] Error fetching current session:', fetchError);
-        throw new Error(`Failed to fetch session: ${fetchError.message}`);
-      }
-
-      if (!currentSession) {
-        console.error('[LOBBY] Session not found during pre-update check');
-        throw new Error('Session not found. Please refresh and try again.');
-      }
-
-      console.log('[LOBBY] Current session state:', JSON.stringify(currentSession, null, 2));
-
-      // If session is already in progress, redirect directly
-      if (currentSession.status === 'in_progress') {
-        console.log('[LOBBY] Session already in progress, redirecting...');
-        navigate(`/interview?session_id=${sessionId}`);
-        return;
-      }
-
-      // Check if session is in a valid state for starting (allow both assets_received and pending_assets)
-      const validStatuses = ['assets_received', 'pending_assets'];
-      if (!validStatuses.includes(currentSession.status)) {
-        console.error('[LOBBY] Session status not valid for starting:', currentSession.status);
-        throw new Error(`Session cannot be started from status: ${currentSession.status}. Please refresh and check your session state.`);
-      }
-
-      // Prepare update data
       const updateData = {
         status: 'in_progress' as const,
         started_at: now.toISOString(),
@@ -216,21 +180,15 @@ const Lobby = () => {
         updated_at: now.toISOString()
       };
 
-      console.log('[LOBBY] Update data:', JSON.stringify(updateData, null, 2));
+      console.log('[LOBBY] Update data:', updateData);
 
-      // Attempt the update with a more forgiving approach - just check session ID and that it's not in a finished state
+      // Update session status with a more flexible approach
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update(updateData)
         .eq('id', sessionId)
-        .not('status', 'in', '(in_progress,completed,expired,cancelled)') // Don't update if already in these states
+        .in('status', ['assets_received', 'pending_assets']) // Allow both states
         .select();
-
-      console.log('[LOBBY] Update result:', {
-        data: updatedSession,
-        error: updateError,
-        dataCount: updatedSession?.length || 0
-      });
 
       if (updateError) {
         console.error('[LOBBY] Session update error:', updateError);
@@ -241,35 +199,22 @@ const Lobby = () => {
         console.log('[LOBBY] No session was updated - checking current state...');
         
         // Check what happened to the session
-        const { data: conflictSession, error: conflictError } = await supabase
+        const { data: currentSession } = await supabase
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
           .maybeSingle();
-          
-        console.log('[LOBBY] Conflict check result:', {
-          data: conflictSession,
-          error: conflictError
-        });
 
-        if (conflictSession) {
-          if (conflictSession.status === 'in_progress') {
-            console.log('[LOBBY] Session was already started, redirecting...');
-            navigate(`/interview?session_id=${sessionId}`);
-            return;
-          } else if (['completed', 'expired', 'cancelled'].includes(conflictSession.status)) {
-            throw new Error(`Session is ${conflictSession.status} and cannot be started. Please create a new session.`);
-          } else {
-            console.log('[LOBBY] Session state changed, current status:', conflictSession.status);
-            throw new Error('Session state changed. Please refresh the page and try again.');
-          }
-        } else {
-          throw new Error('Session not found. Please refresh and try again.');
+        if (currentSession?.status === 'in_progress') {
+          console.log('[LOBBY] Session was already started, redirecting...');
+          navigate(`/interview?session_id=${sessionId}`);
+          return;
         }
+        
+        throw new Error('Unable to start session. Please refresh and try again.');
       }
 
-      const finalSession = updatedSession[0];
-      console.log('[LOBBY] Session updated successfully:', JSON.stringify(finalSession, null, 2));
+      console.log('[LOBBY] Session updated successfully:', updatedSession[0]);
 
       toast({
         title: "Interview started!",
@@ -282,26 +227,10 @@ const Lobby = () => {
 
     } catch (error: any) {
       console.error('[LOBBY] Start interview error:', error);
-      console.error('[LOBBY] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
       
-      // Provide user-friendly error messages
-      let userMessage = "Please try again.";
-      if (error.message.includes('already started') || error.message.includes('in_progress')) {
-        userMessage = "Session already started. Redirecting...";
-        setTimeout(() => navigate(`/interview?session_id=${sessionId}`), 1000);
-      } else if (error.message.includes('completed') || error.message.includes('expired') || error.message.includes('cancelled')) {
-        userMessage = "Please return to the homepage and start a new session.";
-      } else if (error.message.includes('state changed') || error.message.includes('not found')) {
-        userMessage = "Please refresh the page and try again.";
-      }
-
       toast({
         title: "Failed to start interview",
-        description: error.message || userMessage,
+        description: error.message || "Please try again.",
         variant: "destructive"
       });
     } finally {
