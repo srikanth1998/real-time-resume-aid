@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Brain, Upload as UploadIcon, FileText, Briefcase, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Brain, Upload as UploadIcon, FileText, Briefcase, CheckCircle, AlertCircle, Loader2, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,14 +17,17 @@ const Upload = () => {
   const { toast } = useToast();
   
   const sessionId = searchParams.get('session_id');
+  const paymentId = searchParams.get('payment_id');
+  const confirmed = searchParams.get('confirmed');
+  
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [jobDescFile, setJobDescFile] = useState<File | null>(null);
+  const [jobDescription, setJobDescription] = useState("");
 
   useEffect(() => {
-    const checkSession = async () => {
+    const verifySession = async () => {
       if (!sessionId) {
         toast({
           title: "No session found",
@@ -33,138 +38,156 @@ const Upload = () => {
         return;
       }
 
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession) {
-        navigate('/auth');
-        return;
-      }
+      try {
+        // Verify session exists and is in correct state
+        const { data: sessionData, error } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .single();
 
-      // Fetch session details
-      const { data: sessionData, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .eq('user_id', authSession.user.id)
-        .single();
+        if (error || !sessionData) {
+          console.error('Session verification error:', error);
+          toast({
+            title: "Session not found",
+            description: "Please start a new session from the homepage.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
 
-      if (error || !sessionData) {
+        // Check if session is in correct state for uploading
+        if (sessionData.status !== 'pending_assets') {
+          if (sessionData.status === 'assets_received') {
+            // Redirect to lobby if assets already uploaded
+            navigate(`/lobby?session_id=${sessionId}`);
+            return;
+          }
+          if (sessionData.status === 'in_progress') {
+            // Redirect to interview if already started
+            navigate(`/interview?session_id=${sessionId}`);
+            return;
+          }
+          toast({
+            title: "Session not ready",
+            description: "This session is not ready for file uploads.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
+
+        setSession(sessionData);
+        console.log('Session verified for upload:', sessionData);
+      } catch (error) {
+        console.error('Error verifying session:', error);
         toast({
-          title: "Session not found",
-          description: "Please start a new session.",
+          title: "Error",
+          description: "Failed to verify session. Please try again.",
           variant: "destructive"
         });
         navigate('/');
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      setSession(sessionData);
-      setLoading(false);
     };
 
-    checkSession();
-  }, [sessionId, navigate, toast]);
+    verifySession();
+  }, [sessionId, paymentId, confirmed, navigate, toast]);
 
-  const validateFile = (file: File, type: string) => {
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ['application/pdf'];
-    
-    if (file.size > maxSize) {
-      toast({
-        title: "File too large",
-        description: `${type} must be less than 5MB`,
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    if (!allowedTypes.includes(file.type)) {
-      toast({
-        title: "Invalid file type",
-        description: `${type} must be a PDF file`,
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    return true;
-  };
-
-  const uploadFile = async (file: File, type: string) => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${sessionId}/${type}.${fileExt}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('interview-documents')
-      .upload(fileName, file);
-
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    // Save document metadata
-    const { error: dbError } = await supabase
-      .from('documents')
-      .insert({
-        session_id: sessionId,
-        type: type,
-        filename: file.name,
-        file_size: file.size,
-        mime_type: file.type,
-        storage_path: fileName
-      });
-
-    if (dbError) {
-      throw dbError;
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload a PDF file.",
+          variant: "destructive"
+        });
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        toast({
+          title: "File too large",
+          description: "Please upload a file smaller than 10MB.",
+          variant: "destructive"
+        });
+        return;
+      }
+      setResumeFile(file);
     }
   };
 
-  const handleUpload = async () => {
-    if (!resumeFile || !jobDescFile) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!resumeFile || !jobDescription.trim()) {
       toast({
-        title: "Files required",
-        description: "Please select both resume and job description files",
+        title: "Missing information",
+        description: "Please upload your resume and provide a job description.",
         variant: "destructive"
       });
       return;
     }
 
-    if (!validateFile(resumeFile, "Resume") || !validateFile(jobDescFile, "Job description")) {
+    if (!session) {
+      toast({
+        title: "Session error",
+        description: "Session information not found.",
+        variant: "destructive"
+      });
       return;
     }
 
     setUploading(true);
 
     try {
-      // Upload both files
-      await uploadFile(resumeFile, 'resume');
-      await uploadFile(jobDescFile, 'job_description');
+      // Convert file to base64 for processing
+      const fileContent = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          resolve(base64.split(',')[1]); // Remove data:application/pdf;base64, prefix
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(resumeFile);
+      });
 
-      // Update session status
-      const { error: updateError } = await supabase
-        .from('sessions')
-        .update({
-          status: 'assets_received',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', sessionId);
+      console.log('Uploading assets for session:', sessionId);
 
-      if (updateError) {
-        throw updateError;
+      // Process the files using edge function
+      const { data, error } = await supabase.functions.invoke('process-session-assets', {
+        body: {
+          sessionId: sessionId,
+          resumeContent: fileContent,
+          resumeFileName: resumeFile.name,
+          jobDescription: jobDescription.trim()
+        }
+      });
+
+      if (error) {
+        console.error('Asset processing error:', error);
+        throw error;
       }
 
+      console.log('Assets processed successfully:', data);
+
       toast({
-        title: "Upload successful!",
-        description: "Your documents have been uploaded and processed.",
+        title: "Files uploaded successfully!",
+        description: "Your documents have been processed. Redirecting to interview lobby...",
       });
 
       // Redirect to lobby
-      navigate(`/lobby?session_id=${sessionId}`);
+      setTimeout(() => {
+        navigate(`/lobby?session_id=${sessionId}`);
+      }, 1500);
 
     } catch (error: any) {
       console.error('Upload error:', error);
       toast({
         title: "Upload failed",
-        description: error.message || "Failed to upload documents. Please try again.",
+        description: error.message || "Failed to process your files. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -177,7 +200,7 @@ const Upload = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading session...</p>
+          <p>Verifying your session...</p>
         </div>
       </div>
     );
@@ -196,147 +219,143 @@ const Upload = () => {
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Your Documents</h1>
-        <p className="text-gray-600">Upload your resume and job description to get started</p>
+        <p className="text-gray-600">Upload your resume and job description to personalize your AI assistance</p>
       </div>
 
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-2xl mx-auto">
         {/* Session Info */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <span>Payment Confirmed - {session.plan_type.charAt(0).toUpperCase() + session.plan_type.slice(1)} Plan</span>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                <span>{session.plan_type.charAt(0).toUpperCase() + session.plan_type.slice(1)} Plan Active</span>
+              </span>
+              <Badge variant="secondary" className="flex items-center space-x-1">
+                <Clock className="h-4 w-4" />
+                <span>{session.duration_minutes} minutes</span>
+              </Badge>
             </CardTitle>
             <CardDescription>
-              {session.duration_minutes} minutes • Session expires automatically after use
+              Session ready • Upload your documents to proceed to the interview lobby
             </CardDescription>
           </CardHeader>
         </Card>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Resume Upload */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <FileText className="h-5 w-5 text-blue-600" />
-                <span>Upload Resume</span>
-              </CardTitle>
-              <CardDescription>
-                Upload your current resume (PDF only - Max 5MB)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="resume">Select Resume File</Label>
-                  <Input
+        {/* Upload Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Document Upload</CardTitle>
+            <CardDescription>
+              Upload your resume and provide the job description for personalized AI assistance
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Resume Upload */}
+              <div className="space-y-2">
+                <Label htmlFor="resume" className="text-base font-medium">
+                  Resume (PDF only)
+                </Label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                  <input
                     id="resume"
                     type="file"
                     accept=".pdf"
-                    onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
-                    className="mt-2"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    disabled={uploading}
                   />
+                  <label htmlFor="resume" className="cursor-pointer">
+                    <div className="flex flex-col items-center space-y-2">
+                      {resumeFile ? (
+                        <>
+                          <FileText className="h-12 w-12 text-green-600" />
+                          <p className="text-sm font-medium text-green-600">{resumeFile.name}</p>
+                          <p className="text-xs text-gray-500">Click to change file</p>
+                        </>
+                      ) : (
+                        <>
+                          <UploadIcon className="h-12 w-12 text-gray-400" />
+                          <p className="text-sm font-medium text-gray-600">Click to upload your resume</p>
+                          <p className="text-xs text-gray-500">PDF files only, max 10MB</p>
+                        </>
+                      )}
+                    </div>
+                  </label>
                 </div>
-                {resumeFile && (
-                  <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="text-sm text-green-800">{resumeFile.name}</span>
-                  </div>
-                )}
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Job Description Upload */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Briefcase className="h-5 w-5 text-blue-600" />
-                <span>Upload Job Description</span>
-              </CardTitle>
-              <CardDescription>
-                Upload the job description (PDF only - Max 5MB)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="jobdesc">Select Job Description File</Label>
-                  <Input
-                    id="jobdesc"
-                    type="file"
-                    accept=".pdf"
-                    onChange={(e) => setJobDescFile(e.target.files?.[0] || null)}
-                    className="mt-2"
-                  />
-                </div>
-                {jobDescFile && (
-                  <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="text-sm text-green-800">{jobDescFile.name}</span>
-                  </div>
-                )}
+              {/* Job Description */}
+              <div className="space-y-2">
+                <Label htmlFor="jobDescription" className="text-base font-medium">
+                  Job Description
+                </Label>
+                <Textarea
+                  id="jobDescription"
+                  placeholder="Paste the job description here. Include requirements, responsibilities, and any specific skills mentioned..."
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  className="min-h-[200px] text-sm"
+                  disabled={uploading}
+                />
+                <p className="text-xs text-gray-500">
+                  Provide as much detail as possible for better AI assistance
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Upload Instructions */}
-        <Card className="mt-8">
-          <CardContent className="pt-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center space-x-2">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span>Resume Tips</span>
-                </h3>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  <li>• Include specific skills and technologies</li>
-                  <li>• List relevant work experience and achievements</li>
-                  <li>• Mention certifications and education</li>
-                  <li>• Use clear, scannable formatting</li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center space-x-2">
-                  <Briefcase className="h-4 w-4 text-blue-600" />
-                  <span>Job Description Tips</span>
-                </h3>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  <li>• Copy the complete job posting</li>
-                  <li>• Include required skills and qualifications</li>
-                  <li>• Note company culture and values</li>
-                  <li>• Include any specific technologies mentioned</li>
-                </ul>
-              </div>
-            </div>
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                className="w-full py-6 text-lg"
+                disabled={!resumeFile || !jobDescription.trim() || uploading}
+                size="lg"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Processing documents...
+                  </>
+                ) : (
+                  <>
+                    <Briefcase className="h-5 w-5 mr-2" />
+                    Process Documents & Continue
+                  </>
+                )}
+              </Button>
+            </form>
           </CardContent>
         </Card>
 
-        {/* Upload Button */}
-        <div className="mt-8 text-center">
-          <Button
-            onClick={handleUpload}
-            disabled={uploading || !resumeFile || !jobDescFile}
-            className="w-full md:w-auto px-8 py-3 text-lg"
-          >
-            {uploading ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Uploading documents...
-              </>
-            ) : (
-              <>
-                <UploadIcon className="h-5 w-5 mr-2" />
-                Upload & Continue
-              </>
-            )}
-          </Button>
-          
-          <p className="text-sm text-gray-500 mt-4">
-            Your documents are encrypted and will be automatically deleted after 24 hours
-          </p>
-        </div>
+        {/* Help Section */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <AlertCircle className="h-5 w-5 text-blue-600" />
+              <span>Tips for Best Results</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm text-gray-600">
+              <li className="flex items-start space-x-2">
+                <span className="text-blue-600 mt-0.5">•</span>
+                <span>Upload your most recent resume in PDF format</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="text-blue-600 mt-0.5">•</span>
+                <span>Include the complete job description with requirements and responsibilities</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="text-blue-600 mt-0.5">•</span>
+                <span>The AI will analyze your background against the job requirements</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="text-blue-600 mt-0.5">•</span>
+                <span>More detailed information leads to better, more personalized answers</span>
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

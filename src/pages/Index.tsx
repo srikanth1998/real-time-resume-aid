@@ -129,34 +129,17 @@ const Index = () => {
     try {
       const finalPricing = calculatePrice(plan.basePriceCents, selectedDeviceMode);
 
-      // Check if user is already authenticated
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      
-      if (authSession) {
-        // User is authenticated, go directly to payment
-        navigate('/payment', { 
-          state: { 
-            selectedPlan: {
-              ...plan,
-              price: finalPricing.display,
-              priceCents: finalPricing.cents,
-              deviceMode: selectedDeviceMode
-            }
-          } 
-        });
-      } else {
-        // User needs to authenticate first
-        navigate('/auth', { 
-          state: { 
-            selectedPlan: {
-              ...plan,
-              price: finalPricing.display,
-              priceCents: finalPricing.cents,
-              deviceMode: selectedDeviceMode
-            }
-          } 
-        });
-      }
+      // Redirect to auth page first for email verification
+      navigate('/auth', { 
+        state: { 
+          selectedPlan: {
+            ...plan,
+            price: finalPricing.display,
+            priceCents: finalPricing.cents,
+            deviceMode: selectedDeviceMode
+          }
+        } 
+      });
 
     } catch (error) {
       console.error('Error starting session:', error);
