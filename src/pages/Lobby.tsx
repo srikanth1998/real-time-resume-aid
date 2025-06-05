@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -77,7 +76,7 @@ const Lobby = () => {
         }
 
         if (sessionData.status === 'in_progress') {
-          console.log('[LOBBY] Redirecting to interview');
+          console.log('[LOBBY] Session already in progress, redirecting to interview');
           navigate(`/interview?session_id=${sessionId}`);
           return;
         }
@@ -164,11 +163,46 @@ const Lobby = () => {
       return;
     }
 
+    // Defensive check: if session is already in progress, just redirect
+    if (session.status === 'in_progress') {
+      console.log('[LOBBY] Session already in progress, redirecting');
+      navigate(`/interview?session_id=${sessionId}`);
+      return;
+    }
+
     setStarting(true);
 
     try {
-      console.log('[LOBBY] Starting interview process');
+      console.log('[LOBBY] Starting interview process for session:', session.id);
       
+      // First, double-check the current session state to avoid race conditions
+      const { data: currentSessionData, error: fetchError } = await supabase
+        .from('sessions')
+        .select('status, id')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error('[LOBBY] Error fetching current session:', fetchError);
+        throw new Error('Failed to verify session state');
+      }
+
+      if (!currentSessionData) {
+        throw new Error('Session not found');
+      }
+
+      // If session is already in progress, just redirect
+      if (currentSessionData.status === 'in_progress') {
+        console.log('[LOBBY] Session was already started by another process');
+        navigate(`/interview?session_id=${sessionId}`);
+        return;
+      }
+
+      // Only proceed if session is in the correct state
+      if (currentSessionData.status !== 'assets_received') {
+        throw new Error(`Session is in ${currentSessionData.status} state, cannot start interview`);
+      }
+
       // Prepare update data
       const now = new Date();
       const expiresAt = new Date(now.getTime() + session.duration_minutes * 60 * 1000);
@@ -182,12 +216,12 @@ const Lobby = () => {
 
       console.log('[LOBBY] Update data:', updateData);
 
-      // Update session status with a more flexible approach
+      // Update session status with strict state checking
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update(updateData)
         .eq('id', sessionId)
-        .in('status', ['assets_received', 'pending_assets']) // Allow both states
+        .eq('status', 'assets_received') // Only update if still in assets_received state
         .select();
 
       if (updateError) {
@@ -199,19 +233,19 @@ const Lobby = () => {
         console.log('[LOBBY] No session was updated - checking current state...');
         
         // Check what happened to the session
-        const { data: currentSession } = await supabase
+        const { data: finalSession } = await supabase
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
           .maybeSingle();
 
-        if (currentSession?.status === 'in_progress') {
-          console.log('[LOBBY] Session was already started, redirecting...');
+        if (finalSession?.status === 'in_progress') {
+          console.log('[LOBBY] Session was started by another process, redirecting...');
           navigate(`/interview?session_id=${sessionId}`);
           return;
         }
         
-        throw new Error('Unable to start session. Please refresh and try again.');
+        throw new Error('Unable to start session. The session may have been modified by another process.');
       }
 
       console.log('[LOBBY] Session updated successfully:', updatedSession[0]);
@@ -227,10 +261,11 @@ const Lobby = () => {
 
     } catch (error: any) {
       console.error('[LOBBY] Start interview error:', error);
+      console.log('[LOBBY] Error details:', error);
       
       toast({
         title: "Failed to start interview",
-        description: error.message || "Please try again.",
+        description: error.message || "Please refresh the page and try again.",
         variant: "destructive"
       });
     } finally {
