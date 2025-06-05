@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -164,7 +163,7 @@ const Lobby = () => {
       return;
     }
 
-    // Defensive check: if session is already in progress, just redirect
+    // If session is already in progress, just redirect
     if (session.status === 'in_progress') {
       console.log('[LOBBY] Session already in progress, redirecting');
       navigate(`/interview?session_id=${sessionId}`);
@@ -176,36 +175,6 @@ const Lobby = () => {
     try {
       console.log('[LOBBY] Starting interview process for session:', session.id);
       
-      // First, double-check the current session state to avoid race conditions
-      const { data: currentSessionData, error: fetchError } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .maybeSingle();
-
-      if (fetchError) {
-        console.error('[LOBBY] Error fetching current session:', fetchError);
-        throw new Error('Failed to verify session state');
-      }
-
-      if (!currentSessionData) {
-        throw new Error('Session not found');
-      }
-
-      console.log('[LOBBY] Current session state before update:', currentSessionData);
-
-      // If session is already in progress, just redirect
-      if (currentSessionData.status === 'in_progress') {
-        console.log('[LOBBY] Session was already started by another process');
-        navigate(`/interview?session_id=${sessionId}`);
-        return;
-      }
-
-      // Check if session is in a valid state to start
-      if (!['assets_received', 'pending_assets'].includes(currentSessionData.status)) {
-        throw new Error(`Session is in ${currentSessionData.status} state, cannot start interview`);
-      }
-
       // Prepare update data
       const now = new Date();
       const expiresAt = new Date(now.getTime() + session.duration_minutes * 60 * 1000);
@@ -217,47 +186,22 @@ const Lobby = () => {
         updated_at: now.toISOString()
       };
 
-      console.log('[LOBBY] Update data:', updateData);
-      console.log('[LOBBY] Attempting to update session from status:', currentSessionData.status);
+      console.log('[LOBBY] Updating session to in_progress status');
 
-      // Try to update with service role key if available, otherwise use regular client
-      // Since there might be RLS policies preventing updates, we'll need to handle this
+      // Update session status
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update(updateData)
         .eq('id', sessionId)
         .select();
 
-      console.log('[LOBBY] Update result:', { data: updatedSession, error: updateError });
-
       if (updateError) {
         console.error('[LOBBY] Session update error:', updateError);
-        
-        // If it's an RLS issue, the session might need to be updated without authentication
-        if (updateError.message?.includes('policy') || updateError.message?.includes('permission')) {
-          throw new Error('Session update failed due to permissions. This session may need to be started from the device that created it.');
-        }
-        
         throw new Error(`Failed to update session: ${updateError.message}`);
       }
 
       if (!updatedSession || updatedSession.length === 0) {
-        console.log('[LOBBY] No session was updated - checking if it was updated by another process');
-        
-        // Check if the session is now in progress (updated by another process)
-        const { data: checkSession } = await supabase
-          .from('sessions')
-          .select('status')
-          .eq('id', sessionId)
-          .maybeSingle();
-          
-        if (checkSession?.status === 'in_progress') {
-          console.log('[LOBBY] Session was started by another process, redirecting');
-          navigate(`/interview?session_id=${sessionId}`);
-          return;
-        }
-        
-        throw new Error('Failed to update session - no rows affected. This may be due to Row Level Security policies.');
+        throw new Error('Failed to update session - no rows affected');
       }
 
       console.log('[LOBBY] Session updated successfully:', updatedSession[0]);
@@ -273,7 +217,6 @@ const Lobby = () => {
 
     } catch (error: any) {
       console.error('[LOBBY] Start interview error:', error);
-      console.log('[LOBBY] Error details:', error);
       
       toast({
         title: "Failed to start interview",
