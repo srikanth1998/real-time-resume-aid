@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 type AuthStep = 'email' | 'otp' | 'success';
+
+// Constants for Supabase configuration
+const SUPABASE_URL = "https://jafylkqbmvdptrqwwyed.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -172,11 +175,11 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/send-otp-email`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-otp-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({ email }),
       });
@@ -213,11 +216,11 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/verify-otp`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({ email, otp: otpValue }),
       });
