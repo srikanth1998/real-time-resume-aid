@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -43,10 +42,21 @@ const Lobby = () => {
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
-          .single();
+          .maybeSingle();
 
-        if (error || !sessionData) {
+        if (error) {
           console.error('[LOBBY] Session verification error:', error);
+          toast({
+            title: "Session error",
+            description: "Failed to verify session. Please try again.",
+            variant: "destructive"
+          });
+          navigate('/');
+          return;
+        }
+
+        if (!sessionData) {
+          console.error('[LOBBY] No session found with ID:', sessionId);
           toast({
             title: "Session not found",
             description: "Please start a new session.",
@@ -162,6 +172,29 @@ const Lobby = () => {
       const now = new Date();
       const expiresAt = new Date(now.getTime() + session.duration_minutes * 60 * 1000);
 
+      // First, verify the session still exists and is in the correct state
+      const { data: currentSession, error: checkError } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('[LOBBY] Session check error:', checkError);
+        throw new Error(`Session verification failed: ${checkError.message}`);
+      }
+
+      if (!currentSession) {
+        console.error('[LOBBY] Session not found during update');
+        throw new Error('Session not found');
+      }
+
+      if (currentSession.status !== 'assets_received') {
+        console.error('[LOBBY] Session status changed:', currentSession.status);
+        throw new Error(`Session is no longer ready (status: ${currentSession.status})`);
+      }
+
+      // Now update the session
       const { data: updatedSession, error: updateError } = await supabase
         .from('sessions')
         .update({
@@ -171,12 +204,18 @@ const Lobby = () => {
           updated_at: now.toISOString()
         })
         .eq('id', sessionId)
+        .eq('status', 'assets_received') // Ensure we only update if still in correct state
         .select()
-        .single();
+        .maybeSingle();
 
       if (updateError) {
-        console.error('[LOBBY] Start interview error:', updateError);
+        console.error('[LOBBY] Session update error:', updateError);
         throw new Error(`Failed to start session: ${updateError.message}`);
+      }
+
+      if (!updatedSession) {
+        console.error('[LOBBY] No session was updated - may have been modified by another process');
+        throw new Error('Session could not be started - please refresh and try again');
       }
 
       console.log('[LOBBY] Session updated successfully:', updatedSession);
