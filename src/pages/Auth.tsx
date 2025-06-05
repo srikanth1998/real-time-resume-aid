@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -23,6 +22,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [otpExpiry, setOtpExpiry] = useState<number>(0);
   const [canResend, setCanResend] = useState(false);
+  const [otpError, setOtpError] = useState<string>("");
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -174,6 +174,7 @@ const Auth = () => {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setOtpError("");
 
     try {
       const response = await fetch(`${SUPABASE_URL}/functions/v1/send-otp-email`, {
@@ -194,6 +195,7 @@ const Auth = () => {
       setCurrentStep('otp');
       setOtpExpiry(300); // 5 minutes
       setCanResend(false);
+      setOtp(""); // Clear any previous OTP
       toast({
         title: "OTP sent!",
         description: "Check your email for the 6-digit code. It will expire in 5 minutes.",
@@ -215,8 +217,16 @@ const Auth = () => {
     if (otpValue.length !== 6) return;
     
     setLoading(true);
+    setOtpError("");
 
     try {
+      // Validate OTP format on client side
+      if (!/^\d{6}$/.test(otpValue)) {
+        throw new Error('OTP must be a 6-digit number');
+      }
+
+      console.log('Verifying OTP:', { email, otpLength: otpValue.length });
+
       // First verify the OTP
       const response = await fetch(`${SUPABASE_URL}/functions/v1/verify-otp`, {
         method: 'POST',
@@ -228,6 +238,7 @@ const Auth = () => {
       });
 
       const data = await response.json();
+      console.log('OTP verification response:', { status: response.status, data });
 
       if (!response.ok) {
         throw new Error(data.error || 'Invalid OTP');
@@ -246,14 +257,6 @@ const Auth = () => {
         console.error('Error creating/getting user:', userError);
         throw new Error('Failed to create user record');
       }
-
-      // Create a mock auth session for this user
-      // Since we're using OTP verification, we'll set a temporary session
-      const mockUser = {
-        id: userData.id,
-        email: userData.email,
-        created_at: userData.created_at
-      };
 
       toast({
         title: "Success!",
@@ -274,11 +277,34 @@ const Auth = () => {
 
     } catch (error: any) {
       console.error('Verify OTP error:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Invalid or expired OTP. Please try again.",
-        variant: "destructive"
-      });
+      const errorMessage = error.message || "Invalid or expired OTP. Please try again.";
+      setOtpError(errorMessage);
+      
+      // Show specific error messages
+      if (errorMessage.includes("expired")) {
+        toast({
+          title: "OTP Expired",
+          description: "Your verification code has expired. Please request a new one.",
+          variant: "destructive"
+        });
+        setCanResend(true);
+        setOtpExpiry(0);
+      } else if (errorMessage.includes("attempts")) {
+        toast({
+          title: "Too Many Attempts",
+          description: "Please request a new verification code.",
+          variant: "destructive"
+        });
+        setCanResend(true);
+        setOtpExpiry(0);
+      } else {
+        toast({
+          title: "Verification Failed",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
+      
       setOtp("");
     } finally {
       setLoading(false);
@@ -287,6 +313,7 @@ const Auth = () => {
 
   const handleResendOtp = async () => {
     if (!canResend) return;
+    setOtpError("");
     await handleSendOtp(new Event('submit') as any);
   };
 
@@ -350,6 +377,7 @@ const Auth = () => {
                     value={otp}
                     onChange={(value) => {
                       setOtp(value);
+                      setOtpError(""); // Clear error when user types
                       if (value.length === 6) {
                         handleVerifyOtp(value);
                       }
@@ -367,6 +395,9 @@ const Auth = () => {
                     </InputOTPGroup>
                   </InputOTP>
                 </div>
+                {otpError && (
+                  <p className="text-sm text-red-600 text-center">{otpError}</p>
+                )}
               </div>
 
               {otpExpiry > 0 && (
@@ -403,6 +434,7 @@ const Auth = () => {
                       <li>• Check your spam folder if you don't see the email</li>
                       <li>• The code is valid for 5 minutes</li>
                       <li>• Enter all 6 digits to automatically verify</li>
+                      <li>• Make sure to use the most recent code if you requested multiple</li>
                     </ul>
                   </div>
                 </div>

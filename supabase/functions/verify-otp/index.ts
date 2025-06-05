@@ -32,6 +32,17 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Validate OTP format (should be 6 digits)
+    if (!/^\d{6}$/.test(otp)) {
+      return new Response(
+        JSON.stringify({ error: "OTP must be a 6-digit number" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
     // Initialize Supabase client with service role
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -45,18 +56,26 @@ const handler = async (req: Request): Promise<Response> => {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Find valid OTP
+    console.log(`[VERIFY-OTP] Attempting to verify OTP for email: ${email}`);
+    console.log(`[VERIFY-OTP] Current time: ${new Date().toISOString()}`);
+
+    // Find valid OTP with extended time window (check if expired within last 30 seconds for clock skew)
+    const currentTime = new Date();
+    const gracePeriod = new Date(currentTime.getTime() - 30000); // 30 seconds grace period
+
     const { data: otpRecord, error: fetchError } = await supabaseClient
       .from("email_otps")
       .select("*")
       .eq("email", email)
       .eq("otp_hash", hashHex)
       .eq("used", false)
-      .gt("expires_at", new Date().toISOString())
+      .gt("expires_at", gracePeriod.toISOString())
       .lt("attempts", 3)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    console.log(`[VERIFY-OTP] OTP lookup result:`, { otpRecord, fetchError });
 
     if (fetchError) {
       console.error("Error fetching OTP:", fetchError);
@@ -64,16 +83,56 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!otpRecord) {
-      // Increment attempts for any matching email/time records
+      console.log(`[VERIFY-OTP] No valid OTP found for email: ${email}`);
+      
+      // Check if there are any recent OTPs for this email (for better error messaging)
+      const { data: recentOtps } = await supabaseClient
+        .from("email_otps")
+        .select("expires_at, used, attempts")
+        .eq("email", email)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      console.log(`[VERIFY-OTP] Recent OTPs for debugging:`, recentOtps);
+
+      // Increment attempts for any matching email records to prevent brute force
       await supabaseClient
         .from("email_otps")
         .update({ attempts: 999 }) // Mark as exhausted
         .eq("email", email)
-        .eq("used", false)
-        .gt("expires_at", new Date().toISOString());
+        .eq("used", false);
+
+      // Provide specific error message
+      const hasExpiredOTPs = recentOtps?.some(otp => new Date(otp.expires_at) < currentTime);
+      const hasExhaustedOTPs = recentOtps?.some(otp => otp.attempts >= 3);
+
+      let errorMessage = "Invalid or expired OTP";
+      if (hasExpiredOTPs) {
+        errorMessage = "OTP has expired. Please request a new one.";
+      } else if (hasExhaustedOTPs) {
+        errorMessage = "Too many attempts. Please request a new OTP.";
+      }
 
       return new Response(
-        JSON.stringify({ error: "Invalid or expired OTP" }),
+        JSON.stringify({ error: errorMessage }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Check if OTP is actually expired (double-check)
+    if (new Date(otpRecord.expires_at) < currentTime) {
+      console.log(`[VERIFY-OTP] OTP is expired. Expires at: ${otpRecord.expires_at}, Current time: ${currentTime.toISOString()}`);
+      
+      await supabaseClient
+        .from("email_otps")
+        .update({ used: true, attempts: otpRecord.attempts + 1 })
+        .eq("id", otpRecord.id);
+
+      return new Response(
+        JSON.stringify({ error: "OTP has expired. Please request a new one." }),
         {
           status: 400,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -92,6 +151,8 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to update OTP status");
     }
 
+    console.log(`[VERIFY-OTP] OTP verified successfully for email: ${email}`);
+
     // Check if user exists, if not create them
     const { data: existingUser } = await supabaseClient
       .from("users")
@@ -108,19 +169,6 @@ const handler = async (req: Request): Promise<Response> => {
         console.error("Error creating user:", userError);
         // Don't fail if user creation fails, as they might exist in auth.users
       }
-    }
-
-    // Use Supabase Auth to sign in with OTP
-    const { data: authData, error: authError } = await supabaseClient.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-      }
-    });
-
-    if (authError) {
-      console.error("Auth error:", authError);
-      // Fallback: return a success response and let the frontend handle auth
     }
 
     // Clean up expired OTPs
