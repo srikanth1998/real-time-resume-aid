@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -169,7 +168,7 @@ const Lobby = () => {
       console.log('[LOBBY] Session already in progress, redirecting');
       const interviewUrl = `/interview?session_id=${sessionId}`;
       console.log('[LOBBY] Redirecting to:', interviewUrl);
-      window.location.href = interviewUrl;
+      navigate(interviewUrl);
       return;
     }
 
@@ -214,17 +213,13 @@ const Lobby = () => {
         description: `Your ${session.duration_minutes}-minute session is now active.`,
       });
 
-      // Navigate to interview interface with detailed logging
+      // Navigate to interview interface using React Router
       const interviewUrl = `/interview?session_id=${sessionId}`;
-      console.log('[LOBBY] About to navigate to interview page with URL:', interviewUrl);
-      console.log('[LOBBY] Current location before navigation:', window.location.href);
+      console.log('[LOBBY] Navigating to interview page with URL:', interviewUrl);
       console.log('[LOBBY] Session ID being passed:', sessionId);
       
-      // Add a small delay to ensure the session update has been processed
-      setTimeout(() => {
-        console.log('[LOBBY] Executing navigation to:', interviewUrl);
-        window.location.href = interviewUrl;
-      }, 100);
+      // Use React Router navigation instead of window.location.href
+      navigate(interviewUrl);
 
     } catch (error: any) {
       console.error('[LOBBY] Start interview error:', error);
