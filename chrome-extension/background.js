@@ -28,7 +28,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && 
       (tab.url.includes('lovableproject.com') || 
        tab.url.includes('lovable.app') || 
-       tab.url.includes('real-time-resume-aid'))) {
+       tab.url.includes('real-time-resume-aid') ||
+       tab.url.includes('preview--'))) {
     console.log('🎯 DETECTED LOVABLE PROJECT PAGE');
     console.log('Tab ID:', tabId, 'URL:', tab.url);
     
@@ -45,6 +46,23 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     } catch (error) {
       console.error('Error auto-starting transcription:', error);
     }
+  }
+});
+
+// Track tab focus changes to update currentTabId
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    if (tab.url && 
+        (tab.url.includes('lovableproject.com') || 
+         tab.url.includes('lovable.app') || 
+         tab.url.includes('real-time-resume-aid') ||
+         tab.url.includes('preview--'))) {
+      console.log('🎯 LOVABLE TAB ACTIVATED:', activeInfo.tabId, tab.url);
+      currentTabId = activeInfo.tabId;
+    }
+  } catch (error) {
+    console.warn('Could not get tab info on activation:', error);
   }
 });
 
@@ -282,6 +300,27 @@ async function showErrorNotification(message) {
   }
 }
 
+// Enhanced tab finding function
+async function findLovableTabs() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    const lovableTabs = tabs.filter(tab => 
+      tab.url && (
+        tab.url.includes('lovableproject.com') || 
+        tab.url.includes('lovable.app') || 
+        tab.url.includes('real-time-resume-aid') ||
+        tab.url.includes('preview--') ||
+        tab.url.includes('localhost') && tab.url.includes('interview')
+      )
+    );
+    console.log('🔍 Found Lovable tabs:', lovableTabs.map(t => ({ id: t.id, url: t.url })));
+    return lovableTabs;
+  } catch (error) {
+    console.error('Error finding Lovable tabs:', error);
+    return [];
+  }
+}
+
 // Handle messages from offscreen document
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('🔔 Background received message:', message);
@@ -305,6 +344,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     console.log('📝 Transcription text:', message.text);
     console.log('🎯 Target tab ID:', currentTabId);
     
+    // Try current tab first
     if (currentTabId) {
       try {
         const response = await chrome.tabs.sendMessage(currentTabId, {
@@ -312,69 +352,49 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
           text: message.text,
           timestamp: message.timestamp || Date.now()
         });
-        console.log('✅ Transcription forwarded to content script, response:', response);
+        console.log('✅ Transcription forwarded to current tab, response:', response);
         sendResponse({ success: true, forwarded: true });
+        return true;
       } catch (error) {
-        console.error('❌ Error forwarding transcription to content script:', error);
-        
-        // Try to find and update the current tab if message failed
-        try {
-          const tabs = await chrome.tabs.query({ 
-            url: ['*://*.lovableproject.com/*', '*://*.lovable.app/*', '*://preview--real-time-resume-aid.lovable.app/*'] 
-          });
-          if (tabs.length > 0) {
-            const tab = tabs[0];
-            console.log('🔄 Found Lovable tab, updating currentTabId to:', tab.id);
-            currentTabId = tab.id;
-            
-            // Ensure content script and retry
-            await ensureContentScript(tab.id);
-            await chrome.tabs.sendMessage(currentTabId, {
-              action: 'transcriptionResult',
-              text: message.text,
-              timestamp: message.timestamp || Date.now()
-            });
-            console.log('✅ Transcription forwarded after tab recovery');
-            sendResponse({ success: true, forwarded: true, recovered: true });
-          } else {
-            console.warn('⚠️ No Lovable tabs found for recovery');
-            sendResponse({ success: false, error: 'No active Lovable tab found' });
-          }
-        } catch (recoveryError) {
-          console.error('❌ Tab recovery failed:', recoveryError);
-          sendResponse({ success: false, error: error.message });
-        }
+        console.warn('❌ Error forwarding to current tab:', error);
+        // Continue to search for other tabs
       }
-    } else {
-      console.warn('⚠️ No current tab ID, attempting to find Lovable tab...');
-      
-      try {
-        const tabs = await chrome.tabs.query({ 
-          url: ['*://*.lovableproject.com/*', '*://*.lovable.app/*', '*://preview--real-time-resume-aid.lovable.app/*'] 
-        });
-        if (tabs.length > 0) {
-          const tab = tabs[0];
-          console.log('🔍 Found Lovable tab:', tab.id);
-          currentTabId = tab.id;
-          
-          // Ensure content script and send message
+    }
+    
+    // If current tab failed or no current tab, search for Lovable tabs
+    console.log('🔍 Searching for Lovable tabs...');
+    const lovableTabs = await findLovableTabs();
+    
+    if (lovableTabs.length > 0) {
+      // Try each tab until one works
+      for (const tab of lovableTabs) {
+        try {
+          console.log(`🎯 Trying to send to tab ${tab.id}: ${tab.url}`);
           await ensureContentScript(tab.id);
-          await chrome.tabs.sendMessage(currentTabId, {
+          await chrome.tabs.sendMessage(tab.id, {
             action: 'transcriptionResult',
             text: message.text,
             timestamp: message.timestamp || Date.now()
           });
-          console.log('✅ Transcription sent to discovered tab');
-          sendResponse({ success: true, forwarded: true, discovered: true });
-        } else {
-          console.warn('⚠️ No Lovable tabs found');
-          sendResponse({ success: false, error: 'No Lovable tab found' });
+          
+          // Update current tab to the working one
+          currentTabId = tab.id;
+          console.log('✅ Transcription sent successfully to tab:', tab.id);
+          sendResponse({ success: true, forwarded: true, tabId: tab.id });
+          return true;
+        } catch (error) {
+          console.warn(`❌ Failed to send to tab ${tab.id}:`, error);
+          // Continue to next tab
         }
-      } catch (discoveryError) {
-        console.error('❌ Tab discovery failed:', discoveryError);
-        sendResponse({ success: false, error: 'Failed to find target tab' });
       }
+      
+      console.error('❌ Failed to send transcription to any Lovable tab');
+      sendResponse({ success: false, error: 'Failed to send to any Lovable tab' });
+    } else {
+      console.warn('⚠️ No Lovable tabs found');
+      sendResponse({ success: false, error: 'No Lovable tabs found' });
     }
+    
     return true; // Keep message channel open
   }
   
