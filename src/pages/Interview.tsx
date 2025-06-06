@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,44 +113,68 @@ const Interview = () => {
     };
   }, [sessionId, navigate, inputMode]);
 
-  // Extension initialization effect
+  // Enhanced Extension initialization effect
   useEffect(() => {
     let cleanup: (() => void) | undefined;
 
     const initExtension = async () => {
-      console.log('🚀 Initializing extension connector...');
+      console.log('🚀 [INTERVIEW] Initializing extension connector...');
       setExtensionStatus("Connecting...");
       
       cleanup = initializeExtensionConnector();
       
+      // 1. Listen for extension ready events
       const handleExtensionReady = (event: CustomEvent) => {
-        console.log('✅ Extension ready event received:', event.detail);
+        console.log('✅ [INTERVIEW] Extension ready event received:', event.detail);
         setExtensionConnected(true);
-        setExtensionStatus("Listening");
+        setExtensionStatus("Listening for questions");
         (window as any).__extensionReady = true;
+        
+        toast({
+          title: "🎤 Extension Connected",
+          description: "Chrome extension is now capturing meeting audio automatically",
+        });
         
         if (inputMode === 'voice') {
           setInputMode('extension');
         }
       };
 
+      // 2. Listen for transcription events from extension - THIS IS KEY
       const handleExtensionTranscription = (event: CustomEvent) => {
-        console.log('📥 EXTENSION TRANSCRIPTION EVENT RECEIVED:', event.detail);
+        console.log('📥 [INTERVIEW] TRANSCRIPTION RECEIVED FROM EXTENSION:', event.detail);
         
-        if (event.detail?.text) {
-          console.log('🔄 Processing transcription data...');
+        if (event.detail?.text && event.detail.text.trim()) {
+          console.log('🔄 [INTERVIEW] Processing transcription:', event.detail.text);
           handleExtensionTranscriptionData(event.detail.text, event.detail.timestamp);
+        } else {
+          console.warn('⚠️ [INTERVIEW] Empty or invalid transcription received');
+        }
+      };
+
+      // 3. Also listen for window messages (backup method)
+      const handleWindowMessage = (event: MessageEvent) => {
+        if (event.source !== window || event.data.source !== 'interviewace-extension') {
+          return;
+        }
+        
+        console.log('📨 [INTERVIEW] Window message from extension:', event.data);
+        
+        if (event.data.action === 'processTranscription' && event.data.text) {
+          console.log('📝 [INTERVIEW] Processing transcription via window message:', event.data.text);
+          handleExtensionTranscriptionData(event.data.text, event.data.timestamp);
         }
       };
 
       window.addEventListener('extensionReady', handleExtensionReady as EventListener);
       window.addEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
+      window.addEventListener('message', handleWindowMessage);
 
       const isAvailable = checkExtensionAvailability();
       setExtensionConnected(isAvailable);
       
       if (isAvailable) {
-        setExtensionStatus("Listening");
+        setExtensionStatus("Listening for questions");
         if (inputMode === 'voice') {
           setInputMode('extension');
         }
@@ -160,6 +183,7 @@ const Interview = () => {
       return () => {
         window.removeEventListener('extensionReady', handleExtensionReady as EventListener);
         window.removeEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
+        window.removeEventListener('message', handleWindowMessage);
         if (cleanup) cleanup();
       };
     };
@@ -171,7 +195,7 @@ const Interview = () => {
         if (cleanupFn) cleanupFn();
       });
     };
-  }, [inputMode]);
+  }, [inputMode, toast]);
 
   const initializeSpeechRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -249,7 +273,7 @@ const Interview = () => {
         
         if (isConnected && !extensionConnected) {
           setExtensionConnected(true);
-          setExtensionStatus("Listening");
+          setExtensionStatus("Listening for questions");
           if (inputMode === 'voice') {
             setInputMode('extension');
           }
@@ -258,24 +282,45 @@ const Interview = () => {
     });
   };
 
+  // KEY FUNCTION: Handle transcription data from extension
   const handleExtensionTranscriptionData = async (transcriptionText: string, timestamp?: number) => {
-    console.log('🎯 PROCESSING TRANSCRIPTION FROM EXTENSION:', transcriptionText);
+    console.log('🎯 [INTERVIEW] PROCESSING TRANSCRIPTION FROM EXTENSION:', transcriptionText);
     
     if (processingRef.current) {
-      console.log('⚠️ Already processing, skipping...');
+      console.log('⚠️ [INTERVIEW] Already processing, skipping...');
+      return;
+    }
+    
+    if (!transcriptionText || transcriptionText.trim().length < 3) {
+      console.log('⚠️ [INTERVIEW] Transcription too short, skipping:', transcriptionText);
       return;
     }
     
     processingRef.current = true;
-    setExtensionStatus("Processing...");
+    setExtensionStatus("Processing question...");
     
     try {
+      // Update UI with the question
       setCurrentTranscript(transcriptionText);
+      
+      toast({
+        title: "🎤 Question Detected",
+        description: `Processing: "${transcriptionText.substring(0, 50)}..."`,
+      });
+      
+      // Send to AI for answer generation
       await generateStreamingAnswer(transcriptionText);
-      setExtensionStatus("Listening");
+      
+      setExtensionStatus("Listening for questions");
     } catch (error) {
-      console.error('❌ Error processing extension transcription:', error);
-      setExtensionStatus("Error");
+      console.error('❌ [INTERVIEW] Error processing extension transcription:', error);
+      setExtensionStatus("Error - Please try again");
+      
+      toast({
+        title: "Error processing question",
+        description: "There was an error generating an answer. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       processingRef.current = false;
     }
@@ -339,10 +384,11 @@ const Interview = () => {
     setManualQuestion("");
   };
 
+  // KEY FUNCTION: Generate streaming answer from AI
   const generateStreamingAnswer = async (question: string) => {
     if (isGeneratingAnswer || !question.trim()) return;
     
-    console.log('🚀 Generating streaming answer for question:', question);
+    console.log('🚀 [INTERVIEW] Generating streaming answer for question:', question);
     setIsGeneratingAnswer(true);
     setIsStreaming(true);
     setCurrentAnswer("");
@@ -418,12 +464,12 @@ const Interview = () => {
       }
 
       toast({
-        title: "Response generated",
+        title: "✅ Response Generated",
         description: "AI has provided a tailored answer using streaming.",
       });
 
     } catch (error: any) {
-      console.error('❌ Streaming answer generation error:', error);
+      console.error('❌ [INTERVIEW] Streaming answer generation error:', error);
       let errorMessage = "Sorry, there was an error generating the answer. Please try again.";
       
       if (error.message && error.message.includes('quota')) {
@@ -444,11 +490,6 @@ const Interview = () => {
       setIsStreaming(false);
       processingRef.current = false;
     }
-  };
-
-  // Fallback to old generation method
-  const generateAnswer = async (question: string) => {
-    return generateStreamingAnswer(question);
   };
 
   const copyToClipboard = (text: string) => {
@@ -488,12 +529,17 @@ const Interview = () => {
             <span className="font-semibold text-sm md:text-base">InterviewAce</span>
             {extensionConnected && (
               <span className="bg-green-800 text-green-200 text-xs px-2 py-1 rounded">
-                Extension Connected
+                🎤 Extension Active
               </span>
             )}
             {isStreaming && (
               <span className="bg-blue-800 text-blue-200 text-xs px-2 py-1 rounded animate-pulse">
-                Streaming Response
+                🧠 AI Responding
+              </span>
+            )}
+            {processingRef.current && (
+              <span className="bg-yellow-800 text-yellow-200 text-xs px-2 py-1 rounded animate-pulse">
+                🔄 Processing Question
               </span>
             )}
           </div>
@@ -582,11 +628,17 @@ const Interview = () => {
               <CardContent>
                 <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[80px] md:min-h-[100px]">
                   <p className="text-gray-400 text-xs md:text-sm mb-2">
-                    Audio from meeting:
+                    Last question from meeting:
                   </p>
                   <p className="text-white text-sm md:text-base leading-relaxed">
                     {currentTranscript || "Chrome extension will automatically capture and process meeting audio"}
                   </p>
+                  {processingRef.current && (
+                    <div className="flex items-center space-x-2 mt-2 text-yellow-400">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-400"></div>
+                      <span className="text-xs">Processing question...</span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -741,16 +793,17 @@ const Interview = () => {
                         <p className="font-medium mb-2">🚀 Enhanced AI Interview Assistant</p>
                         {extensionConnected ? (
                           <>
-                            <p>• Extension capturing meeting audio automatically</p>
-                            <p>• Real-time streaming responses</p>
+                            <p>• Extension capturing meeting audio automatically ✅</p>
+                            <p>• Real-time AI answer streaming ✅</p>
+                            <p>• Questions processed instantly ✅</p>
                           </>
                         ) : (
                           <>
                             <p>• Choose your input method above</p>
                             <p>• Get streaming AI responses</p>
+                            <p>• Install Chrome extension for automatic capture</p>
                           </>
                         )}
-                        <p>• Optimized for speed and accuracy</p>
                       </div>
                     </div>
                   ) : (
