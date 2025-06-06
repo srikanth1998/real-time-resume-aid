@@ -20,8 +20,11 @@ if (typeof window !== 'undefined') {
 export function checkExtensionAvailability(): boolean {
   console.log('=== Checking Extension Availability ===');
   
-  // Check if Chrome API is available
-  const chromeAvailable = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+  // Check if Chrome API is available with proper type checking
+  const chromeAvailable = typeof window !== 'undefined' && 
+    typeof (window as any).chrome !== 'undefined' && 
+    (window as any).chrome.runtime && 
+    (window as any).chrome.runtime.id;
   console.log('Chrome API available:', chromeAvailable);
   
   // Check if we've received any extension messages
@@ -88,6 +91,12 @@ export function initializeExtensionConnector(): () => void {
         capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
         timestamp: Date.now()
       }, '*');
+    }
+    
+    // Handle messages from our own app (allow them through)
+    if (event.data.action === 'interviewAppReady') {
+      console.log('✅ Interview app ready message (from our app)');
+      // Don't ignore this message even though source is undefined
     }
   };
 
