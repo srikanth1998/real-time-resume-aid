@@ -71,21 +71,12 @@ export const useInterviewSession = (sessionId: string | null) => {
       }
 
       try {
-        const { data: { session: authSession } } = await supabase.auth.getSession();
-        console.log('🔐 Auth session:', authSession?.user?.id ? 'Found' : 'Not found');
-        
-        if (!authSession) {
-          console.log('❌ No auth session, redirecting to auth');
-          navigate('/auth');
-          return;
-        }
-
+        // First, try to get the session data regardless of auth status
         console.log('📊 Fetching session data...');
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
-          .eq('user_id', authSession.user.id)
           .single();
 
         console.log('📊 Session data:', sessionData);
@@ -96,6 +87,29 @@ export const useInterviewSession = (sessionId: string | null) => {
           setSessionCheckFailed(true);
           setLoading(false);
           return;
+        }
+
+        // Check if this session requires authentication (has a user_id)
+        if (sessionData.user_id) {
+          console.log('🔐 Session requires authentication, checking auth status...');
+          const { data: { session: authSession } } = await supabase.auth.getSession();
+          console.log('🔐 Auth session:', authSession?.user?.id ? 'Found' : 'Not found');
+          
+          if (!authSession) {
+            console.log('❌ No auth session for authenticated session, redirecting to auth');
+            navigate('/auth');
+            return;
+          }
+
+          // Verify the authenticated user owns this session
+          if (authSession.user.id !== sessionData.user_id) {
+            console.log('❌ User does not own this session');
+            setSessionCheckFailed(true);
+            setLoading(false);
+            return;
+          }
+        } else {
+          console.log('✅ Session does not require authentication (single device mode)');
         }
 
         if (sessionData.status !== 'in_progress' && sessionData.status !== 'assets_received') {
