@@ -34,6 +34,8 @@ export const useCrossDeviceSync = (sessionId: string, deviceType: 'desktop' | 'm
     
     setLoading(true);
     try {
+      console.log('Registering device:', { sessionId, deviceType });
+      
       const { data, error } = await supabase.functions.invoke('cross-device-sync', {
         body: {
           sessionId,
@@ -43,6 +45,8 @@ export const useCrossDeviceSync = (sessionId: string, deviceType: 'desktop' | 'm
       });
 
       if (error) throw error;
+
+      console.log('Device registration response:', data);
 
       setState(prev => ({
         ...prev,

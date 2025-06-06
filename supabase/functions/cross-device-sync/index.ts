@@ -16,42 +16,25 @@ serve(async (req) => {
     const { sessionId, action, data, deviceType } = await req.json()
     console.log('Cross-device sync request:', { sessionId, action, deviceType })
 
-    // Initialize Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    )
-
-    // Get the auth header and extract the JWT token
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) {
-      throw new Error('No authorization header')
+    if (!sessionId) {
+      throw new Error('Session ID is required')
     }
 
-    // Get user from JWT token
-    const jwt = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt)
-    
-    if (userError || !user) {
-      throw new Error('User not authenticated')
-    }
-
-    // Use service role key for database operations
+    // Initialize Supabase client with service role for database operations
     const supabaseService = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Verify the session exists and belongs to the user
+    // Verify the session exists and is valid for cross-device mode
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .select('*')
       .eq('id', sessionId)
-      .eq('user_id', user.id)
       .single()
 
     if (sessionError || !session) {
-      throw new Error('Session not found or access denied')
+      throw new Error('Session not found or invalid')
     }
 
     // Verify session has cross-device mode enabled
@@ -59,10 +42,15 @@ serve(async (req) => {
       throw new Error('Session is not enabled for cross-device access')
     }
 
+    // Verify session is still active (not expired)
+    if (session.status === 'completed' || (session.expires_at && new Date(session.expires_at) < new Date())) {
+      throw new Error('Session has expired or been completed')
+    }
+
     switch (action) {
       case 'register_device':
         // Register a device connection for this session
-        const connectionId = `${user.id}_${deviceType}_${Date.now()}`
+        const connectionId = `${sessionId}_${deviceType}_${Date.now()}`
         
         const { error: connectionError } = await supabaseService
           .from('session_connections')
@@ -74,8 +62,11 @@ serve(async (req) => {
           })
 
         if (connectionError) {
+          console.error('Connection insert error:', connectionError)
           throw connectionError
         }
+
+        console.log('Device registered successfully:', connectionId)
 
         return new Response(
           JSON.stringify({ 
@@ -98,6 +89,7 @@ serve(async (req) => {
           .eq('connection_id', data.connectionId)
 
         if (pingError) {
+          console.error('Ping update error:', pingError)
           throw pingError
         }
 
@@ -121,6 +113,7 @@ serve(async (req) => {
           .gte('last_ping', new Date(Date.now() - 2 * 60 * 1000).toISOString()) // Active in last 2 minutes
 
         if (connectionsError) {
+          console.error('Get connections error:', connectionsError)
           throw connectionsError
         }
 
