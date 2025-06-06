@@ -82,33 +82,72 @@ const Interview = () => {
           return;
         }
 
-        if (sessionData.status !== 'in_progress') {
-          console.log('❌ Session not in progress, status:', sessionData.status);
+        // Accept both 'in_progress' and 'assets_received' sessions
+        if (sessionData.status !== 'in_progress' && sessionData.status !== 'assets_received') {
+          console.log('❌ Session not in valid status, status:', sessionData.status);
           navigate('/');
           return;
         }
 
-        // Check if session has expired
-        const now = new Date();
-        const expiresAt = new Date(sessionData.expires_at);
-        
-        if (now >= expiresAt) {
-          console.log('❌ Session expired');
-          await handleSessionExpired();
-          return;
-        }
+        // If session is 'assets_received', update it to 'in_progress'
+        if (sessionData.status === 'assets_received') {
+          console.log('🔄 Session has assets_received status, updating to in_progress...');
+          
+          const now = new Date();
+          const expiresAt = new Date(now.getTime() + sessionData.duration_minutes * 60 * 1000);
+          
+          const { data: updatedSession, error: updateError } = await supabase
+            .from('sessions')
+            .update({
+              status: 'in_progress',
+              started_at: now.toISOString(),
+              expires_at: expiresAt.toISOString(),
+              updated_at: now.toISOString()
+            })
+            .eq('id', sessionId)
+            .select()
+            .single();
 
-        console.log('✅ Session valid, setting up...');
-        setSession(sessionData);
-        
-        // Calculate time remaining
-        const timeLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
-        setTimeRemaining(timeLeft);
+          if (updateError) {
+            console.error('❌ Error updating session status:', updateError);
+            setSessionCheckFailed(true);
+            setLoading(false);
+            return;
+          }
+
+          console.log('✅ Session updated to in_progress:', updatedSession);
+          setSession(updatedSession);
+          
+          // Calculate time remaining based on updated expires_at
+          const timeLeft = Math.max(0, Math.floor((new Date(updatedSession.expires_at).getTime() - now.getTime()) / 1000));
+          setTimeRemaining(timeLeft);
+          
+          // Start timer with updated expires_at
+          startTimer(new Date(updatedSession.expires_at));
+        } else {
+          // Session is already 'in_progress'
+          // Check if session has expired
+          const now = new Date();
+          const expiresAt = new Date(sessionData.expires_at);
+          
+          if (now >= expiresAt) {
+            console.log('❌ Session expired');
+            await handleSessionExpired();
+            return;
+          }
+
+          console.log('✅ Session valid and in progress, setting up...');
+          setSession(sessionData);
+          
+          // Calculate time remaining
+          const timeLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
+          setTimeRemaining(timeLeft);
+          
+          // Start timer
+          startTimer(expiresAt);
+        }
         
         setLoading(false);
-        
-        // Start timer
-        startTimer(expiresAt);
         
         // Initialize speech recognition only if voice mode
         if (inputMode === 'voice') {
@@ -860,7 +899,7 @@ const Interview = () => {
                       <div key={index} className="border-b border-gray-700 pb-3 md:pb-4">
                         <div className="mb-2">
                           <p className="text-gray-400 text-xs md:text-sm">Question:</p>
-                          <p className="text-white text-sm md:text-base">{entry.question}</p>
+                          <p className="text-white text-sm">{entry.question}</p>
                         </div>
                         <div className="mb-2">
                           <p className="text-gray-400 text-xs md:text-sm">AI Answer:</p>
