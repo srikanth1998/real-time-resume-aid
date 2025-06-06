@@ -28,7 +28,6 @@
     "https://youtube.com/*",
     "https://*.lovableproject.com/*",
     "https://*.lovable.app/*",
-    "https://preview--*.lovable.app/*",
     "http://localhost:*/*",
     "https://*.supabase.co/*"
   ],
@@ -44,7 +43,6 @@
         "https://youtube.com/*",
         "https://*.lovableproject.com/*",
         "https://*.lovable.app/*",
-        "https://preview--*.lovable.app/*",
         "http://localhost:*/*"
       ],
       "js": ["content.js"]
