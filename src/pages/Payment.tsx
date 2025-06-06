@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -69,8 +70,11 @@ const Payment = () => {
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
           planType,
-          email,
-          deviceMode, // Include device mode in checkout
+          userEmail: email, // Changed from 'email' to 'userEmail'
+          deviceMode,
+          priceAmount: Math.round(planConfig.price * 100), // Convert to cents
+          planName: `${planType.charAt(0).toUpperCase() + planType.slice(1)}`, // Capitalize plan name
+          duration: `${planConfig.duration} minutes`, // Add duration string
           successUrl: `${window.location.origin}/payment-success`,
           cancelUrl: `${window.location.origin}/payment?plan=${planType}`
         }
