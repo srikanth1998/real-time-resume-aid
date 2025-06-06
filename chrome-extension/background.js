@@ -23,9 +23,12 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
-// Auto-start transcription when on lovableproject.com
+// Auto-start transcription when on lovableproject.com OR preview domains
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url && tab.url.includes('lovableproject.com')) {
+  if (changeInfo.status === 'complete' && tab.url && 
+      (tab.url.includes('lovableproject.com') || 
+       tab.url.includes('lovable.app') || 
+       tab.url.includes('real-time-resume-aid'))) {
     console.log('🎯 DETECTED LOVABLE PROJECT PAGE');
     console.log('Tab ID:', tabId, 'URL:', tab.url);
     
@@ -316,7 +319,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         
         // Try to find and update the current tab if message failed
         try {
-          const tabs = await chrome.tabs.query({ url: '*://*.lovableproject.com/*' });
+          const tabs = await chrome.tabs.query({ 
+            url: ['*://*.lovableproject.com/*', '*://*.lovable.app/*', '*://preview--real-time-resume-aid.lovable.app/*'] 
+          });
           if (tabs.length > 0) {
             const tab = tabs[0];
             console.log('🔄 Found Lovable tab, updating currentTabId to:', tab.id);
@@ -344,7 +349,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       console.warn('⚠️ No current tab ID, attempting to find Lovable tab...');
       
       try {
-        const tabs = await chrome.tabs.query({ url: '*://*.lovableproject.com/*' });
+        const tabs = await chrome.tabs.query({ 
+          url: ['*://*.lovableproject.com/*', '*://*.lovable.app/*', '*://preview--real-time-resume-aid.lovable.app/*'] 
+        });
         if (tabs.length > 0) {
           const tab = tabs[0];
           console.log('🔍 Found Lovable tab:', tab.id);
