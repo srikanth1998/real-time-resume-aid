@@ -1,13 +1,21 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+import { useState, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Brain, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Brain, Mic, MicOff, Copy, RotateCcw, Clock, AlertTriangle, Menu, Type, Volume2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { checkExtensionAvailability, initializeExtensionConnector } from "@/utils/extensionConnector";
+import { useInterviewSession } from "@/hooks/useInterviewSession";
+import { useExtensionConnector } from "@/hooks/useExtensionConnector";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { InterviewHeader } from "@/components/interview/InterviewHeader";
+import { InputModeSelector } from "@/components/interview/InputModeSelector";
+import { ExtensionModeUI } from "@/components/interview/ExtensionModeUI";
+import { VoiceModeUI } from "@/components/interview/VoiceModeUI";
+import { TextModeUI } from "@/components/interview/TextModeUI";
+import { AnswerDisplay } from "@/components/interview/AnswerDisplay";
+import { ConversationHistory } from "@/components/interview/ConversationHistory";
 
 const Interview = () => {
   const [searchParams] = useSearchParams();
@@ -16,447 +24,23 @@ const Interview = () => {
   const isMobile = useIsMobile();
   
   const sessionId = searchParams.get('session_id');
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [sessionCheckFailed, setSessionCheckFailed] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [currentTranscript, setCurrentTranscript] = useState("");
+  const { session, loading, sessionCheckFailed, timeRemaining } = useInterviewSession(sessionId);
+  
   const [currentAnswer, setCurrentAnswer] = useState("");
-  const [timeRemaining, setTimeRemaining] = useState(0);
   const [isGeneratingAnswer, setIsGeneratingAnswer] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{question: string, answer: string, timestamp: string}>>([]);
   const [showHistory, setShowHistory] = useState(!isMobile);
   const [inputMode, setInputMode] = useState<'voice' | 'text' | 'extension'>('extension');
   const [manualQuestion, setManualQuestion] = useState("");
-  const [extensionConnected, setExtensionConnected] = useState(false);
-  const [extensionStatus, setExtensionStatus] = useState("Connecting...");
   const [isStreaming, setIsStreaming] = useState(false);
 
-  const recognitionRef = useRef<any>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTranscriptRef = useRef("");
-  const processingRef = useRef(false);
   const streamingAnswerRef = useRef("");
 
   // Supabase configuration constants
   const SUPABASE_URL = "https://jafylkqbmvdptrqwwyed.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY";
 
-  useEffect(() => {
-    const checkSession = async () => {
-      console.log('🔍 Checking session with ID:', sessionId);
-      
-      if (!sessionId) {
-        console.log('❌ No session ID provided');
-        setSessionCheckFailed(true);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const { data: { session: authSession } } = await supabase.auth.getSession();
-        console.log('🔐 Auth session:', authSession?.user?.id ? 'Found' : 'Not found');
-        
-        if (!authSession) {
-          console.log('❌ No auth session, redirecting to auth');
-          navigate('/auth');
-          return;
-        }
-
-        // Fetch session details
-        console.log('📊 Fetching session data...');
-        const { data: sessionData, error } = await supabase
-          .from('sessions')
-          .select('*')
-          .eq('id', sessionId)
-          .eq('user_id', authSession.user.id)
-          .single();
-
-        console.log('📊 Session data:', sessionData);
-        console.log('📊 Session error:', error);
-
-        if (error || !sessionData) {
-          console.log('❌ Session not found or error:', error);
-          setSessionCheckFailed(true);
-          setLoading(false);
-          return;
-        }
-
-        // Accept both 'in_progress' and 'assets_received' sessions
-        if (sessionData.status !== 'in_progress' && sessionData.status !== 'assets_received') {
-          console.log('❌ Session not in valid status, status:', sessionData.status);
-          navigate('/');
-          return;
-        }
-
-        // If session is 'assets_received', update it to 'in_progress'
-        if (sessionData.status === 'assets_received') {
-          console.log('🔄 Session has assets_received status, updating to in_progress...');
-          
-          const now = new Date();
-          const expiresAt = new Date(now.getTime() + sessionData.duration_minutes * 60 * 1000);
-          
-          const { data: updatedSession, error: updateError } = await supabase
-            .from('sessions')
-            .update({
-              status: 'in_progress',
-              started_at: now.toISOString(),
-              expires_at: expiresAt.toISOString(),
-              updated_at: now.toISOString()
-            })
-            .eq('id', sessionId)
-            .select()
-            .single();
-
-          if (updateError) {
-            console.error('❌ Error updating session status:', updateError);
-            setSessionCheckFailed(true);
-            setLoading(false);
-            return;
-          }
-
-          console.log('✅ Session updated to in_progress:', updatedSession);
-          setSession(updatedSession);
-          
-          // Calculate time remaining based on updated expires_at
-          const timeLeft = Math.max(0, Math.floor((new Date(updatedSession.expires_at).getTime() - now.getTime()) / 1000));
-          setTimeRemaining(timeLeft);
-          
-          // Start timer with updated expires_at
-          startTimer(new Date(updatedSession.expires_at));
-        } else {
-          // Session is already 'in_progress'
-          // Check if session has expired
-          const now = new Date();
-          const expiresAt = new Date(sessionData.expires_at);
-          
-          if (now >= expiresAt) {
-            console.log('❌ Session expired');
-            await handleSessionExpired();
-            return;
-          }
-
-          console.log('✅ Session valid and in progress, setting up...');
-          setSession(sessionData);
-          
-          // Calculate time remaining
-          const timeLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
-          setTimeRemaining(timeLeft);
-          
-          // Start timer
-          startTimer(expiresAt);
-        }
-        
-        setLoading(false);
-        
-        // Initialize speech recognition only if voice mode
-        if (inputMode === 'voice') {
-          initializeSpeechRecognition();
-        }
-        
-      } catch (error) {
-        console.error('❌ Error checking session:', error);
-        setSessionCheckFailed(true);
-        setLoading(false);
-      }
-    };
-
-    checkSession();
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
-  }, [sessionId, navigate, inputMode]);
-
-  // Enhanced Extension initialization effect
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-
-    const initExtension = async () => {
-      console.log('🚀 [INTERVIEW] Initializing extension connector...');
-      setExtensionStatus("Connecting...");
-      
-      cleanup = initializeExtensionConnector();
-      
-      // 1. Listen for extension ready events
-      const handleExtensionReady = (event: CustomEvent) => {
-        console.log('✅ [INTERVIEW] Extension ready event received:', event.detail);
-        setExtensionConnected(true);
-        setExtensionStatus("Listening for questions");
-        (window as any).__extensionReady = true;
-        
-        toast({
-          title: "🎤 Extension Connected",
-          description: "Chrome extension is now capturing meeting audio automatically",
-        });
-      };
-
-      // 2. Listen for transcription events from extension - THIS IS KEY
-      const handleExtensionTranscription = (event: CustomEvent) => {
-        console.log('📥 [INTERVIEW] TRANSCRIPTION RECEIVED FROM EXTENSION:', event.detail);
-        
-        if (event.detail?.text && event.detail.text.trim()) {
-          console.log('🔄 [INTERVIEW] Processing transcription:', event.detail.text);
-          handleExtensionTranscriptionData(event.detail.text, event.detail.timestamp);
-        } else {
-          console.warn('⚠️ [INTERVIEW] Empty or invalid transcription received');
-        }
-      };
-
-      // 3. Also listen for window messages (backup method)
-      const handleWindowMessage = (event: MessageEvent) => {
-        console.log('📨 [INTERVIEW] Window message received:', event.data);
-        
-        if (event.source !== window) {
-          console.log('❌ [INTERVIEW] Message not from same window, ignoring');
-          return;
-        }
-        
-        if (event.data.action === 'extensionReady' && event.data.source === 'interviewace-extension') {
-          console.log('✅ [INTERVIEW] Extension ready via window message');
-          setExtensionConnected(true);
-          setExtensionStatus("Listening for questions");
-          
-          toast({
-            title: "🎤 Extension Connected",
-            description: "Chrome extension is now capturing meeting audio automatically",
-          });
-        }
-        
-        if (event.data.action === 'processTranscription' && event.data.source === 'interviewace-extension' && event.data.text) {
-          console.log('📝 [INTERVIEW] Processing transcription via window message:', event.data.text);
-          handleExtensionTranscriptionData(event.data.text, event.data.timestamp);
-        }
-      };
-
-      window.addEventListener('extensionReady', handleExtensionReady as EventListener);
-      window.addEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
-      window.addEventListener('message', handleWindowMessage);
-
-      // Check if extension is already available
-      const isAvailable = checkExtensionAvailability();
-      if (isAvailable) {
-        setExtensionConnected(true);
-        setExtensionStatus("Listening for questions");
-      }
-
-      // Send ready message to extension
-      console.log('📢 [INTERVIEW] Sending interviewAppReady message');
-      window.postMessage({
-        action: 'interviewAppReady',
-        timestamp: Date.now()
-      }, '*');
-
-      return () => {
-        window.removeEventListener('extensionReady', handleExtensionReady as EventListener);
-        window.removeEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
-        window.removeEventListener('message', handleWindowMessage);
-        if (cleanup) cleanup();
-      };
-    };
-
-    const cleanupPromise = initExtension();
-    
-    return () => {
-      cleanupPromise.then(cleanupFn => {
-        if (cleanupFn) cleanupFn();
-      });
-    };
-  }, [toast]);
-
-  const initializeSpeechRecognition = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast({
-        title: "Speech recognition not supported",
-        description: "Your browser doesn't support speech recognition. Please use text input instead.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    recognitionRef.current = new SpeechRecognition();
-    
-    recognitionRef.current.continuous = true;
-    recognitionRef.current.interimResults = true;
-    recognitionRef.current.lang = 'en-US';
-
-    recognitionRef.current.onresult = (event: any) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
-        }
-      }
-
-      const fullTranscript = finalTranscript || interimTranscript;
-      setCurrentTranscript(fullTranscript);
-
-      if (finalTranscript && finalTranscript !== lastTranscriptRef.current) {
-        lastTranscriptRef.current = finalTranscript;
-        console.log('🎯 Final transcript received:', finalTranscript);
-        generateStreamingAnswer(finalTranscript);
-      }
-    };
-
-    recognitionRef.current.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      toast({
-        title: "Speech recognition error",
-        description: `Error: ${event.error}`,
-        variant: "destructive"
-      });
-    };
-  };
-
-  const toggleListening = () => {
-    if (!recognitionRef.current) {
-      initializeSpeechRecognition();
-      if (!recognitionRef.current) return;
-    }
-
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      setCurrentTranscript("");
-      lastTranscriptRef.current = "";
-      recognitionRef.current.start();
-      setIsListening(true);
-    }
-  };
-
-  const checkAndInitializeExtension = () => {
-    const checks = [0, 500, 1000, 2000, 3000];
-    
-    checks.forEach(delay => {
-      setTimeout(() => {
-        const isConnected = checkExtensionAvailability();
-        
-        if (isConnected && !extensionConnected) {
-          setExtensionConnected(true);
-          setExtensionStatus("Listening for questions");
-          if (inputMode === 'voice') {
-            setInputMode('extension');
-          }
-        }
-      }, delay);
-    });
-  };
-
-  // KEY FUNCTION: Handle transcription data from extension
-  const handleExtensionTranscriptionData = async (transcriptionText: string, timestamp?: number) => {
-    console.log('🎯 [INTERVIEW] PROCESSING TRANSCRIPTION FROM EXTENSION:', transcriptionText);
-    
-    if (processingRef.current) {
-      console.log('⚠️ [INTERVIEW] Already processing, skipping...');
-      return;
-    }
-    
-    if (!transcriptionText || transcriptionText.trim().length < 3) {
-      console.log('⚠️ [INTERVIEW] Transcription too short, skipping:', transcriptionText);
-      return;
-    }
-    
-    processingRef.current = true;
-    setExtensionStatus("Processing question...");
-    
-    try {
-      // Update UI with the question
-      setCurrentTranscript(transcriptionText);
-      
-      toast({
-        title: "🎤 Question Detected",
-        description: `Processing: "${transcriptionText.substring(0, 50)}..."`,
-      });
-      
-      // Send to AI for answer generation
-      await generateStreamingAnswer(transcriptionText);
-      
-      setExtensionStatus("Listening for questions");
-    } catch (error) {
-      console.error('❌ [INTERVIEW] Error processing extension transcription:', error);
-      setExtensionStatus("Error - Please try again");
-      
-      toast({
-        title: "Error processing question",
-        description: "There was an error generating an answer. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      processingRef.current = false;
-    }
-  };
-
-  const startTimer = (expiresAt: Date) => {
-    timerRef.current = setInterval(() => {
-      const now = new Date();
-      const timeLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
-      setTimeRemaining(timeLeft);
-      
-      if (timeLeft <= 0) {
-        handleSessionExpired();
-      } else if (timeLeft === 300) {
-        toast({
-          title: "5 minutes remaining",
-          description: "Your session will end in 5 minutes.",
-          variant: "destructive"
-        });
-      } else if (timeLeft === 60) {
-        toast({
-          title: "1 minute remaining",
-          description: "Your session will end in 1 minute.",
-          variant: "destructive"
-        });
-      }
-    }, 1000);
-  };
-
-  const handleSessionExpired = async () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-
-    await supabase
-      .from('sessions')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', sessionId);
-
-    toast({
-      title: "Session completed",
-      description: "Your interview session has ended.",
-    });
-
-    navigate(`/complete?session_id=${sessionId}`);
-  };
-
-  const handleManualSubmit = () => {
-    if (!manualQuestion.trim()) return;
-    
-    setCurrentTranscript(manualQuestion);
-    generateStreamingAnswer(manualQuestion);
-    setManualQuestion("");
-  };
-
-  // KEY FUNCTION: Generate streaming answer from AI
+  // Generate streaming answer from AI
   const generateStreamingAnswer = async (question: string) => {
     if (isGeneratingAnswer || !question.trim()) return;
     
@@ -506,7 +90,6 @@ const Interview = () => {
                     streamingAnswerRef.current += parsed.content;
                     setCurrentAnswer(streamingAnswerRef.current);
                   } else if (parsed.type === 'done') {
-                    // Final answer received
                     const finalAnswer = parsed.fullAnswer || streamingAnswerRef.current;
                     setCurrentAnswer(finalAnswer);
                     
@@ -560,8 +143,30 @@ const Interview = () => {
     } finally {
       setIsGeneratingAnswer(false);
       setIsStreaming(false);
-      processingRef.current = false;
     }
+  };
+
+  // Handle transcription from extension
+  const handleExtensionTranscription = (text: string, timestamp?: number) => {
+    speechRecognition.setCurrentTranscript(text);
+    generateStreamingAnswer(text);
+  };
+
+  // Handle transcription from speech recognition
+  const handleSpeechTranscription = (text: string) => {
+    generateStreamingAnswer(text);
+  };
+
+  // Initialize hooks
+  const { extensionConnected, extensionStatus, processingRef } = useExtensionConnector(handleExtensionTranscription);
+  const speechRecognition = useSpeechRecognition(handleSpeechTranscription);
+
+  const handleManualSubmit = () => {
+    if (!manualQuestion.trim()) return;
+    
+    speechRecognition.setCurrentTranscript(manualQuestion);
+    generateStreamingAnswer(manualQuestion);
+    setManualQuestion("");
   };
 
   const copyToClipboard = (text: string) => {
@@ -570,12 +175,6 @@ const Interview = () => {
       title: "Copied to clipboard",
       description: "Answer copied successfully.",
     });
-  };
-
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -605,315 +204,73 @@ const Interview = () => {
     );
   }
 
-  const isLowTime = timeRemaining <= 300;
-
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header with Timer */}
-      <div className="border-b border-gray-800 p-3 md:p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Brain className="h-5 w-5 md:h-6 md:w-6 text-blue-400" />
-            <span className="font-semibold text-sm md:text-base">InterviewAce</span>
-            {extensionConnected && (
-              <span className="bg-green-800 text-green-200 text-xs px-2 py-1 rounded">
-                🎤 Extension Active
-              </span>
-            )}
-            {isStreaming && (
-              <span className="bg-blue-800 text-blue-200 text-xs px-2 py-1 rounded animate-pulse">
-                🧠 AI Responding
-              </span>
-            )}
-            {processingRef.current && (
-              <span className="bg-yellow-800 text-yellow-200 text-xs px-2 py-1 rounded animate-pulse">
-                🔄 Processing Question
-              </span>
-            )}
-          </div>
-          
-          {isMobile && (
-            <Button
-              onClick={() => setShowHistory(!showHistory)}
-              variant="ghost"
-              size="sm"
-              className="p-2"
-            >
-              <Menu className="h-4 w-4" />
-            </Button>
-          )}
-          
-          <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm md:text-base ${isLowTime ? 'bg-red-900 text-red-200' : 'bg-gray-800'}`}>
-            <Clock className="h-3 w-3 md:h-4 md:w-4" />
-            <span className="font-mono">{formatTime(timeRemaining)}</span>
-            {isLowTime && <AlertTriangle className="h-3 w-3 md:h-4 md:w-4 text-red-400" />}
-          </div>
-        </div>
-      </div>
+      <InterviewHeader
+        extensionConnected={extensionConnected}
+        isStreaming={isStreaming}
+        processingRef={processingRef}
+        timeRemaining={timeRemaining}
+        isMobile={isMobile}
+        showHistory={showHistory}
+        onToggleHistory={() => setShowHistory(!showHistory)}
+      />
 
       <div className={`max-w-7xl mx-auto p-3 md:p-4 ${isMobile ? 'space-y-4' : 'grid lg:grid-cols-2 gap-6'} ${isMobile ? 'h-auto' : 'h-[calc(100vh-80px)]'}`}>
         {/* Main Panel */}
         <div className="space-y-4 md:space-y-6">
-          {/* Input Mode Selection */}
-          <Card className="bg-gray-800 border-gray-700">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-white text-base md:text-lg">
-                Question Input Method
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  onClick={() => setInputMode('extension')}
-                  variant={inputMode === 'extension' ? "default" : "outline"}
-                  size="sm"
-                  className="flex flex-col items-center space-y-1 h-auto py-3"
-                  disabled={!extensionConnected}
-                >
-                  <Volume2 className="h-4 w-4" />
-                  <span className="text-xs">Extension</span>
-                </Button>
-                <Button
-                  onClick={() => setInputMode('voice')}
-                  variant={inputMode === 'voice' ? "default" : "outline"}
-                  size="sm"
-                  className="flex flex-col items-center space-y-1 h-auto py-3"
-                >
-                  <Mic className="h-4 w-4" />
-                  <span className="text-xs">Voice</span>
-                </Button>
-                <Button
-                  onClick={() => setInputMode('text')}
-                  variant={inputMode === 'text' ? "default" : "outline"}
-                  size="sm"
-                  className="flex flex-col items-center space-y-1 h-auto py-3"
-                >
-                  <Type className="h-4 w-4" />
-                  <span className="text-xs">Text</span>
-                </Button>
-              </div>
-              
-              {!extensionConnected && (
-                <div className="mt-3 text-xs text-yellow-400 bg-yellow-900/20 p-2 rounded">
-                  💡 Install the InterviewAce Chrome Extension for automatic meeting audio capture
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <InputModeSelector
+            inputMode={inputMode}
+            extensionConnected={extensionConnected}
+            onModeChange={setInputMode}
+          />
 
-          {/* Extension Mode UI */}
           {inputMode === 'extension' && (
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
-                  <span>Meeting Audio Capture</span>
-                  <div className="flex items-center space-x-2 text-green-400">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-xs">{extensionStatus}</span>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[80px] md:min-h-[100px]">
-                  <p className="text-gray-400 text-xs md:text-sm mb-2">
-                    Last question from meeting:
-                  </p>
-                  <p className="text-white text-sm md:text-base leading-relaxed">
-                    {currentTranscript || "Chrome extension will automatically capture and process meeting audio"}
-                  </p>
-                  {processingRef.current && (
-                    <div className="flex items-center space-x-2 mt-2 text-yellow-400">
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-400"></div>
-                      <span className="text-xs">Processing question...</span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <ExtensionModeUI
+              extensionStatus={extensionStatus}
+              currentTranscript={speechRecognition.currentTranscript}
+              processingRef={processingRef}
+            />
           )}
 
-          {/* Voice Mode UI */}
           {inputMode === 'voice' && (
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
-                  <span>Voice Recognition</span>
-                  <Button
-                    onClick={toggleListening}
-                    variant={isListening ? "destructive" : "default"}
-                    size={isMobile ? "sm" : "lg"}
-                    className="flex items-center space-x-2"
-                  >
-                    {isListening ? <MicOff className="h-4 w-4 md:h-5 md:w-5" /> : <Mic className="h-4 w-4 md:h-5 md:w-5" />}
-                    <span className="text-xs md:text-sm">{isListening ? "Stop" : "Start"}</span>
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[80px] md:min-h-[100px]">
-                  <p className="text-gray-400 text-xs md:text-sm mb-2">
-                    Current transcript:
-                  </p>
-                  <p className="text-white text-sm md:text-base leading-relaxed">
-                    {currentTranscript || (isListening 
-                      ? "Listening for interviewer question..." 
-                      : "Tap 'Start' to begin listening for questions"
-                    )}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <VoiceModeUI
+              isListening={speechRecognition.isListening}
+              currentTranscript={speechRecognition.currentTranscript}
+              isMobile={isMobile}
+              onToggleListening={speechRecognition.toggleListening}
+            />
           )}
 
-          {/* Text Mode UI */}
           {inputMode === 'text' && (
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-white text-base md:text-lg">
-                  Text Input
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex space-x-2">
-                    <Input
-                      value={manualQuestion}
-                      onChange={(e) => setManualQuestion(e.target.value)}
-                      placeholder="Type the interviewer's question here..."
-                      className="bg-gray-900 border-gray-600 text-white"
-                      onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
-                    />
-                    <Button
-                      onClick={handleManualSubmit}
-                      disabled={!manualQuestion.trim() || isGeneratingAnswer}
-                      size="sm"
-                    >
-                      Submit
-                    </Button>
-                  </div>
-                  {currentTranscript && (
-                    <div className="bg-gray-900 p-3 rounded-lg">
-                      <p className="text-gray-400 text-xs mb-1">Last question:</p>
-                      <p className="text-white text-sm">{currentTranscript}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <TextModeUI
+              manualQuestion={manualQuestion}
+              currentTranscript={speechRecognition.currentTranscript}
+              isGeneratingAnswer={isGeneratingAnswer}
+              onQuestionChange={setManualQuestion}
+              onSubmit={handleManualSubmit}
+            />
           )}
 
-          {/* Current Answer */}
-          <Card className="bg-gray-800 border-gray-700">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
-                <span>AI-Generated Answer {isStreaming && <span className="text-blue-400">(Streaming...)</span>}</span>
-                <div className="flex space-x-1 md:space-x-2">
-                  <Button
-                    onClick={() => copyToClipboard(currentAnswer)}
-                    variant="outline"
-                    size="sm"
-                    disabled={!currentAnswer || isGeneratingAnswer}
-                    className="p-2"
-                  >
-                    <Copy className="h-3 w-3 md:h-4 md:w-4" />
-                  </Button>
-                  <Button
-                    onClick={() => generateStreamingAnswer(currentTranscript)}
-                    variant="outline"
-                    size="sm"
-                    disabled={!currentTranscript || isGeneratingAnswer}
-                    className="p-2"
-                  >
-                    <RotateCcw className="h-3 w-3 md:h-4 md:w-4" />
-                  </Button>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[120px] md:min-h-[200px] max-h-60 md:max-h-none overflow-y-auto">
-                <p className="text-white leading-relaxed text-sm md:text-base">
-                  {currentAnswer || "Ask a question to get an AI-generated response tailored to your resume and job description."}
-                </p>
-                {isGeneratingAnswer && !isStreaming && (
-                  <div className="flex items-center space-x-2 mt-4 text-blue-400">
-                    <div className="animate-spin rounded-full h-3 w-3 md:h-4 md:w-4 border-b-2 border-blue-400"></div>
-                    <span className="text-xs md:text-sm">Analyzing documents and generating personalized answer...</span>
-                  </div>
-                )}
-                {isStreaming && (
-                  <div className="flex items-center space-x-2 mt-4 text-green-400">
-                    <div className="animate-pulse rounded-full h-3 w-3 md:h-4 md:w-4 bg-green-400"></div>
-                    <span className="text-xs md:text-sm">Streaming response in real-time...</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <AnswerDisplay
+            currentAnswer={currentAnswer}
+            isStreaming={isStreaming}
+            isGeneratingAnswer={isGeneratingAnswer}
+            currentTranscript={speechRecognition.currentTranscript}
+            onCopy={() => copyToClipboard(currentAnswer)}
+            onRegenerate={() => generateStreamingAnswer(speechRecognition.currentTranscript)}
+          />
         </div>
 
         {/* History Panel */}
         {(!isMobile || showHistory) && (
           <div className={isMobile ? 'mt-4' : ''}>
-            <Card className="bg-gray-800 border-gray-700 h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-white text-base md:text-lg flex items-center justify-between">
-                  <span>Conversation History</span>
-                  {isMobile && (
-                    <Button
-                      onClick={() => setShowHistory(false)}
-                      variant="ghost"
-                      size="sm"
-                      className="p-2"
-                    >
-                      ✕
-                    </Button>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className={`${isMobile ? 'max-h-96' : 'h-[calc(100%-80px)]'} overflow-y-auto`}>
-                <div className="space-y-3 md:space-y-4">
-                  {conversationHistory.length === 0 ? (
-                    <div className="text-center py-6 md:py-8">
-                      <p className="text-gray-400 mb-4 text-sm md:text-base">
-                        Your conversation history will appear here as you ask questions.
-                      </p>
-                      <div className="text-xs md:text-sm text-blue-400 bg-blue-900/20 p-3 md:p-4 rounded-lg">
-                        <p className="font-medium mb-2">🚀 Enhanced AI Interview Assistant</p>
-                        {extensionConnected ? (
-                          <>
-                            <p>• Extension capturing meeting audio automatically ✅</p>
-                            <p>• Real-time AI answer streaming ✅</p>
-                            <p>• Questions processed instantly ✅</p>
-                          </>
-                        ) : (
-                          <>
-                            <p>• Choose your input method above</p>
-                            <p>• Get streaming AI responses</p>
-                            <p>• Install Chrome extension for automatic capture</p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    conversationHistory.map((entry, index) => (
-                      <div key={index} className="border-b border-gray-700 pb-3 md:pb-4">
-                        <div className="mb-2">
-                          <p className="text-gray-400 text-xs md:text-sm">Question:</p>
-                          <p className="text-white text-sm">{entry.question}</p>
-                        </div>
-                        <div className="mb-2">
-                          <p className="text-gray-400 text-xs md:text-sm">AI Answer:</p>
-                          <p className="text-gray-200 text-xs md:text-sm leading-relaxed">{entry.answer}</p>
-                        </div>
-                        <p className="text-gray-500 text-xs">
-                          {new Date(entry.timestamp).toLocaleTimeString()}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <ConversationHistory
+              conversationHistory={conversationHistory}
+              extensionConnected={extensionConnected}
+              isMobile={isMobile}
+              onClose={isMobile ? () => setShowHistory(false) : undefined}
+            />
           </div>
         )}
       </div>
