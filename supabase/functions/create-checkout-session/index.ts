@@ -49,13 +49,30 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Map plan types to valid enum values
+    const planTypeMapping = {
+      'basic': 'basic',
+      'pro': 'pro'
+    }
+
+    // Map plan types to duration minutes
+    const durationMapping = {
+      'basic': 15,
+      'pro': 30
+    }
+
+    const validPlanType = planTypeMapping[planType as keyof typeof planTypeMapping] || 'basic'
+    const durationMinutes = durationMapping[planType as keyof typeof durationMapping] || 15
+
+    console.log('Using plan type:', validPlanType, 'with duration:', durationMinutes)
+
     // Create a new session record for tracking
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .insert({
         user_id: userId,
-        plan_type: planType,
-        duration_minutes: planType === 'basic' ? 30 : planType === 'pro' ? 120 : planType === 'standard' ? 60 : planType === 'elite' ? 180 : 60,
+        plan_type: validPlanType,
+        duration_minutes: durationMinutes,
         price_cents: priceAmount,
         device_mode: deviceMode,
         status: 'pending_payment',
@@ -104,7 +121,7 @@ serve(async (req) => {
       cancel_url: `${req.headers.get('origin')}/payment?cancelled=true`,
       metadata: {
         session_id: session.id,
-        plan_type: planType,
+        plan_type: validPlanType,
         device_mode: deviceMode,
         user_email: userEmail,
       },
