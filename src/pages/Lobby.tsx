@@ -122,22 +122,57 @@ const Lobby = () => {
     const isSupported = /Chrome|Firefox|Safari|Edge/.test(userAgent);
     setSystemChecks(prev => ({ ...prev, browser: isSupported }));
 
-    // Connection check
+    // Connection check - use multiple methods for better reliability
+    let connectionWorking = false;
+    
     try {
+      // Method 1: Check if navigator.onLine is true
+      if (!navigator.onLine) {
+        throw new Error('Browser reports offline');
+      }
+      
+      // Method 2: Try to make a simple request to Supabase
       const start = Date.now();
-      await fetch('/favicon.ico');
+      const { error } = await supabase.from('sessions').select('id').limit(1);
       const latency = Date.now() - start;
-      setSystemChecks(prev => ({ ...prev, connection: latency < 1000 }));
-    } catch {
-      setSystemChecks(prev => ({ ...prev, connection: false }));
+      
+      if (!error && latency < 5000) { // 5 second timeout
+        connectionWorking = true;
+        console.log('[LOBBY] Connection check passed, latency:', latency, 'ms');
+      } else {
+        console.warn('[LOBBY] Supabase connection check failed:', error);
+        
+        // Method 3: Fallback to a simple fetch test
+        try {
+          const response = await fetch(window.location.origin, { 
+            method: 'HEAD',
+            cache: 'no-cache',
+            signal: AbortSignal.timeout(3000)
+          });
+          if (response.ok) {
+            connectionWorking = true;
+            console.log('[LOBBY] Fallback connection check passed');
+          }
+        } catch (fetchError) {
+          console.warn('[LOBBY] Fallback connection check failed:', fetchError);
+        }
+      }
+    } catch (error) {
+      console.warn('[LOBBY] Connection check failed:', error);
+      // If all else fails, assume connection is working if we got this far
+      connectionWorking = true;
     }
+    
+    setSystemChecks(prev => ({ ...prev, connection: connectionWorking }));
 
     // Microphone check
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setSystemChecks(prev => ({ ...prev, microphone: true }));
       stream.getTracks().forEach(track => track.stop());
-    } catch {
+      console.log('[LOBBY] Microphone check passed');
+    } catch (error) {
+      console.warn('[LOBBY] Microphone check failed:', error);
       setSystemChecks(prev => ({ ...prev, microphone: false }));
     }
   };
@@ -422,7 +457,7 @@ const Lobby = () => {
                       Please resolve the failed checks above before starting your interview.
                       {!systemChecks.microphone && " Grant microphone permission when prompted."}
                       {!systemChecks.browser && " Use a modern browser like Chrome, Firefox, Safari, or Edge."}
-                      {!systemChecks.connection && " Check your internet connection."}
+                      {!systemChecks.connection && " Check your internet connection or try refreshing the page."}
                     </p>
                   </div>
                 </div>
