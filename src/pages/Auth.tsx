@@ -26,7 +26,10 @@ const Auth = () => {
   const location = useLocation();
   const { toast } = useToast();
   
-  const selectedPlan = location.state?.selectedPlan;
+  // Get plan and device mode from URL params
+  const searchParams = new URLSearchParams(location.search);
+  const selectedPlan = searchParams.get('plan') || 'basic';
+  const deviceMode = searchParams.get('device') || 'single';
 
   // Countdown timer for OTP expiry
   useEffect(() => {
@@ -163,12 +166,7 @@ const Auth = () => {
 
       // Redirect to payment with verified email and plan data
       setTimeout(() => {
-        navigate('/payment', { 
-          state: { 
-            plan: selectedPlan,
-            verifiedEmail: email
-          } 
-        });
+        navigate(`/payment?plan=${selectedPlan}&device=${deviceMode}&email=${encodeURIComponent(email)}`);
       }, 1500);
 
     } catch (error: any) {
@@ -366,24 +364,19 @@ const Auth = () => {
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Verify Your Email</CardTitle>
             <CardDescription>
-              {selectedPlan 
-                ? `Complete email verification for your ${selectedPlan.name} plan`
-                : "Enter your email to get started"
-              }
+              Complete email verification for your {selectedPlan} plan ({deviceMode} device)
             </CardDescription>
           </CardHeader>
           
           <CardContent>
-            {selectedPlan && (
-              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-medium text-blue-900">{selectedPlan.name} Plan</p>
-                    <p className="text-sm text-blue-700">{selectedPlan.duration} • {selectedPlan.price}</p>
-                  </div>
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium text-blue-900">{selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)} Plan</p>
+                  <p className="text-sm text-blue-700">{deviceMode === 'single' ? 'Single Device' : 'Cross-Device'}</p>
                 </div>
               </div>
-            )}
+            </div>
 
             <form onSubmit={handleSendOtp} className="space-y-4">
               <div className="space-y-2">

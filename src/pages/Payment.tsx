@@ -17,8 +17,11 @@ const Payment = () => {
   const { toast } = useToast();
   
   const planType = (searchParams.get('plan') as 'basic' | 'pro') || 'basic';
-  const [email, setEmail] = useState('');
-  const [deviceMode, setDeviceMode] = useState<'single' | 'cross'>('single');
+  const verifiedEmail = searchParams.get('email') || '';
+  const initialDeviceMode = (searchParams.get('device') as 'single' | 'cross') || 'single';
+  
+  const [email, setEmail] = useState(verifiedEmail);
+  const [deviceMode, setDeviceMode] = useState<'single' | 'cross'>(initialDeviceMode);
   const [loading, setLoading] = useState(false);
 
   const planConfig = {
@@ -45,11 +48,6 @@ const Payment = () => {
     },
   }[planType];
 
-  const isValidEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -70,11 +68,11 @@ const Payment = () => {
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
           planType,
-          userEmail: email, // Changed from 'email' to 'userEmail'
+          userEmail: email,
           deviceMode,
-          priceAmount: Math.round(planConfig.price * 100), // Convert to cents
-          planName: `${planType.charAt(0).toUpperCase() + planType.slice(1)}`, // Capitalize plan name
-          duration: `${planConfig.duration} minutes`, // Add duration string
+          priceAmount: Math.round(planConfig.price * 100),
+          planName: `${planType.charAt(0).toUpperCase() + planType.slice(1)}`,
+          duration: `${planConfig.duration} minutes`,
           successUrl: `${window.location.origin}/payment-success`,
           cancelUrl: `${window.location.origin}/payment?plan=${planType}`
         }
@@ -110,8 +108,8 @@ const Payment = () => {
           <Brain className="h-8 w-8 text-blue-600" />
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Choose Your Plan</h1>
-        <p className="text-gray-600">Start your interview preparation session</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Purchase</h1>
+        <p className="text-gray-600">Secure payment for your interview preparation session</p>
       </div>
 
       <div className="max-w-2xl mx-auto">
@@ -166,7 +164,14 @@ const Payment = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={!!verifiedEmail}
                 />
+                {verifiedEmail && (
+                  <p className="text-sm text-green-600 flex items-center space-x-1">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Email verified</span>
+                  </p>
+                )}
                 <p className="text-sm text-gray-600">
                   {deviceMode === 'cross' 
                     ? "We'll send you a mobile companion link after payment"
@@ -190,7 +195,7 @@ const Payment = () => {
               </>
             ) : (
               <>
-                Continue to Payment • ${planConfig.price}
+                Complete Payment • ${planConfig.price}
               </>
             )}
           </Button>
