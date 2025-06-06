@@ -12,30 +12,34 @@ import Upload from "./pages/Upload";
 import Lobby from "./pages/Lobby";
 import Interview from "./pages/Interview";
 import Complete from "./pages/Complete";
+import MobileCompanion from "./pages/MobileCompanion";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/payment" element={<Payment />} />
-          <Route path="/payment-success" element={<PaymentSuccess />} />
-          <Route path="/upload" element={<Upload />} />
-          <Route path="/lobby" element={<Lobby />} />
-          <Route path="/interview" element={<Interview />} />
-          <Route path="/complete" element={<Complete />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/payment" element={<Payment />} />
+            <Route path="/payment-success" element={<PaymentSuccess />} />
+            <Route path="/upload" element={<Upload />} />
+            <Route path="/lobby" element={<Lobby />} />
+            <Route path="/interview" element={<Interview />} />
+            <Route path="/complete" element={<Complete />} />
+            <Route path="/mobile" element={<MobileCompanion />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;

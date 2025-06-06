@@ -1,51 +1,61 @@
-
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Brain, CreditCard, Clock, CheckCircle, Loader2, Monitor, Smartphone, Mail, Lock } from "lucide-react";
+import { DeviceModeSelector } from "@/components/DeviceModeSelector";
+import { Brain, Clock, DollarSign, CheckCircle, Loader2, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const Payment = () => {
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  const planType = (searchParams.get('plan') as 'basic' | 'pro') || 'basic';
+  const [email, setEmail] = useState('');
+  const [deviceMode, setDeviceMode] = useState<'single' | 'cross'>('single');
   const [loading, setLoading] = useState(false);
 
-  const planData = location.state?.plan;
-  const verifiedEmail = location.state?.verifiedEmail;
+  const planConfig = {
+    basic: {
+      price: 9.99,
+      duration: 15,
+      description: "Basic interview preparation",
+      features: [
+        "15-minute session",
+        "AI-powered question generation",
+        "Real-time answer suggestions",
+      ],
+    },
+    pro: {
+      price: 19.99,
+      duration: 30,
+      description: "Advanced interview preparation",
+      features: [
+        "30-minute session",
+        "AI-powered question generation",
+        "Real-time answer suggestions",
+        "Detailed performance analysis",
+      ],
+    },
+  }[planType];
 
-  useEffect(() => {
-    if (!planData) {
-      toast({
-        title: "Missing plan information",
-        description: "Please select a plan from the homepage.",
-        variant: "destructive"
-      });
-      navigate('/');
-      return;
-    }
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
-    if (!verifiedEmail) {
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !email.includes('@')) {
       toast({
-        title: "Email verification required",
-        description: "Please verify your email first.",
-        variant: "destructive"
-      });
-      navigate('/auth', { state: { selectedPlan: planData } });
-      return;
-    }
-  }, [planData, verifiedEmail, navigate, toast]);
-
-  const handlePayment = async () => {
-    if (!planData || !verifiedEmail) {
-      toast({
-        title: "Missing information",
-        description: "Plan data or verified email is missing.",
+        title: "Invalid email",
+        description: "Please enter a valid email address.",
         variant: "destructive"
       });
       return;
@@ -54,16 +64,15 @@ const Payment = () => {
     setLoading(true);
 
     try {
-      console.log('[PAYMENT] Creating checkout session for plan:', planData.id);
-
+      console.log('Creating checkout session with device mode:', deviceMode);
+      
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
-          planType: planData.id,
-          priceAmount: planData.priceCents,
-          planName: planData.name,
-          duration: planData.duration,
-          deviceMode: planData.deviceMode,
-          userEmail: verifiedEmail
+          planType,
+          email,
+          deviceMode, // Include device mode in checkout
+          successUrl: `${window.location.origin}/payment-success`,
+          cancelUrl: `${window.location.origin}/payment?plan=${planType}`
         }
       });
 
@@ -71,39 +80,23 @@ const Payment = () => {
         throw error;
       }
 
-      if (data?.url) {
-        console.log('[PAYMENT] Redirecting to Stripe checkout:', data.url);
+      if (data.url) {
         window.location.href = data.url;
       } else {
         throw new Error('No checkout URL received');
       }
 
     } catch (error: any) {
-      console.error('[PAYMENT] Payment error:', error);
+      console.error('Checkout error:', error);
       toast({
         title: "Payment Error",
-        description: error.message || "Failed to start payment process. Please try again.",
+        description: error.message || "Failed to create checkout session. Please try again.",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
   };
-
-  if (!planData || !verifiedEmail) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-        <Card className="max-w-md">
-          <CardContent className="pt-6 text-center">
-            <p className="text-gray-600 mb-4">Missing required information.</p>
-            <Button onClick={() => navigate('/')}>
-              Return to Homepage
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4">
@@ -113,145 +106,91 @@ const Payment = () => {
           <Brain className="h-8 w-8 text-blue-600" />
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Payment</h1>
-        <p className="text-gray-600">Secure payment with verified email address</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Choose Your Plan</h1>
+        <p className="text-gray-600">Start your interview preparation session</p>
       </div>
 
       <div className="max-w-2xl mx-auto">
-        {/* Plan Summary */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>{planData.name} Plan</span>
-              <Badge variant="secondary">
-                {planData.deviceMode === 'cross' ? (
-                  <div className="flex items-center space-x-1">
-                    <Monitor className="h-3 w-3" />
-                    <span>+</span>
-                    <Smartphone className="h-3 w-3" />
-                    <span className="ml-1">Cross-Device</span>
+        <form onSubmit={handleCheckout} className="space-y-8">
+          {/* Plan Display */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="capitalize">{planType} Plan</span>
+                <Badge variant="secondary" className="flex items-center space-x-1">
+                  <DollarSign className="h-4 w-4" />
+                  <span>${planConfig.price}</span>
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                {planConfig.duration} minutes • {planConfig.description}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {planConfig.features.map((feature, index) => (
+                  <div key={index} className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm">{feature}</span>
                   </div>
-                ) : (
-                  <div className="flex items-center space-x-1">
-                    <Monitor className="h-3 w-3" />
-                    <span className="ml-1">Single Device</span>
-                  </div>
-                )}
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              {planData.duration} of AI-powered interview assistance
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-between items-center text-lg">
-              <span className="font-medium">Total:</span>
-              <span className="text-2xl font-bold text-blue-600">{planData.price}</span>
-            </div>
-            {planData.deviceMode === 'cross' && (
-              <p className="text-sm text-orange-600 mt-2">
-                Includes 20% premium for cross-device experience
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Verified Email Display */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span>Verified Email Address</span>
-            </CardTitle>
-            <CardDescription>
-              Your session link will be sent to this verified email after payment
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <div className="relative">
+          {/* Device Mode Selection */}
+          <DeviceModeSelector 
+            value={deviceMode} 
+            onChange={setDeviceMode}
+          />
+
+          {/* Email Input */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Mail className="h-5 w-5" />
+                <span>Contact Information</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
                 <Input
                   id="email"
                   type="email"
-                  value={verifiedEmail}
-                  readOnly
-                  className="text-lg bg-green-50 border-green-300 pr-10"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
-                <Lock className="absolute right-3 top-3 h-5 w-5 text-green-600" />
+                <p className="text-sm text-gray-600">
+                  {deviceMode === 'cross' 
+                    ? "We'll send you a mobile companion link after payment"
+                    : "We'll send you the upload link after payment"
+                  }
+                </p>
               </div>
-              <p className="text-sm text-green-600 flex items-center space-x-1">
-                <CheckCircle className="h-4 w-4" />
-                <span>Email verified with OTP</span>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* What Happens Next */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span>What happens after payment?</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-start space-x-3">
-                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">1</span>
-                <span className="text-sm">Payment processed securely by Stripe</span>
-              </div>
-              <div className="flex items-start space-x-3">
-                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">2</span>
-                <span className="text-sm">Email sent with your session upload link</span>
-              </div>
-              <div className="flex items-start space-x-3">
-                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">3</span>
-                <span className="text-sm">Click email link to upload documents</span>
-              </div>
-              <div className="flex items-start space-x-3">
-                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">4</span>
-                <span className="text-sm">Start your AI-powered interview session</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payment Button */}
-        <Card>
-          <CardContent className="pt-6">
-            <Button
-              onClick={handlePayment}
-              disabled={loading}
-              className="w-full py-6 text-lg font-semibold"
-              size="lg"
-            >
-              {loading ? (
-                <>
-                  <Clock className="h-5 w-5 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <CreditCard className="h-5 w-5 mr-2" />
-                  Pay {planData.price} - Start Session
-                </>
-              )}
-            </Button>
-
-            <div className="mt-6 text-center">
-              <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
-                <span>🔒 SSL Encrypted</span>
-                <span>💳 Stripe Secure</span>
-                <span>🛡️ PCI Compliant</span>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                Your payment information is processed securely by Stripe
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Checkout Button */}
+          <Button 
+            type="submit" 
+            className="w-full py-6 text-lg"
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                Continue to Payment • ${planConfig.price}
+              </>
+            )}
+          </Button>
+        </form>
       </div>
     </div>
   );

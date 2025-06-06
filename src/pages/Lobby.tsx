@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Mic, Monitor, Wifi, CheckCircle, AlertCircle, Clock, Play, Loader2 } from "lucide-react";
+import { CrossDeviceStatus } from "@/components/CrossDeviceStatus";
+import { Brain, Mic, Monitor, Wifi, CheckCircle, AlertCircle, Clock, Play, Loader2, Smartphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -234,6 +235,34 @@ const Lobby = () => {
     }
   };
 
+  // Add mobile companion link generation
+  const generateMobileLink = () => {
+    if (session?.device_mode === 'cross') {
+      const baseUrl = window.location.origin;
+      return `${baseUrl}/mobile?session_id=${sessionId}`;
+    }
+    return null;
+  };
+
+  const copyMobileLink = async () => {
+    const mobileLink = generateMobileLink();
+    if (mobileLink) {
+      try {
+        await navigator.clipboard.writeText(mobileLink);
+        toast({
+          title: "Link copied!",
+          description: "Mobile companion link copied to clipboard.",
+        });
+      } catch (error) {
+        toast({
+          title: "Copy failed",
+          description: "Please manually copy the mobile link.",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
@@ -250,6 +279,7 @@ const Lobby = () => {
   }
 
   const allChecksPass = Object.values(systemChecks).every(check => check);
+  const mobileLink = generateMobileLink();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4">
@@ -272,16 +302,59 @@ const Lobby = () => {
                 <CheckCircle className="h-5 w-5 text-green-500" />
                 <span>{session.plan_type.charAt(0).toUpperCase() + session.plan_type.slice(1)} Plan Ready</span>
               </span>
-              <Badge variant="secondary" className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>{session.duration_minutes} minutes</span>
-              </Badge>
+              <div className="flex items-center space-x-2">
+                <Badge variant="secondary" className="flex items-center space-x-1">
+                  <Clock className="h-4 w-4" />
+                  <span>{session.duration_minutes} minutes</span>
+                </Badge>
+                <Badge variant={session.device_mode === 'cross' ? 'default' : 'outline'}>
+                  {session.device_mode === 'cross' ? 'Cross-Device' : 'Single Device'}
+                </Badge>
+              </div>
             </CardTitle>
             <CardDescription>
               Documents uploaded and processed • Session will expire automatically after {session.duration_minutes} minutes
             </CardDescription>
           </CardHeader>
         </Card>
+
+        {/* Cross-Device Setup */}
+        {session.device_mode === 'cross' && (
+          <>
+            <CrossDeviceStatus 
+              sessionId={sessionId!} 
+              deviceType="desktop" 
+              className="mb-8"
+            />
+            
+            {mobileLink && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Smartphone className="h-5 w-5 text-purple-600" />
+                    <span>Mobile Companion</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Open this link on your mobile device to receive AI answers
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex space-x-2">
+                    <div className="flex-1 p-2 bg-gray-50 rounded border text-sm font-mono break-all">
+                      {mobileLink}
+                    </div>
+                    <Button onClick={copyMobileLink} variant="outline">
+                      Copy Link
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Keep both devices connected during your interview for real-time sync
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
 
         {/* System Checks */}
         <Card className="mb-8">
@@ -372,6 +445,9 @@ const Lobby = () => {
                   <li>• AI answers will appear in real-time</li>
                   <li>• Use answers as talking points, not scripts</li>
                   <li>• Timer will be visible throughout</li>
+                  {session.device_mode === 'cross' && (
+                    <li>• Check mobile device for discrete answer viewing</li>
+                  )}
                 </ul>
               </div>
               <div>
@@ -381,6 +457,9 @@ const Lobby = () => {
                   <li>• Minimize other applications</li>
                   <li>• Have water nearby</li>
                   <li>• Test your audio setup once more</li>
+                  {session.device_mode === 'cross' && (
+                    <li>• Position mobile device within easy view</li>
+                  )}
                 </ul>
               </div>
             </div>
