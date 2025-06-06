@@ -1,121 +1,108 @@
 
-// Listen for messages from Chrome extension
-export const initializeExtensionConnector = () => {
-  console.log('=== Extension Connector Initialization (Transcription Mode) ===');
-  console.log('Window object:', typeof window !== 'undefined');
-  
-  // Listen for messages from Chrome extension content script
-  const handleExtensionMessage = (event: MessageEvent) => {
-    console.log('=== Received window message ===', event);
-    console.log('🔍 Message data:', event.data);
-    console.log('🔍 Message source:', event.data.source);
-    console.log('🔍 Message action:', event.data.action);
-    
-    if (event.source !== window) {
-      console.log('❌ Message not from window, ignoring');
-      return;
-    }
-    
-    // Only process messages from our extension
-    if (event.data.source !== 'interviewace-extension') {
-      console.log('❌ Message not from interviewace-extension, ignoring. Source:', event.data.source);
-      return;
-    }
-    
-    console.log('✅ Processing message from extension:', event.data.action);
-    
-    if (event.data.action === 'processTranscription') {
-      console.log('📝 TRANSCRIPTION RECEIVED:', event.data.text);
-      console.log('⏰ Timestamp:', event.data.timestamp);
-      console.log('🎯 Type:', event.data.type);
-      
-      // Dispatch custom event that the Interview component can listen to
-      const transcriptionEvent = new CustomEvent('extensionTranscription', {
-        detail: { 
-          text: event.data.text,
-          timestamp: event.data.timestamp,
-          type: event.data.type
-        }
-      });
-      console.log('🚀 Dispatching extensionTranscription event with detail:', transcriptionEvent.detail);
-      window.dispatchEvent(transcriptionEvent);
-    }
-    
-    if (event.data.action === 'extensionReady') {
-      console.log('✅ Extension reported as ready with capabilities:', event.data.capabilities);
-      // Dispatch event to update UI
-      const readyEvent = new CustomEvent('extensionReady', {
-        detail: { capabilities: event.data.capabilities }
-      });
-      window.dispatchEvent(readyEvent);
-    }
-  };
+/* global chrome */
 
-  // Add window message listener
-  window.addEventListener('message', handleExtensionMessage);
+console.log('=== Extension Connector Initialization (Transcription Mode) ===');
+
+// Check if we're in a browser environment
+if (typeof window !== 'undefined') {
+  console.log('Window object:', !!window);
   
-  // Notify extension that interview app is ready
+  // Post message to notify extension that interview app is ready
   console.log('📢 Posting message: interviewAppReady');
   window.postMessage({
     action: 'interviewAppReady',
     timestamp: Date.now()
   }, '*');
-
+  
   console.log('✅ Extension connector initialized for transcription mode');
+}
 
-  return () => {
-    window.removeEventListener('message', handleExtensionMessage);
-  };
-};
-
-// Check if extension is available - improved detection
-export const checkExtensionAvailability = (): boolean => {
+export function checkExtensionAvailability(): boolean {
   console.log('=== Checking Extension Availability ===');
   
-  // First check if we're in a browser environment
-  if (typeof window === 'undefined') {
-    console.log('Not in browser environment');
-    return false;
-  }
+  // Check if Chrome API is available
+  const chromeAvailable = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+  console.log('Chrome API available:', chromeAvailable);
   
-  // Check for Chrome API
-  const chromeAPI = (window as any).chrome;
-  const hasChromeAPI = typeof chromeAPI !== 'undefined' && chromeAPI?.runtime !== undefined;
+  // Check if we've received any extension messages
+  const extensionMessageReceived = !!(window as any).__extensionReady;
+  console.log('Extension message received:', extensionMessageReceived);
   
-  console.log('Chrome API available:', hasChromeAPI);
-  
-  if (!hasChromeAPI) {
-    // If no Chrome API, check if we received extension messages
-    const extensionMessageReceived = (window as any).__extensionReady || false;
-    console.log('Extension message received:', extensionMessageReceived);
-    return extensionMessageReceived;
-  }
-  
-  // Check if extension ID is available
-  const hasExtensionId = chromeAPI?.runtime?.id !== undefined;
-  console.log('Extension ID available:', hasExtensionId);
-  
-  return hasExtensionId;
-};
+  return chromeAvailable || extensionMessageReceived;
+}
 
-// Manual test function for extension connectivity
-export const testExtensionConnection = () => {
-  console.log('=== Manual Extension Test ===');
-  
-  // Set a flag to indicate we're testing
-  (window as any).__extensionTest = true;
-  
-  console.log('Sending test message to extension...');
-  window.postMessage({
-    action: 'testConnection',
-    timestamp: Date.now()
-  }, '*');
-  
-  // Wait for response
-  setTimeout(() => {
-    const received = (window as any).__extensionReady;
-    console.log('Extension test result:', received ? 'SUCCESS' : 'FAILED');
-  }, 1000);
-  
-  return { success: true, message: 'Test message sent' };
-};
+export function initializeExtensionConnector(): () => void {
+  console.log('🚀 Initializing extension connector for transcription...');
+
+  // Listen for messages from extension
+  const handleMessage = (event: MessageEvent) => {
+    console.log('=== Received window message ===', event);
+    console.log('🔍 Message data:', event.data);
+    console.log('🔍 Message source:', event.data?.source);
+    console.log('🔍 Message action:', event.data?.action);
+    
+    // Only process messages from our extension
+    if (event.source !== window) {
+      console.log('❌ Message not from same window, ignoring');
+      return;
+    }
+    
+    if (!event.data || !event.data.action) {
+      console.log('❌ Message missing data or action, ignoring');
+      return;
+    }
+    
+    // Handle extension ready message
+    if (event.data.action === 'extensionReady' && event.data.source === 'interviewace-extension') {
+      console.log('✅ Extension ready message received');
+      (window as any).__extensionReady = true;
+      
+      // Dispatch custom event
+      const readyEvent = new CustomEvent('extensionReady', {
+        detail: event.data
+      });
+      window.dispatchEvent(readyEvent);
+    }
+    
+    // Handle transcription results
+    if (event.data.action === 'processTranscription' && event.data.source === 'interviewace-extension') {
+      console.log('📝 Transcription received:', event.data.text);
+      
+      // Dispatch custom event for transcription
+      const transcriptionEvent = new CustomEvent('extensionTranscription', {
+        detail: {
+          text: event.data.text,
+          timestamp: event.data.timestamp,
+          type: 'real-time-transcription'
+        }
+      });
+      window.dispatchEvent(transcriptionEvent);
+    }
+    
+    // Handle test connection
+    if (event.data.action === 'testConnection') {
+      console.log('🧪 Test connection received');
+      window.postMessage({
+        action: 'extensionReady',
+        source: 'interviewace-extension',
+        capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
+        timestamp: Date.now()
+      }, '*');
+    }
+  };
+
+  // Add event listener
+  window.addEventListener('message', handleMessage);
+
+  // Cleanup function
+  return () => {
+    console.log('🧹 Cleaning up extension connector');
+    window.removeEventListener('message', handleMessage);
+  };
+}
+
+// Initial check for extension availability
+setTimeout(() => {
+  const isAvailable = checkExtensionAvailability();
+  console.log('📊 Extension availability check result:', isAvailable);
+}, 1000);

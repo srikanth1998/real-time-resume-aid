@@ -18,6 +18,7 @@ const Interview = () => {
   const sessionId = searchParams.get('session_id');
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionCheckFailed, setSessionCheckFailed] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [currentAnswer, setCurrentAnswer] = useState("");
@@ -25,7 +26,7 @@ const Interview = () => {
   const [isGeneratingAnswer, setIsGeneratingAnswer] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{question: string, answer: string, timestamp: string}>>([]);
   const [showHistory, setShowHistory] = useState(!isMobile);
-  const [inputMode, setInputMode] = useState<'voice' | 'text' | 'extension'>('voice');
+  const [inputMode, setInputMode] = useState<'voice' | 'text' | 'extension'>('extension');
   const [manualQuestion, setManualQuestion] = useState("");
   const [extensionConnected, setExtensionConnected] = useState(false);
   const [extensionStatus, setExtensionStatus] = useState("Connecting...");
@@ -43,62 +44,82 @@ const Interview = () => {
 
   useEffect(() => {
     const checkSession = async () => {
+      console.log('🔍 Checking session with ID:', sessionId);
+      
       if (!sessionId) {
-        navigate('/');
+        console.log('❌ No session ID provided');
+        setSessionCheckFailed(true);
+        setLoading(false);
         return;
       }
 
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession) {
-        navigate('/auth');
-        return;
-      }
+      try {
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        console.log('🔐 Auth session:', authSession?.user?.id ? 'Found' : 'Not found');
+        
+        if (!authSession) {
+          console.log('❌ No auth session, redirecting to auth');
+          navigate('/auth');
+          return;
+        }
 
-      // Fetch session details
-      const { data: sessionData, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .eq('user_id', authSession.user.id)
-        .single();
+        // Fetch session details
+        console.log('📊 Fetching session data...');
+        const { data: sessionData, error } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .eq('user_id', authSession.user.id)
+          .single();
 
-      if (error || !sessionData) {
-        navigate('/');
-        return;
-      }
+        console.log('📊 Session data:', sessionData);
+        console.log('📊 Session error:', error);
 
-      if (sessionData.status !== 'in_progress') {
-        navigate('/');
-        return;
-      }
+        if (error || !sessionData) {
+          console.log('❌ Session not found or error:', error);
+          setSessionCheckFailed(true);
+          setLoading(false);
+          return;
+        }
 
-      // Check if session has expired
-      const now = new Date();
-      const expiresAt = new Date(sessionData.expires_at);
-      
-      if (now >= expiresAt) {
-        await handleSessionExpired();
-        return;
-      }
+        if (sessionData.status !== 'in_progress') {
+          console.log('❌ Session not in progress, status:', sessionData.status);
+          navigate('/');
+          return;
+        }
 
-      setSession(sessionData);
-      
-      // Calculate time remaining
-      const timeLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
-      setTimeRemaining(timeLeft);
-      
-      setLoading(false);
-      
-      // Start timer
-      startTimer(expiresAt);
-      
-      // Initialize speech recognition only if voice mode
-      if (inputMode === 'voice') {
-        initializeSpeechRecognition();
+        // Check if session has expired
+        const now = new Date();
+        const expiresAt = new Date(sessionData.expires_at);
+        
+        if (now >= expiresAt) {
+          console.log('❌ Session expired');
+          await handleSessionExpired();
+          return;
+        }
+
+        console.log('✅ Session valid, setting up...');
+        setSession(sessionData);
+        
+        // Calculate time remaining
+        const timeLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
+        setTimeRemaining(timeLeft);
+        
+        setLoading(false);
+        
+        // Start timer
+        startTimer(expiresAt);
+        
+        // Initialize speech recognition only if voice mode
+        if (inputMode === 'voice') {
+          initializeSpeechRecognition();
+        }
+        
+      } catch (error) {
+        console.error('❌ Error checking session:', error);
+        setSessionCheckFailed(true);
+        setLoading(false);
       }
-      
-      // Check for extension and initialize
-      checkAndInitializeExtension();
     };
 
     checkSession();
@@ -134,10 +155,6 @@ const Interview = () => {
           title: "🎤 Extension Connected",
           description: "Chrome extension is now capturing meeting audio automatically",
         });
-        
-        if (inputMode === 'voice') {
-          setInputMode('extension');
-        }
       };
 
       // 2. Listen for transcription events from extension - THIS IS KEY
@@ -154,13 +171,25 @@ const Interview = () => {
 
       // 3. Also listen for window messages (backup method)
       const handleWindowMessage = (event: MessageEvent) => {
-        if (event.source !== window || event.data.source !== 'interviewace-extension') {
+        console.log('📨 [INTERVIEW] Window message received:', event.data);
+        
+        if (event.source !== window) {
+          console.log('❌ [INTERVIEW] Message not from same window, ignoring');
           return;
         }
         
-        console.log('📨 [INTERVIEW] Window message from extension:', event.data);
+        if (event.data.action === 'extensionReady' && event.data.source === 'interviewace-extension') {
+          console.log('✅ [INTERVIEW] Extension ready via window message');
+          setExtensionConnected(true);
+          setExtensionStatus("Listening for questions");
+          
+          toast({
+            title: "🎤 Extension Connected",
+            description: "Chrome extension is now capturing meeting audio automatically",
+          });
+        }
         
-        if (event.data.action === 'processTranscription' && event.data.text) {
+        if (event.data.action === 'processTranscription' && event.data.source === 'interviewace-extension' && event.data.text) {
           console.log('📝 [INTERVIEW] Processing transcription via window message:', event.data.text);
           handleExtensionTranscriptionData(event.data.text, event.data.timestamp);
         }
@@ -170,15 +199,19 @@ const Interview = () => {
       window.addEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
       window.addEventListener('message', handleWindowMessage);
 
+      // Check if extension is already available
       const isAvailable = checkExtensionAvailability();
-      setExtensionConnected(isAvailable);
-      
       if (isAvailable) {
+        setExtensionConnected(true);
         setExtensionStatus("Listening for questions");
-        if (inputMode === 'voice') {
-          setInputMode('extension');
-        }
       }
+
+      // Send ready message to extension
+      console.log('📢 [INTERVIEW] Sending interviewAppReady message');
+      window.postMessage({
+        action: 'interviewAppReady',
+        timestamp: Date.now()
+      }, '*');
 
       return () => {
         window.removeEventListener('extensionReady', handleExtensionReady as EventListener);
@@ -195,7 +228,7 @@ const Interview = () => {
         if (cleanupFn) cleanupFn();
       });
     };
-  }, [inputMode, toast]);
+  }, [toast]);
 
   const initializeSpeechRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -512,6 +545,22 @@ const Interview = () => {
         <div className="text-center">
           <Brain className="h-8 w-8 animate-pulse mx-auto mb-4" />
           <p>Loading interview session...</p>
+          <p className="text-sm text-gray-400 mt-2">Session ID: {sessionId}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionCheckFailed) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 text-red-400 mx-auto mb-4" />
+          <p className="text-xl mb-4">Session Not Found</p>
+          <p className="text-gray-400 mb-6">The interview session could not be found or has expired.</p>
+          <Button onClick={() => navigate('/')}>
+            Return to Home
+          </Button>
         </div>
       </div>
     );
