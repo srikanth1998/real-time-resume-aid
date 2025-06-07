@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Upload as UploadIcon, FileText, Briefcase, CheckCircle, AlertCircle, Loader2, Clock } from "lucide-react";
+import { Brain, Upload as UploadIcon, FileText, Briefcase, CheckCircle, AlertCircle, Loader2, Clock, Download, Chrome, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,6 +24,7 @@ const Upload = () => {
   const [uploading, setUploading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState("");
+  const [extensionDownloaded, setExtensionDownloaded] = useState(false);
 
   useEffect(() => {
     const verifySession = async () => {
@@ -119,8 +119,33 @@ const Upload = () => {
     }
   };
 
+  const handleDownloadExtension = () => {
+    // Create a download link for the extension
+    const link = document.createElement('a');
+    link.href = '/chrome-extension.zip'; // You'll need to provide this file
+    link.download = 'InterviewAce-Extension.zip';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setExtensionDownloaded(true);
+    toast({
+      title: "Extension Downloaded!",
+      description: "Please extract and install the extension in Chrome before continuing.",
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!extensionDownloaded) {
+      toast({
+        title: "Extension Required",
+        description: "Please download and install the Chrome extension first.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     if (!resumeFile || !jobDescription.trim()) {
       toast({
@@ -218,13 +243,13 @@ const Upload = () => {
           <Brain className="h-8 w-8 text-blue-600" />
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Your Documents</h1>
-        <p className="text-gray-600">Upload your resume and job description to personalize your AI assistance</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Setup Your Interview Session</h1>
+        <p className="text-gray-600">Download the Chrome extension and upload your documents</p>
       </div>
 
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto space-y-6">
         {/* Session Info */}
-        <Card className="mb-8">
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center space-x-2">
@@ -237,17 +262,80 @@ const Upload = () => {
               </Badge>
             </CardTitle>
             <CardDescription>
-              Session ready • Upload your documents to proceed to the interview lobby
+              Session ready • Follow the steps below to start your interview
             </CardDescription>
           </CardHeader>
         </Card>
 
-        {/* Upload Form */}
-        <Card>
+        {/* Step 1: Chrome Extension Download */}
+        <Card className={`border-2 ${extensionDownloaded ? 'border-green-500 bg-green-50' : 'border-blue-500 bg-blue-50'}`}>
           <CardHeader>
-            <CardTitle>Document Upload</CardTitle>
+            <CardTitle className="flex items-center space-x-2">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${extensionDownloaded ? 'bg-green-500' : 'bg-blue-500'} text-white font-bold`}>
+                {extensionDownloaded ? <CheckCircle className="h-5 w-5" /> : '1'}
+              </div>
+              <Chrome className="h-6 w-6 text-gray-700" />
+              <span>Download Chrome Extension</span>
+              {extensionDownloaded && <Badge variant="secondary" className="bg-green-100 text-green-800">Completed</Badge>}
+            </CardTitle>
             <CardDescription>
-              Upload your resume and provide the job description for personalized AI assistance
+              {extensionDownloaded 
+                ? "Extension downloaded! Make sure to install it in Chrome before proceeding."
+                : "Required: Download and install our Chrome extension for real-time AI assistance"
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!extensionDownloaded ? (
+              <div className="space-y-4">
+                <div className="bg-blue-100 p-4 rounded-lg">
+                  <h4 className="font-semibold text-blue-800 mb-2">🎯 What does the extension do?</h4>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• Captures interview questions in real-time</li>
+                    <li>• Sends them to AI for instant answer generation</li>
+                    <li>• Works seamlessly with any video call platform</li>
+                    <li>• Completely private and secure</li>
+                  </ul>
+                </div>
+                <Button 
+                  onClick={handleDownloadExtension}
+                  className="w-full py-6 text-lg bg-blue-600 hover:bg-blue-700"
+                  size="lg"
+                >
+                  <Download className="h-5 w-5 mr-2" />
+                  Download Chrome Extension
+                </Button>
+              </div>
+            ) : (
+              <div className="bg-green-100 p-4 rounded-lg">
+                <h4 className="font-semibold text-green-800 mb-2">✅ Extension Downloaded!</h4>
+                <div className="text-sm text-green-700 space-y-2">
+                  <p><strong>Next steps:</strong></p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Extract the downloaded ZIP file</li>
+                    <li>Open Chrome → Menu → Extensions → Manage Extensions</li>
+                    <li>Enable "Developer mode" (top right)</li>
+                    <li>Click "Load unpacked" and select the extracted folder</li>
+                    <li>Extension icon should appear in Chrome toolbar</li>
+                  </ol>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Step 2: Document Upload */}
+        <Card className={`border-2 ${extensionDownloaded ? 'border-blue-500' : 'border-gray-300'}`}>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${extensionDownloaded ? 'bg-blue-500' : 'bg-gray-400'} text-white font-bold`}>
+                2
+              </div>
+              <FileText className="h-6 w-6 text-gray-700" />
+              <span>Upload Documents</span>
+            </CardTitle>
+            <CardDescription>
+              Upload your resume and job description for personalized AI assistance
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -264,9 +352,9 @@ const Upload = () => {
                     accept=".pdf"
                     onChange={handleFileChange}
                     className="hidden"
-                    disabled={uploading}
+                    disabled={uploading || !extensionDownloaded}
                   />
-                  <label htmlFor="resume" className="cursor-pointer">
+                  <label htmlFor="resume" className={`cursor-pointer ${!extensionDownloaded ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <div className="flex flex-col items-center space-y-2">
                       {resumeFile ? (
                         <>
@@ -297,7 +385,7 @@ const Upload = () => {
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
                   className="min-h-[200px] text-sm"
-                  disabled={uploading}
+                  disabled={uploading || !extensionDownloaded}
                 />
                 <p className="text-xs text-gray-500">
                   Provide as much detail as possible for better AI assistance
@@ -308,7 +396,7 @@ const Upload = () => {
               <Button
                 type="submit"
                 className="w-full py-6 text-lg"
-                disabled={!resumeFile || !jobDescription.trim() || uploading}
+                disabled={!resumeFile || !jobDescription.trim() || uploading || !extensionDownloaded}
                 size="lg"
               >
                 {uploading ? (
@@ -318,8 +406,8 @@ const Upload = () => {
                   </>
                 ) : (
                   <>
-                    <Briefcase className="h-5 w-5 mr-2" />
-                    Process Documents & Continue
+                    <Zap className="h-5 w-5 mr-2" />
+                    Complete Setup & Start Interview
                   </>
                 )}
               </Button>
@@ -332,28 +420,30 @@ const Upload = () => {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <AlertCircle className="h-5 w-5 text-blue-600" />
-              <span>Tips for Best Results</span>
+              <span>Setup Instructions</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2 text-sm text-gray-600">
-              <li className="flex items-start space-x-2">
-                <span className="text-blue-600 mt-0.5">•</span>
-                <span>Upload your most recent resume in PDF format</span>
-              </li>
-              <li className="flex items-start space-x-2">
-                <span className="text-blue-600 mt-0.5">•</span>
-                <span>Include the complete job description with requirements and responsibilities</span>
-              </li>
-              <li className="flex items-start space-x-2">
-                <span className="text-blue-600 mt-0.5">•</span>
-                <span>The AI will analyze your background against the job requirements</span>
-              </li>
-              <li className="flex items-start space-x-2">
-                <span className="text-blue-600 mt-0.5">•</span>
-                <span>More detailed information leads to better, more personalized answers</span>
-              </li>
-            </ul>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-semibold mb-2">📱 Extension Installation:</h4>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  <li>• Download and extract the ZIP file</li>
+                  <li>• Enable Chrome Developer mode</li>
+                  <li>• Load unpacked extension</li>
+                  <li>• Pin to toolbar for easy access</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold mb-2">📄 Document Upload:</h4>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  <li>• Upload your most recent resume (PDF)</li>
+                  <li>• Include complete job description</li>
+                  <li>• More details = better AI assistance</li>
+                  <li>• Everything is encrypted and secure</li>
+                </ul>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
