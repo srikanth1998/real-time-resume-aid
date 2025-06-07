@@ -50,15 +50,32 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 function extractSessionId(url) {
   try {
-    const urlObj = new URL(url);
     console.log('🔍 Extracting session ID from URL:', url);
-    console.log('🔍 URL pathname:', urlObj.pathname);
-    console.log('🔍 URL search params:', urlObj.searchParams.toString());
     
-    // Check for session ID in query parameters first (your current format)
+    // Handle different URL formats
+    if (url.includes('session_id=')) {
+      // Format: ?session_id=value or &session_id=value
+      const match = url.match(/[?&]session_id=([^&]+)/);
+      if (match && match[1]) {
+        console.log('✅ Found session_id in query params:', match[1]);
+        return match[1];
+      }
+    }
+    
+    if (url.includes('sessionId=')) {
+      // Format: ?sessionId=value or &sessionId=value
+      const match = url.match(/[?&]sessionId=([^&]+)/);
+      if (match && match[1]) {
+        console.log('✅ Found sessionId in query params:', match[1]);
+        return match[1];
+      }
+    }
+    
+    // Try URL object parsing as backup
+    const urlObj = new URL(url);
     const sessionFromQuery = urlObj.searchParams.get('session_id') || urlObj.searchParams.get('sessionId');
     if (sessionFromQuery) {
-      console.log('✅ Extracted session ID from query params:', sessionFromQuery);
+      console.log('✅ Extracted session ID from URL object:', sessionFromQuery);
       return sessionFromQuery;
     }
     
