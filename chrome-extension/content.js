@@ -2,6 +2,7 @@
 /* global chrome */
 let banner;
 let extensionStatus = 'disconnected';
+let currentSessionId = null;
 
 function ensureBanner() {
   if (banner) return banner;
@@ -40,12 +41,74 @@ function updateBannerStatus(status) {
   }
 }
 
+// Extract session ID from current page URL
+function extractSessionIdFromURL() {
+  try {
+    const url = window.location.href;
+    console.log('🔍 CONTENT SCRIPT: Extracting session ID from URL:', url);
+    
+    // Method 1: Query parameter session_id
+    if (url.includes('session_id=')) {
+      const match = url.match(/[?&]session_id=([^&#+]*)/);
+      if (match && match[1]) {
+        const sessionId = decodeURIComponent(match[1]);
+        console.log('✅ CONTENT SCRIPT: Found session_id in query params:', sessionId);
+        return sessionId;
+      }
+    }
+    
+    // Method 2: Query parameter sessionId (camelCase)
+    if (url.includes('sessionId=')) {
+      const match = url.match(/[?&]sessionId=([^&#+]*)/);
+      if (match && match[1]) {
+        const sessionId = decodeURIComponent(match[1]);
+        console.log('✅ CONTENT SCRIPT: Found sessionId in query params:', sessionId);
+        return sessionId;
+      }
+    }
+    
+    // Method 3: URL object parsing
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('session_id') || urlParams.get('sessionId');
+      if (sessionId) {
+        console.log('✅ CONTENT SCRIPT: Extracted session ID from URL params:', sessionId);
+        return sessionId;
+      }
+    } catch (urlError) {
+      console.warn('CONTENT SCRIPT: Error parsing URL params:', urlError);
+    }
+    
+    // Method 4: Check path for session ID like /interview/session-id
+    try {
+      const pathParts = window.location.pathname.split('/').filter(part => part.length > 0);
+      console.log('🔍 CONTENT SCRIPT: Path parts:', pathParts);
+      
+      const interviewIndex = pathParts.findIndex(part => part.toLowerCase().includes('interview'));
+      if (interviewIndex !== -1 && pathParts[interviewIndex + 1]) {
+        const sessionId = pathParts[interviewIndex + 1];
+        console.log('✅ CONTENT SCRIPT: Extracted session ID from path:', sessionId);
+        return sessionId;
+      }
+    } catch (pathError) {
+      console.warn('CONTENT SCRIPT: Error parsing URL path:', pathError);
+    }
+    
+    console.log('❌ CONTENT SCRIPT: No session ID found in URL');
+    return null;
+  } catch (error) {
+    console.error('CONTENT SCRIPT: Error extracting session ID:', error);
+    return null;
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('🔔 CONTENT SCRIPT RECEIVED MESSAGE:', message);
   console.log('📋 Message details:', {
     action: message.action,
     text: message.text ? `"${message.text.substring(0, 50)}..."` : 'undefined',
-    timestamp: message.timestamp
+    timestamp: message.timestamp,
+    sessionId: message.sessionId || currentSessionId
   });
   
   // Handle ping messages from background script
@@ -55,7 +118,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
-  const { action, text, timestamp } = message;
+  // Handle session ID setting from background script
+  if (message.action === 'setSessionId') {
+    currentSessionId = message.sessionId;
+    console.log('🎯 CONTENT SCRIPT: Session ID set to:', currentSessionId);
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  const { action, text, timestamp, sessionId } = message;
   const b = ensureBanner();
   
   if (action === 'transcriptionStarted') {
@@ -79,6 +150,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('📢 PROCESSING TRANSCRIPTION RESULT FROM BACKGROUND');
     console.log('📝 Transcribed text:', text);
     console.log('⏰ Timestamp:', timestamp);
+    console.log('🎯 Session ID from message:', sessionId);
+    console.log('🎯 Current session ID:', currentSessionId);
+    
+    // Use session ID from message or current session ID
+    const finalSessionId = sessionId || currentSessionId;
+    console.log('🎯 Final session ID for forwarding:', finalSessionId);
     
     // Show processing status briefly
     updateBannerStatus('processing');
@@ -94,6 +171,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       text: text,
       source: 'interviewace-extension',
       timestamp: timestamp || Date.now(),
+      sessionId: finalSessionId,
       type: 'real-time-transcription'
     };
     
@@ -106,6 +184,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       detail: { 
         text: text,
         timestamp: timestamp || Date.now(),
+        sessionId: finalSessionId,
         type: 'real-time-transcription'
       }
     });
@@ -130,25 +209,34 @@ window.addEventListener('message', (event) => {
     updateBannerStatus('connected');
     ensureBanner().hidden = false;
     
+    // Include current session ID in response
+    const sessionId = currentSessionId || extractSessionIdFromURL();
+    if (sessionId && !currentSessionId) {
+      currentSessionId = sessionId;
+    }
+    
     // Notify app that extension is ready
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
       capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
+      sessionId: currentSessionId,
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Extension ready message posted');
+    console.log('✅ Extension ready message posted with session ID:', currentSessionId);
   }
   
   if (event.data.action === 'testConnection') {
     console.log('🧪 TEST CONNECTION MESSAGE RECEIVED');
+    const sessionId = currentSessionId || extractSessionIdFromURL();
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
       capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
+      sessionId: sessionId,
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Test connection response sent');
+    console.log('✅ Test connection response sent with session ID:', sessionId);
   }
 });
 
@@ -156,29 +244,12 @@ window.addEventListener('message', (event) => {
 console.log('🚀 INTERVIEWACE EXTENSION LOADED');
 console.log('🌐 Page URL:', window.location.href);
 
-// Extract session ID from URL and log it
-function extractSessionIdFromURL() {
-  try {
-    const url = window.location.href;
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
-    
-    if (sessionId) {
-      console.log('✅ Content script detected session ID:', sessionId);
-      return sessionId;
-    } else {
-      console.log('⚠️ No session ID found in URL');
-      return null;
-    }
-  } catch (error) {
-    console.error('Error extracting session ID:', error);
-    return null;
-  }
-}
-
-const sessionId = extractSessionIdFromURL();
-if (sessionId) {
-  console.log('📍 Current session ID:', sessionId);
+// Extract session ID from URL and set it
+currentSessionId = extractSessionIdFromURL();
+if (currentSessionId) {
+  console.log('📍 Current session ID detected:', currentSessionId);
+} else {
+  console.log('⚠️ No session ID found in current URL');
 }
 
 // Initial extension ready message
@@ -186,7 +257,7 @@ window.postMessage({
   action: 'extensionReady',
   source: 'interviewace-extension',
   capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
-  sessionId: sessionId, // Include session ID in the message
+  sessionId: currentSessionId,
   timestamp: Date.now()
 }, '*');
-console.log('✅ Initial extension ready message posted with session ID:', sessionId);
+console.log('✅ Initial extension ready message posted with session ID:', currentSessionId);

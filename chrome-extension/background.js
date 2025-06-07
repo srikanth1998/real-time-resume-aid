@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 console.log('InterviewAce transcription background script loaded');
@@ -25,26 +24,103 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
-// Auto-start transcription when on lovableproject.com OR preview domains
+// Enhanced session ID extraction function
+function extractSessionId(url) {
+  try {
+    console.log('🔍 EXTRACTING SESSION ID FROM URL:', url);
+    
+    if (!url) {
+      console.log('❌ No URL provided');
+      return null;
+    }
+
+    // Method 1: Direct search for session_id parameter
+    if (url.includes('session_id=')) {
+      const match = url.match(/[?&]session_id=([^&#+]*)/);
+      if (match && match[1]) {
+        const sessionId = decodeURIComponent(match[1]);
+        console.log('✅ Found session_id in query params:', sessionId);
+        return sessionId;
+      }
+    }
+
+    // Method 2: Search for sessionId parameter (camelCase)
+    if (url.includes('sessionId=')) {
+      const match = url.match(/[?&]sessionId=([^&#+]*)/);
+      if (match && match[1]) {
+        const sessionId = decodeURIComponent(match[1]);
+        console.log('✅ Found sessionId in query params:', sessionId);
+        return sessionId;
+      }
+    }
+
+    // Method 3: Try URL object parsing
+    try {
+      const urlObj = new URL(url);
+      const sessionFromQuery = urlObj.searchParams.get('session_id') || urlObj.searchParams.get('sessionId');
+      if (sessionFromQuery) {
+        console.log('✅ Extracted session ID from URL object:', sessionFromQuery);
+        return sessionFromQuery;
+      }
+    } catch (urlError) {
+      console.warn('Error parsing URL object:', urlError);
+    }
+
+    // Method 4: Check for session ID in path like /interview/session-id
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(part => part.length > 0);
+      console.log('🔍 Path parts:', pathParts);
+      
+      // Look for interview path with session ID
+      const interviewIndex = pathParts.findIndex(part => part.toLowerCase().includes('interview'));
+      if (interviewIndex !== -1 && pathParts[interviewIndex + 1]) {
+        const sessionId = pathParts[interviewIndex + 1];
+        console.log('✅ Extracted session ID from path:', sessionId);
+        return sessionId;
+      }
+    } catch (pathError) {
+      console.warn('Error parsing URL path:', pathError);
+    }
+
+    console.log('❌ No session ID found in URL');
+    return null;
+  } catch (error) {
+    console.error('❌ Error extracting session ID:', error);
+    return null;
+  }
+}
+
+// Auto-start transcription when on interview pages
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && 
       (tab.url.includes('lovableproject.com') || 
        tab.url.includes('lovable.app') || 
        tab.url.includes('real-time-resume-aid') ||
        tab.url.includes('preview--'))) {
-    console.log('🎯 DETECTED LOVABLE PROJECT PAGE');
+    
+    console.log('🎯 DETECTED INTERVIEW PAGE');
     console.log('Tab ID:', tabId, 'URL:', tab.url);
     
     // Extract session ID from URL
     const sessionId = extractSessionId(tab.url);
-    console.log('🔍 Extracted session ID:', sessionId);
+    console.log('🔍 SESSION ID EXTRACTION RESULT:', sessionId);
     
     if (sessionId) {
       currentSessionId = sessionId;
       currentTabId = tabId;
       
+      console.log('✅ SESSION ID SET:', currentSessionId);
+      console.log('✅ TAB ID SET:', currentTabId);
+      
       try {
         await ensureContentScript(tabId);
+        
+        // Send session ID to content script
+        await chrome.tabs.sendMessage(tabId, {
+          action: 'setSessionId',
+          sessionId: sessionId
+        });
         
         if (!isCapturing) {
           console.log('🚀 Auto-starting transcription for session:', sessionId);
@@ -59,61 +135,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
-function extractSessionId(url) {
-  try {
-    console.log('🔍 Extracting session ID from URL:', url);
-    
-    // Handle different URL formats
-    if (url.includes('session_id=')) {
-      // Format: ?session_id=value or &session_id=value
-      const match = url.match(/[?&]session_id=([^&]+)/);
-      if (match && match[1]) {
-        console.log('✅ Found session_id in query params:', match[1]);
-        return match[1];
-      }
-    }
-    
-    if (url.includes('sessionId=')) {
-      // Format: ?sessionId=value or &sessionId=value
-      const match = url.match(/[?&]sessionId=([^&]+)/);
-      if (match && match[1]) {
-        console.log('✅ Found sessionId in query params:', match[1]);
-        return match[1];
-      }
-    }
-    
-    // Try URL object parsing as backup
-    try {
-      const urlObj = new URL(url);
-      const sessionFromQuery = urlObj.searchParams.get('session_id') || urlObj.searchParams.get('sessionId');
-      if (sessionFromQuery) {
-        console.log('✅ Extracted session ID from URL object:', sessionFromQuery);
-        return sessionFromQuery;
-      }
-    } catch (urlError) {
-      console.warn('Error parsing URL object:', urlError);
-    }
-    
-    // Check for session ID in path like /interview/session-id
-    try {
-      const urlObj = new URL(url);
-      const pathParts = urlObj.pathname.split('/');
-      if (pathParts[1] === 'interview' && pathParts[2]) {
-        console.log('✅ Extracted session ID from path:', pathParts[2]);
-        return pathParts[2];
-      }
-    } catch (pathError) {
-      console.warn('Error parsing URL path:', pathError);
-    }
-    
-    console.log('❌ No session ID found in URL');
-    return null;
-  } catch (error) {
-    console.warn('Error extracting session ID:', error);
-    return null;
-  }
-}
-
 // Track tab focus changes to update currentTabId and session
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
@@ -123,7 +144,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
          tab.url.includes('lovable.app') || 
          tab.url.includes('real-time-resume-aid') ||
          tab.url.includes('preview--'))) {
-      console.log('🎯 LOVABLE TAB ACTIVATED:', activeInfo.tabId, tab.url);
+      console.log('🎯 INTERVIEW TAB ACTIVATED:', activeInfo.tabId, tab.url);
       currentTabId = activeInfo.tabId;
       
       // Extract and update session ID
@@ -139,13 +160,19 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 });
 
 async function startTranscription(tab) {
-  console.log('Starting transcription for tab:', tab.id);
+  console.log('🚀 STARTING TRANSCRIPTION FOR TAB:', tab.id);
+  console.log('🎯 USING SESSION ID:', currentSessionId);
+  
   currentTabId = tab.id;
   
   // Extract session ID if not already set
   if (!currentSessionId) {
     currentSessionId = extractSessionId(tab.url);
     console.log('🎯 Extracted session ID for transcription:', currentSessionId);
+  }
+  
+  if (!currentSessionId) {
+    console.warn('⚠️ WARNING: No session ID available for transcription');
   }
   
   try {
@@ -362,27 +389,6 @@ async function showErrorNotification(message) {
   }
 }
 
-// Enhanced tab finding function
-async function findLovableTabs() {
-  try {
-    const tabs = await chrome.tabs.query({});
-    const lovableTabs = tabs.filter(tab => 
-      tab.url && (
-        tab.url.includes('lovableproject.com') || 
-        tab.url.includes('lovable.app') || 
-        tab.url.includes('real-time-resume-aid') ||
-        tab.url.includes('preview--') ||
-        tab.url.includes('localhost') && tab.url.includes('interview')
-      )
-    );
-    console.log('🔍 Found Lovable tabs:', lovableTabs.map(t => ({ id: t.id, url: t.url })));
-    return lovableTabs;
-  } catch (error) {
-    console.error('Error finding Lovable tabs:', error);
-    return [];
-  }
-}
-
 // Handle messages from offscreen document
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('🔔 Background received message:', message);
@@ -413,8 +419,10 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     console.log('🎯 Final session ID for processing:', sessionId);
     
     if (!sessionId) {
-      console.warn('⚠️ No session ID available for transcription result');
-      // Still try to forward to content script for local display
+      console.warn('⚠️ NO SESSION ID AVAILABLE - TRANSCRIPTION WILL NOT SYNC');
+      console.warn('⚠️ Current session ID:', currentSessionId);
+      console.warn('⚠️ Message session ID:', message.sessionId);
+      console.warn('⚠️ Current tab ID:', currentTabId);
     }
     
     // Send to both local content script and Supabase for cross-device sync
