@@ -7,6 +7,15 @@ let offscreenCreated = false;
 let currentTabId = null;
 let currentSessionId = null;
 
+// Load session ID from storage on startup
+chrome.runtime.onStartup.addListener(async () => {
+  const result = await chrome.storage.local.get(['sessionId']);
+  if (result.sessionId) {
+    currentSessionId = result.sessionId;
+    console.log('Loaded session ID from storage:', currentSessionId);
+  }
+});
+
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
   console.log('=== EXTENSION ICON CLICKED ===');
@@ -91,7 +100,7 @@ function extractSessionId(url) {
   }
 }
 
-// Auto-start transcription when on interview pages
+// Auto-start transcription when on interview pages (only if session ID matches)
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && 
       (tab.url.includes('lovableproject.com') || 
@@ -103,15 +112,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     console.log('Tab ID:', tabId, 'URL:', tab.url);
     
     // Extract session ID from URL
-    const sessionId = extractSessionId(tab.url);
-    console.log('🔍 SESSION ID EXTRACTION RESULT:', sessionId);
+    const urlSessionId = extractSessionId(tab.url);
+    console.log('🔍 URL SESSION ID:', urlSessionId);
+    console.log('🔍 CURRENT SESSION ID:', currentSessionId);
     
-    if (sessionId) {
-      currentSessionId = sessionId;
+    // Only auto-start if URL session matches current session or if no current session
+    if (urlSessionId && (urlSessionId === currentSessionId || !currentSessionId)) {
+      currentSessionId = urlSessionId;
       currentTabId = tabId;
       
+      // Save session ID
+      await chrome.storage.local.set({ sessionId: currentSessionId });
       console.log('✅ SESSION ID SET:', currentSessionId);
-      console.log('✅ TAB ID SET:', currentTabId);
       
       try {
         await ensureContentScript(tabId);
@@ -119,23 +131,23 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         // Send session ID to content script
         await chrome.tabs.sendMessage(tabId, {
           action: 'setSessionId',
-          sessionId: sessionId
+          sessionId: currentSessionId
         });
         
         if (!isCapturing) {
-          console.log('🚀 Auto-starting transcription for session:', sessionId);
+          console.log('🚀 Auto-starting transcription for session:', currentSessionId);
           await startTranscription(tab);
         }
       } catch (error) {
         console.error('Error auto-starting transcription:', error);
       }
-    } else {
-      console.warn('⚠️ No session ID found in URL:', tab.url);
+    } else if (urlSessionId) {
+      console.warn('⚠️ URL session ID does not match current session. URL:', urlSessionId, 'Current:', currentSessionId);
     }
   }
 });
 
-// Track tab focus changes to update currentTabId and session
+// Track tab focus changes to update currentTabId
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
@@ -146,13 +158,6 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
          tab.url.includes('preview--'))) {
       console.log('🎯 INTERVIEW TAB ACTIVATED:', activeInfo.tabId, tab.url);
       currentTabId = activeInfo.tabId;
-      
-      // Extract and update session ID
-      const sessionId = extractSessionId(tab.url);
-      if (sessionId) {
-        currentSessionId = sessionId;
-        console.log('🔄 Updated current session ID:', sessionId);
-      }
     }
   } catch (error) {
     console.warn('Could not get tab info on activation:', error);
@@ -165,10 +170,13 @@ async function startTranscription(tab) {
   
   currentTabId = tab.id;
   
-  // Extract session ID if not already set
+  // Use current session ID or try to extract from URL
   if (!currentSessionId) {
     currentSessionId = extractSessionId(tab.url);
-    console.log('🎯 Extracted session ID for transcription:', currentSessionId);
+    if (currentSessionId) {
+      await chrome.storage.local.set({ sessionId: currentSessionId });
+      console.log('🎯 Extracted and saved session ID:', currentSessionId);
+    }
   }
   
   if (!currentSessionId) {
@@ -222,7 +230,6 @@ async function startTranscription(tab) {
   } catch (error) {
     console.error('❌ Error starting transcription:', error);
     currentTabId = null;
-    currentSessionId = null;
     isCapturing = false;
     await cleanupOffscreen();
     throw error;
@@ -243,7 +250,6 @@ async function stopTranscription(tab) {
     
     isCapturing = false;
     currentTabId = null;
-    currentSessionId = null;
     chrome.action.setBadgeText({ text: '' });
     console.log('✅ Transcription stopped');
     
@@ -389,16 +395,50 @@ async function showErrorNotification(message) {
   }
 }
 
-// Handle messages from offscreen document
+// Handle messages from popup and offscreen
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('🔔 Background received message:', message);
-  console.log('📋 Message details:', {
-    type: message.type,
-    text: message.text ? `"${message.text.substring(0, 50)}..."` : 'undefined',
-    timestamp: message.timestamp,
-    source: message.source,
-    sessionId: message.sessionId || currentSessionId
-  });
+  
+  // Handle popup messages
+  if (message.action === 'toggle') {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab) {
+      try {
+        if (isCapturing) {
+          await stopTranscription(tab);
+        } else {
+          await startTranscription(tab);
+        }
+        sendResponse({ 
+          success: true, 
+          isCapturing: isCapturing,
+          sessionId: currentSessionId 
+        });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message });
+      }
+    }
+    return true;
+  }
+  
+  // Handle session ID setting from popup
+  if (message.action === 'setSessionId') {
+    currentSessionId = message.sessionId;
+    await chrome.storage.local.set({ sessionId: currentSessionId });
+    console.log('🎯 Session ID set from popup:', currentSessionId);
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  // Handle status request from popup
+  if (message.action === 'getStatus') {
+    sendResponse({ 
+      isCapturing: isCapturing, 
+      sessionId: currentSessionId,
+      currentTabId: currentTabId
+    });
+    return true;
+  }
   
   // Handle ready signal from offscreen
   if (message.type === 'offscreen-ready') {
@@ -420,9 +460,6 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     
     if (!sessionId) {
       console.warn('⚠️ NO SESSION ID AVAILABLE - TRANSCRIPTION WILL NOT SYNC');
-      console.warn('⚠️ Current session ID:', currentSessionId);
-      console.warn('⚠️ Message session ID:', message.sessionId);
-      console.warn('⚠️ Current tab ID:', currentTabId);
     }
     
     // Send to both local content script and Supabase for cross-device sync
@@ -445,7 +482,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       }
     }
     
-    // Send to Supabase for cross-device sync AND answer generation if we have a session
+    // Send to Supabase for cross-device sync and answer generation
     if (sessionId) {
       try {
         console.log('📡 Sending transcription to Supabase for cross-device sync and AI answer...');
@@ -453,7 +490,6 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         console.log('✅ Transcription sent to Supabase successfully');
       } catch (error) {
         console.error('❌ Error sending transcription to Supabase:', error);
-        // Don't fail the whole operation if Supabase fails
       }
     } else {
       console.warn('⚠️ No session ID available, skipping cross-device sync and AI answers');

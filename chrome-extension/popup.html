@@ -1,8 +1,42 @@
-<!-- popup.html -->
-<!doctype html><html><body>
-  <h3 style="margin:12px 0 4px">InterviewAce</h3>
-  <p id="status">Ready to capture Meet audio.</p>
-  <button id="toggleBtn" disabled>Start</button>
-  <script src="popup.js"></script>
-  </body></html>
+
+<!doctype html><html><head>
+  <style>
+    body { width: 300px; padding: 16px; font-family: system-ui; }
+    h3 { margin: 0 0 12px; }
+    .status { margin-bottom: 12px; font-size: 14px; }
+    .qr-container { text-align: center; margin: 16px 0; }
+    .qr-code { border: 1px solid #ddd; border-radius: 8px; }
+    .session-info { background: #f5f5f5; padding: 8px; border-radius: 4px; margin: 8px 0; font-size: 12px; }
+    .manual-input { margin-top: 12px; }
+    .manual-input input { width: 100%; padding: 6px; margin: 4px 0; }
+    .manual-input button { width: 100%; padding: 8px; background: #1976d2; color: white; border: none; border-radius: 4px; }
+    button { padding: 8px 16px; margin: 4px; border: none; border-radius: 4px; cursor: pointer; }
+    .primary { background: #34a853; color: white; }
+    .secondary { background: #757575; color: white; }
+  </style>
+</head><body>
+  <h3>InterviewAce Extension</h3>
+  <div id="status" class="status">Generating QR code...</div>
   
+  <div class="qr-container">
+    <canvas id="qrcode" class="qr-code"></canvas>
+  </div>
+  
+  <div id="sessionInfo" class="session-info" style="display: none;">
+    <strong>Session ID:</strong> <span id="sessionIdDisplay"></span>
+  </div>
+  
+  <div class="manual-input">
+    <label>Or enter session ID manually:</label>
+    <input type="text" id="manualSessionId" placeholder="Enter session ID">
+    <button id="connectBtn">Connect to Session</button>
+  </div>
+  
+  <div style="margin-top: 12px;">
+    <button id="generateNewBtn" class="secondary">Generate New Session</button>
+    <button id="toggleBtn" class="primary" disabled>Start Transcription</button>
+  </div>
+  
+  <script src="qrcode.min.js"></script>
+  <script src="popup.js"></script>
+</body></html>
