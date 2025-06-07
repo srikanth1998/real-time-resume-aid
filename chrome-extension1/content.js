@@ -23,7 +23,7 @@ function updateBannerStatus(status) {
   switch (status) {
     case 'transcribing':
       b.style.background = '#34a853';
-      b.textContent = '🎤 InterviewAce - Transcribing locally...';
+      b.textContent = '🎤 InterviewAce - Transcribing (Cross-Device)...';
       break;
     case 'processing':
       b.style.background = '#1976d2';
@@ -38,11 +38,6 @@ function updateBannerStatus(status) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('🔔 CONTENT SCRIPT RECEIVED MESSAGE:', message);
-  console.log('📋 Message details:', {
-    action: message.action,
-    text: message.text ? `"${message.text.substring(0, 50)}..."` : 'undefined',
-    timestamp: message.timestamp
-  });
   
   // Handle ping messages from background script
   if (message.action === 'ping') {
@@ -51,11 +46,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
-  const { action, text, timestamp } = message;
+  const { action, text, timestamp, sessionId } = message;
   const b = ensureBanner();
   
   if (action === 'transcriptionStarted') {
-    console.log('🎬 Showing transcription banner');
+    console.log('🎬 Showing cross-device transcription banner');
     updateBannerStatus('transcribing');
     b.hidden = false;
     sendResponse({ success: true });
@@ -74,7 +69,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (action === 'transcriptionResult' && text && text.trim()) {
     console.log('📢 PROCESSING TRANSCRIPTION RESULT FROM BACKGROUND');
     console.log('📝 Transcribed text:', text);
-    console.log('⏰ Timestamp:', timestamp);
+    console.log('🎯 Session ID:', sessionId);
     
     // Show processing status briefly
     updateBannerStatus('processing');
@@ -84,34 +79,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     }, 1000);
     
-    // Send transcription to web application using both methods for reliability
+    // Send transcription to web application with cross-device context
     const messageData = {
       action: 'processTranscription',
       text: text,
-      source: 'interviewace-extension',
+      source: 'interviewace-extension-cross-device',
       timestamp: timestamp || Date.now(),
+      sessionId: sessionId,
       type: 'real-time-transcription'
     };
     
-    console.log('📨 Posting window message:', messageData);
+    console.log('📨 Posting cross-device window message:', messageData);
     window.postMessage(messageData, '*');
     
-    // Also dispatch custom event
-    console.log('🎯 Dispatching extensionTranscription event');
+    // Also dispatch custom event with session context
+    console.log('🎯 Dispatching cross-device extensionTranscription event');
     const transcriptionEvent = new CustomEvent('extensionTranscription', {
       detail: { 
         text: text,
         timestamp: timestamp || Date.now(),
-        type: 'real-time-transcription'
+        sessionId: sessionId,
+        type: 'cross-device-transcription'
       }
     });
     window.dispatchEvent(transcriptionEvent);
-    console.log('✅ Extension transcription event dispatched');
+    console.log('✅ Cross-device extension transcription event dispatched');
     
     sendResponse({ success: true });
   }
   
-  return true; // Keep message channel open for async response
+  return true;
 });
 
 // Listen for messages from the web application
@@ -120,35 +117,35 @@ window.addEventListener('message', (event) => {
   
   if (event.data.action === 'interviewAppReady') {
     console.log('🎯 INTERVIEW APP READY MESSAGE RECEIVED');
-    console.log('📢 Notifying that extension is ready for transcription...');
+    console.log('📢 Notifying that extension is ready for cross-device transcription...');
     window.postMessage({
       action: 'extensionReady',
-      source: 'interviewace-extension',
-      capabilities: ['localTranscription', 'privacyFocused'],
+      source: 'interviewace-extension-cross-device',
+      capabilities: ['localTranscription', 'crossDeviceSync', 'privacyFocused'],
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Extension ready message posted with transcription capabilities');
+    console.log('✅ Extension ready message posted with cross-device capabilities');
   }
   
   if (event.data.action === 'testConnection') {
     console.log('🧪 TEST CONNECTION MESSAGE RECEIVED');
     window.postMessage({
       action: 'extensionReady',
-      source: 'interviewace-extension',
-      capabilities: ['localTranscription', 'privacyFocused'],
+      source: 'interviewace-extension-cross-device',
+      capabilities: ['localTranscription', 'crossDeviceSync', 'privacyFocused'],
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Test connection response sent with transcription capabilities');
+    console.log('✅ Test connection response sent with cross-device capabilities');
   }
 });
 
-// Notify web app that extension is loaded
-console.log('🚀 INTERVIEWACE TRANSCRIPTION EXTENSION LOADED');
+// Notify web app that extension is loaded with cross-device support
+console.log('🚀 INTERVIEWACE CROSS-DEVICE TRANSCRIPTION EXTENSION LOADED');
 console.log('🌐 Page URL:', window.location.href);
 window.postMessage({
   action: 'extensionReady',
-  source: 'interviewace-extension',
-  capabilities: ['localTranscription', 'privacyFocused'],
+  source: 'interviewace-extension-cross-device',
+  capabilities: ['localTranscription', 'crossDeviceSync', 'privacyFocused'],
   timestamp: Date.now()
 }, '*');
-console.log('✅ Initial extension ready message posted with transcription capabilities');
+console.log('✅ Initial extension ready message posted with cross-device capabilities');

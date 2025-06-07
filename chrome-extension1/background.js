@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 console.log('InterviewAce transcription background script loaded');
@@ -6,6 +5,7 @@ console.log('InterviewAce transcription background script loaded');
 let isCapturing = false;
 let offscreenCreated = false;
 let currentTabId = null;
+let currentSessionId = null;
 
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
@@ -30,14 +30,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     console.log('🎯 DETECTED LOVABLE PROJECT PAGE');
     console.log('Tab ID:', tabId, 'URL:', tab.url);
     
-    // Store the tab ID and auto-start transcription
+    // Store the tab ID and extract session ID from URL
     currentTabId = tabId;
+    currentSessionId = extractSessionId(tab.url);
     
     try {
       await ensureContentScript(tabId);
       
-      if (!isCapturing) {
-        console.log('🚀 Auto-starting transcription for Lovable project page');
+      if (!isCapturing && currentSessionId) {
+        console.log('🚀 Auto-starting transcription for Lovable project page, session:', currentSessionId);
         await startTranscription(tab);
       }
     } catch (error) {
@@ -46,9 +47,35 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+function extractSessionId(url) {
+  try {
+    const urlObj = new URL(url);
+    // Extract session ID from path like /interview/session-id
+    const pathParts = urlObj.pathname.split('/');
+    if (pathParts[1] === 'interview' && pathParts[2]) {
+      console.log('Extracted session ID:', pathParts[2]);
+      return pathParts[2];
+    }
+    // Also check for session ID in query params
+    const sessionId = urlObj.searchParams.get('session') || urlObj.searchParams.get('sessionId');
+    if (sessionId) {
+      console.log('Extracted session ID from query:', sessionId);
+      return sessionId;
+    }
+  } catch (error) {
+    console.warn('Error extracting session ID:', error);
+  }
+  return null;
+}
+
 async function startTranscription(tab) {
   console.log('Starting transcription for tab:', tab.id);
   currentTabId = tab.id;
+  
+  // Extract session ID if not already set
+  if (!currentSessionId) {
+    currentSessionId = extractSessionId(tab.url);
+  }
   
   try {
     // Ensure content script is injected
@@ -75,10 +102,11 @@ async function startTranscription(tab) {
 
     console.log('Got stream ID:', streamId);
     
-    // Start transcription in offscreen
+    // Start transcription in offscreen with session ID
     const response = await sendMessageToOffscreen({
       type: 'start-transcription',
-      streamId: streamId
+      streamId: streamId,
+      sessionId: currentSessionId
     });
     
     if (!response?.success) {
@@ -91,11 +119,12 @@ async function startTranscription(tab) {
     isCapturing = true;
     chrome.action.setBadgeText({ text: 'ON' });
     chrome.action.setBadgeBackgroundColor({ color: '#34a853' });
-    console.log('✅ Transcription started successfully for tab:', tab.id);
+    console.log('✅ Transcription started successfully for tab:', tab.id, 'session:', currentSessionId);
     
   } catch (error) {
     console.error('❌ Error starting transcription:', error);
     currentTabId = null;
+    currentSessionId = null;
     isCapturing = false;
     await cleanupOffscreen();
     throw error;
@@ -116,6 +145,7 @@ async function stopTranscription(tab) {
     
     isCapturing = false;
     currentTabId = null;
+    currentSessionId = null;
     chrome.action.setBadgeText({ text: '' });
     console.log('✅ Transcription stopped');
     
@@ -250,89 +280,57 @@ async function showErrorNotification(message) {
   }
 }
 
-// Handle messages from offscreen document
+// Handle messages from offscreen document and content scripts
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   console.log('🔔 Background received message:', message);
   console.log('📋 Message details:', {
     type: message.type,
     text: message.text ? `"${message.text.substring(0, 50)}..."` : 'undefined',
     timestamp: message.timestamp,
-    source: message.source
+    source: message.source,
+    sessionId: message.sessionId
   });
   
   // Handle transcription results from offscreen
   if (message.type === 'transcription-result' && message.text && message.text.trim()) {
-    console.log('📢 FORWARDING TRANSCRIPTION RESULT TO CONTENT SCRIPT');
+    console.log('📢 PROCESSING TRANSCRIPTION RESULT FROM OFFSCREEN');
     console.log('📝 Transcription text:', message.text);
-    console.log('🎯 Target tab ID:', currentTabId);
+    console.log('🎯 Session ID:', currentSessionId);
     
+    // Send to both local content script and Supabase for cross-device sync
+    const transcriptionData = {
+      text: message.text.trim(),
+      timestamp: message.timestamp || Date.now(),
+      sessionId: currentSessionId
+    };
+    
+    // Forward to local content script for immediate UI update
     if (currentTabId) {
       try {
-        const response = await chrome.tabs.sendMessage(currentTabId, {
+        await chrome.tabs.sendMessage(currentTabId, {
           action: 'transcriptionResult',
-          text: message.text,
-          timestamp: message.timestamp || Date.now()
+          ...transcriptionData
         });
-        console.log('✅ Transcription forwarded to content script, response:', response);
-        sendResponse({ success: true, forwarded: true });
+        console.log('✅ Transcription forwarded to local content script');
       } catch (error) {
-        console.error('❌ Error forwarding transcription to content script:', error);
-        
-        // Try to find and update the current tab if message failed
-        try {
-          const tabs = await chrome.tabs.query({ url: '*://*.lovableproject.com/*' });
-          if (tabs.length > 0) {
-            const tab = tabs[0];
-            console.log('🔄 Found Lovable tab, updating currentTabId to:', tab.id);
-            currentTabId = tab.id;
-            
-            // Ensure content script and retry
-            await ensureContentScript(tab.id);
-            await chrome.tabs.sendMessage(currentTabId, {
-              action: 'transcriptionResult',
-              text: message.text,
-              timestamp: message.timestamp || Date.now()
-            });
-            console.log('✅ Transcription forwarded after tab recovery');
-            sendResponse({ success: true, forwarded: true, recovered: true });
-          } else {
-            console.warn('⚠️ No Lovable tabs found for recovery');
-            sendResponse({ success: false, error: 'No active Lovable tab found' });
-          }
-        } catch (recoveryError) {
-          console.error('❌ Tab recovery failed:', recoveryError);
-          sendResponse({ success: false, error: error.message });
-        }
-      }
-    } else {
-      console.warn('⚠️ No current tab ID, attempting to find Lovable tab...');
-      
-      try {
-        const tabs = await chrome.tabs.query({ url: '*://*.lovableproject.com/*' });
-        if (tabs.length > 0) {
-          const tab = tabs[0];
-          console.log('🔍 Found Lovable tab:', tab.id);
-          currentTabId = tab.id;
-          
-          // Ensure content script and send message
-          await ensureContentScript(tab.id);
-          await chrome.tabs.sendMessage(currentTabId, {
-            action: 'transcriptionResult',
-            text: message.text,
-            timestamp: message.timestamp || Date.now()
-          });
-          console.log('✅ Transcription sent to discovered tab');
-          sendResponse({ success: true, forwarded: true, discovered: true });
-        } else {
-          console.warn('⚠️ No Lovable tabs found');
-          sendResponse({ success: false, error: 'No Lovable tab found' });
-        }
-      } catch (discoveryError) {
-        console.error('❌ Tab discovery failed:', discoveryError);
-        sendResponse({ success: false, error: 'Failed to find target tab' });
+        console.warn('❌ Error forwarding to local content script:', error);
       }
     }
-    return true; // Keep message channel open
+    
+    // Send to Supabase for cross-device sync if we have a session
+    if (currentSessionId) {
+      try {
+        console.log('📡 Sending transcription to Supabase for cross-device sync...');
+        await sendTranscriptionToSupabase(transcriptionData);
+        console.log('✅ Transcription sent to Supabase successfully');
+      } catch (error) {
+        console.error('❌ Error sending transcription to Supabase:', error);
+        // Don't fail the whole operation if Supabase fails
+      }
+    }
+    
+    sendResponse({ success: true, forwarded: true, synced: !!currentSessionId });
+    return true;
   }
   
   // Handle ping messages
@@ -344,6 +342,33 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   sendResponse({ success: true });
   return true;
 });
+
+async function sendTranscriptionToSupabase(transcriptionData) {
+  const supabaseUrl = 'https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/process-transcription';
+  const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY';
+  
+  const response = await fetch(supabaseUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'apikey': supabaseAnonKey
+    },
+    body: JSON.stringify({
+      sessionId: transcriptionData.sessionId,
+      text: transcriptionData.text,
+      timestamp: transcriptionData.timestamp,
+      source: 'chrome-extension'
+    })
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Supabase error: ${response.status} - ${errorText}`);
+  }
+  
+  return await response.json();
+}
 
 // Clean up when extension is disabled/reloaded
 chrome.runtime.onSuspend.addListener(() => {

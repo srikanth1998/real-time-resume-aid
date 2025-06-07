@@ -9,12 +9,13 @@ let workletNode = null;
 let lastTranscriptionTime = 0;
 let audioBuffer = [];
 let isProcessingAudio = false;
+let currentSessionId = null;
 
 // Dynamic audio capture variables
 let continuousAudioBuffer = [];
 let lastAudioActivity = 0;
-let silenceThreshold = 0.01; // Amplitude threshold for silence detection
-let silenceGapMs = 1000; // 1 second gap
+let silenceThreshold = 0.01;
+let silenceGapMs = 1200; // Increased to 1.2 seconds for better phrase detection
 let isCapturingPhrase = false;
 let captureStartTime = 0;
 
@@ -31,7 +32,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   if (message.type === 'start-transcription') {
-    console.log('🎬 Starting transcription with stream ID:', message.streamId);
+    console.log('🎬 Starting transcription with stream ID:', message.streamId, 'session:', message.sessionId);
+    currentSessionId = message.sessionId; // Store session ID
     startAudioCapture(message.streamId)
       .then(() => {
         console.log('✅ Audio capture started successfully');
@@ -45,7 +47,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           errorType: error.name
         });
       });
-    return true; // Keep message channel open for async response
+    return true;
   }
   
   if (message.type === 'stop-transcription') {
@@ -202,7 +204,6 @@ async function endPhraseCapture() {
   
   try {
     console.log('🔄 Converting audio to WAV format...');
-    // Convert to WAV and send for transcription
     const audioBlob = createWAVBlob(capturedAudio);
     console.log('📦 Created WAV blob, size:', audioBlob.size, 'bytes');
     
@@ -222,11 +223,6 @@ async function endPhraseCapture() {
     
   } catch (error) {
     console.error('❌ Error processing phrase:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
   }
 }
 
@@ -357,23 +353,24 @@ function sendTranscription(text) {
   }
   
   console.log('📤 Sending transcription to background:', text);
+  console.log('📋 Session ID:', currentSessionId);
   
   try {
     const message = {
       type: 'transcription-result',
       text: text.trim(),
       timestamp: Date.now(),
-      source: 'whisper-api-dynamic'
+      source: 'whisper-api-dynamic',
+      sessionId: currentSessionId // Include session ID
     };
     
     console.log('📨 Message being sent:', message);
     
-    // Send message without waiting for response to avoid port closure issues
     chrome.runtime.sendMessage(message).catch((error) => {
       console.warn('⚠️ Message send failed (this is normal if background script is busy):', error.message);
     });
     
-    console.log('✅ Transcription message sent');
+    console.log('✅ Transcription message sent with session ID');
   } catch (error) {
     console.error('💥 Error sending transcription:', error);
   }
