@@ -50,22 +50,30 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 function extractSessionId(url) {
   try {
     const urlObj = new URL(url);
-    // Extract session ID from path like /interview/session-id
+    console.log('🔍 Extracting session ID from URL:', url);
+    console.log('🔍 URL pathname:', urlObj.pathname);
+    console.log('🔍 URL search params:', urlObj.searchParams.toString());
+    
+    // Check for session ID in query parameters first (your current format)
+    const sessionFromQuery = urlObj.searchParams.get('session_id') || urlObj.searchParams.get('sessionId');
+    if (sessionFromQuery) {
+      console.log('✅ Extracted session ID from query params:', sessionFromQuery);
+      return sessionFromQuery;
+    }
+    
+    // Check for session ID in path like /interview/session-id
     const pathParts = urlObj.pathname.split('/');
     if (pathParts[1] === 'interview' && pathParts[2]) {
-      console.log('Extracted session ID:', pathParts[2]);
+      console.log('✅ Extracted session ID from path:', pathParts[2]);
       return pathParts[2];
     }
-    // Also check for session ID in query params
-    const sessionId = urlObj.searchParams.get('session') || urlObj.searchParams.get('sessionId');
-    if (sessionId) {
-      console.log('Extracted session ID from query:', sessionId);
-      return sessionId;
-    }
+    
+    console.log('❌ No session ID found in URL');
+    return null;
   } catch (error) {
     console.warn('Error extracting session ID:', error);
+    return null;
   }
-  return null;
 }
 
 async function startTranscription(tab) {
@@ -76,6 +84,8 @@ async function startTranscription(tab) {
   if (!currentSessionId) {
     currentSessionId = extractSessionId(tab.url);
   }
+  
+  console.log('🎯 Session ID for transcription:', currentSessionId);
   
   try {
     // Ensure content script is injected
@@ -327,6 +337,8 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         console.error('❌ Error sending transcription to Supabase:', error);
         // Don't fail the whole operation if Supabase fails
       }
+    } else {
+      console.warn('⚠️ No session ID available, skipping cross-device sync');
     }
     
     sendResponse({ success: true, forwarded: true, synced: !!currentSessionId });
