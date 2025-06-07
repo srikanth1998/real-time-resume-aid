@@ -1,3 +1,4 @@
+
 /* global chrome */
 let banner;
 let extensionStatus = 'disconnected';
@@ -9,7 +10,7 @@ function ensureBanner() {
     'position:fixed;bottom:24px;right:24px;max-width:340px;padding:12px 16px;'
   + 'font:14px/1.4 sans-serif;color:#fff;background:#34a853;border-radius:12px;'
   + 'box-shadow:0 4px 12px rgba(0,0,0,.35);z-index:2147483647;transition:all 0.3s ease;';
-  banner.textContent = '🎤 InterviewAce - Ready for transcription';
+  banner.textContent = '🎤 InterviewAce - Extension connected and ready';
   banner.hidden = true;
   document.documentElement.appendChild(banner);
   return banner;
@@ -20,9 +21,13 @@ function updateBannerStatus(status) {
   extensionStatus = status;
   
   switch (status) {
+    case 'connected':
+      b.style.background = '#34a853';
+      b.textContent = '🎤 InterviewAce - Extension connected and ready';
+      break;
     case 'transcribing':
       b.style.background = '#34a853';
-      b.textContent = '🎤 InterviewAce - Audio passthrough active, transcribing...';
+      b.textContent = '🎤 InterviewAce - Audio capture active, transcribing...';
       break;
     case 'processing':
       b.style.background = '#1976d2';
@@ -54,7 +59,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const b = ensureBanner();
   
   if (action === 'transcriptionStarted') {
-    console.log('🎬 Showing transcription banner with passthrough info');
+    console.log('🎬 Showing transcription banner');
     updateBannerStatus('transcribing');
     b.hidden = false;
     sendResponse({ success: true });
@@ -83,7 +88,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     }, 1000);
     
-    // Send transcription to web application using both methods for reliability
+    // Send transcription to web application using multiple methods for reliability
     const messageData = {
       action: 'processTranscription',
       text: text,
@@ -119,14 +124,20 @@ window.addEventListener('message', (event) => {
   
   if (event.data.action === 'interviewAppReady') {
     console.log('🎯 INTERVIEW APP READY MESSAGE RECEIVED');
-    console.log('📢 Notifying that extension is ready for transcription...');
+    console.log('📢 Notifying that extension is ready...');
+    
+    // Show connected banner
+    updateBannerStatus('connected');
+    ensureBanner().hidden = false;
+    
+    // Notify app that extension is ready
     window.postMessage({
       action: 'extensionReady',
       source: 'interviewace-extension',
       capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Extension ready message posted with transcription capabilities');
+    console.log('✅ Extension ready message posted');
   }
   
   if (event.data.action === 'testConnection') {
@@ -137,17 +148,45 @@ window.addEventListener('message', (event) => {
       capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Test connection response sent with transcription capabilities');
+    console.log('✅ Test connection response sent');
   }
 });
 
 // Notify web app that extension is loaded
-console.log('🚀 INTERVIEWACE TRANSCRIPTION EXTENSION LOADED');
+console.log('🚀 INTERVIEWACE EXTENSION LOADED');
 console.log('🌐 Page URL:', window.location.href);
+
+// Extract session ID from URL and log it
+function extractSessionIdFromURL() {
+  try {
+    const url = window.location.href;
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    
+    if (sessionId) {
+      console.log('✅ Content script detected session ID:', sessionId);
+      return sessionId;
+    } else {
+      console.log('⚠️ No session ID found in URL');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error extracting session ID:', error);
+    return null;
+  }
+}
+
+const sessionId = extractSessionIdFromURL();
+if (sessionId) {
+  console.log('📍 Current session ID:', sessionId);
+}
+
+// Initial extension ready message
 window.postMessage({
   action: 'extensionReady',
   source: 'interviewace-extension',
   capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
+  sessionId: sessionId, // Include session ID in the message
   timestamp: Date.now()
 }, '*');
-console.log('✅ Initial extension ready message posted with transcription capabilities');
+console.log('✅ Initial extension ready message posted with session ID:', sessionId);
