@@ -33,6 +33,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     // Store the tab ID and extract session ID from URL
     currentTabId = tabId;
     currentSessionId = extractSessionId(tab.url);
+    console.log('🔍 Extracted session ID on page load:', currentSessionId);
     
     try {
       await ensureContentScript(tabId);
@@ -298,7 +299,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     text: message.text ? `"${message.text.substring(0, 50)}..."` : 'undefined',
     timestamp: message.timestamp,
     source: message.source,
-    sessionId: message.sessionId
+    sessionId: message.sessionId || currentSessionId
   });
   
   // Handle transcription results from offscreen
@@ -307,11 +308,14 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     console.log('📝 Transcription text:', message.text);
     console.log('🎯 Session ID:', currentSessionId);
     
+    // Use current session ID if message doesn't have one
+    const sessionId = message.sessionId || currentSessionId;
+    
     // Send to both local content script and Supabase for cross-device sync
     const transcriptionData = {
       text: message.text.trim(),
       timestamp: message.timestamp || Date.now(),
-      sessionId: currentSessionId
+      sessionId: sessionId
     };
     
     // Forward to local content script for immediate UI update
@@ -327,10 +331,10 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       }
     }
     
-    // Send to Supabase for cross-device sync if we have a session
-    if (currentSessionId) {
+    // Send to Supabase for cross-device sync AND answer generation if we have a session
+    if (sessionId) {
       try {
-        console.log('📡 Sending transcription to Supabase for cross-device sync...');
+        console.log('📡 Sending transcription to Supabase for cross-device sync and AI answer...');
         await sendTranscriptionToSupabase(transcriptionData);
         console.log('✅ Transcription sent to Supabase successfully');
       } catch (error) {
@@ -338,10 +342,10 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         // Don't fail the whole operation if Supabase fails
       }
     } else {
-      console.warn('⚠️ No session ID available, skipping cross-device sync');
+      console.warn('⚠️ No session ID available, skipping cross-device sync and AI answers');
     }
     
-    sendResponse({ success: true, forwarded: true, synced: !!currentSessionId });
+    sendResponse({ success: true, forwarded: true, synced: !!sessionId });
     return true;
   }
   

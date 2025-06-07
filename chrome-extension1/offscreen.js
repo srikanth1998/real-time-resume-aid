@@ -11,11 +11,11 @@ let audioBuffer = [];
 let isProcessingAudio = false;
 let currentSessionId = null;
 
-// Dynamic audio capture variables
+// More aggressive real-time capture variables
 let continuousAudioBuffer = [];
 let lastAudioActivity = 0;
-let silenceThreshold = 0.01;
-let silenceGapMs = 1200; // Increased to 1.2 seconds for better phrase detection
+let silenceThreshold = 0.005; // Lower threshold for better sensitivity
+let silenceGapMs = 800; // Shorter gap for faster response
 let isCapturingPhrase = false;
 let captureStartTime = 0;
 
@@ -93,7 +93,7 @@ async function startAudioCapture(streamId) {
       throw new Error('No audio tracks found in stream');
     }
     
-    // Create audio context for processing
+    // Create audio context for real-time processing
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
       sampleRate: 16000 // Standard rate for speech recognition
     });
@@ -101,31 +101,31 @@ async function startAudioCapture(streamId) {
     // Create source from stream
     const source = audioContext.createMediaStreamSource(mediaStream);
     
-    // Load the proper worklet module
+    // Load the worklet module
     const workletUrl = chrome.runtime.getURL('audio-processor-worklet.js');
     console.log('Loading worklet from:', workletUrl);
     await audioContext.audioWorklet.addModule(workletUrl);
     
     workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
     
-    // Process audio data with dynamic capture
+    // Process audio data with aggressive real-time capture
     workletNode.port.onmessage = (event) => {
       if (event.data.type === 'audioData') {
-        processDynamicAudioData(event.data.data);
+        processRealTimeAudioData(event.data.data);
       }
     };
     
     // Connect audio pipeline
     source.connect(workletNode);
     
-    // Reset dynamic capture variables
+    // Reset capture variables
     continuousAudioBuffer = [];
     lastAudioActivity = 0;
     isCapturingPhrase = false;
     captureStartTime = 0;
     
     isRecording = true;
-    console.log('🎬 Dynamic audio processing started');
+    console.log('🎬 Real-time audio processing started with aggressive capture');
     
   } catch (error) {
     console.error('💥 Error in startAudioCapture:', error);
@@ -133,40 +133,34 @@ async function startAudioCapture(streamId) {
   }
 }
 
-function processDynamicAudioData(audioData) {
+function processRealTimeAudioData(audioData) {
   const now = Date.now();
   const amplitude = calculateAmplitude(audioData);
   
-  console.log('🎵 Audio data received, amplitude:', amplitude.toFixed(4));
-  
-  // Check if this is speech (above silence threshold)
+  // Much more sensitive detection
   const isSpeech = amplitude > silenceThreshold;
   
   if (isSpeech) {
-    // Speech detected
+    // Speech detected - start or continue capturing
     if (!isCapturingPhrase) {
-      // Start new phrase capture
-      console.log('🎤 Starting new phrase capture');
+      console.log('🎤 Starting new phrase capture (faster mode)');
       isCapturingPhrase = true;
       captureStartTime = now;
       continuousAudioBuffer = [];
     }
     
-    // Add audio data to continuous buffer
+    // Add audio data to buffer
     continuousAudioBuffer.push(...audioData);
     lastAudioActivity = now;
-    
-    console.log('📝 Capturing speech, buffer size:', continuousAudioBuffer.length);
     
   } else {
     // Silence detected
     if (isCapturingPhrase) {
       const silenceDuration = now - lastAudioActivity;
-      console.log('🤫 Silence detected, duration:', silenceDuration, 'ms');
       
-      // Check if silence gap is long enough to end phrase
+      // Shorter silence gap for faster response
       if (silenceDuration >= silenceGapMs) {
-        console.log('✅ Silence gap reached, ending phrase capture');
+        console.log('✅ Quick silence gap reached, processing phrase');
         endPhraseCapture();
       }
     }
@@ -183,51 +177,42 @@ function calculateAmplitude(audioData) {
 
 async function endPhraseCapture() {
   if (!isCapturingPhrase || continuousAudioBuffer.length === 0) {
-    console.log('⚠️ No phrase to capture or already ended');
     return;
   }
   
-  console.log('🎯 Ending phrase capture, total samples:', continuousAudioBuffer.length);
+  console.log('🎯 Processing captured phrase, samples:', continuousAudioBuffer.length);
   
   isCapturingPhrase = false;
   const capturedAudio = [...continuousAudioBuffer];
   continuousAudioBuffer = [];
   
-  // Only process if we have enough audio (at least 0.5 seconds at 16kHz)
-  if (capturedAudio.length < 8000) {
-    console.log('⚠️ Audio too short, skipping transcription. Samples:', capturedAudio.length);
+  // Process even shorter audio clips for faster response
+  if (capturedAudio.length < 4000) { // Reduced from 8000 for faster processing
+    console.log('⚠️ Audio clip too short, skipping. Samples:', capturedAudio.length);
     return;
   }
   
-  const captureDuration = (Date.now() - captureStartTime) / 1000;
-  console.log('📊 Phrase duration:', captureDuration.toFixed(2), 'seconds');
-  
   try {
-    console.log('🔄 Converting audio to WAV format...');
+    console.log('🔄 Converting to WAV...');
     const audioBlob = createWAVBlob(capturedAudio);
-    console.log('📦 Created WAV blob, size:', audioBlob.size, 'bytes');
     
     console.log('🔢 Converting to base64...');
     const base64Audio = await blobToBase64(audioBlob);
-    console.log('✅ Base64 conversion complete, length:', base64Audio.length);
     
-    console.log('🚀 Sending phrase to transcription service...');
+    console.log('🚀 Sending to transcription service immediately...');
     const transcription = await sendToSTTService(base64Audio);
     
     if (transcription && transcription.trim()) {
-      console.log('✅ Transcription received:', transcription);
+      console.log('✅ Fast transcription received:', transcription);
       sendTranscription(transcription);
-    } else {
-      console.log('⚠️ Empty transcription received');
     }
     
   } catch (error) {
-    console.error('❌ Error processing phrase:', error);
+    console.error('❌ Error in fast processing:', error);
   }
 }
 
 function createWAVBlob(audioData) {
-  console.log('🎧 Creating WAV blob from', audioData.length, 'samples');
   const sampleRate = 16000;
   const numChannels = 1;
   const bytesPerSample = 2;
@@ -267,42 +252,27 @@ function createWAVBlob(audioData) {
   const audioView = new Int16Array(buffer, 44);
   audioView.set(int16Data);
   
-  console.log('✅ WAV blob created successfully');
   return new Blob([buffer], { type: 'audio/wav' });
 }
 
 function blobToBase64(blob) {
-  console.log('🔄 Converting blob to base64...');
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result.split(',')[1];
-      console.log('✅ Base64 conversion successful');
       resolve(base64);
     };
-    reader.onerror = (error) => {
-      console.error('❌ Base64 conversion failed:', error);
-      reject(error);
-    };
+    reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
 }
 
 async function sendToSTTService(base64Audio) {
   try {
-    console.log('🚀 Sending audio to STT service...');
-    console.log('📊 Audio data size:', base64Audio.length, 'characters');
+    const requestBody = { audio: base64Audio };
     
-    const requestBody = {
-      audio: base64Audio
-    };
-    
-    // Use the correct Supabase project URL
     const supabaseUrl = 'https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/speech-to-text';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY';
-    
-    console.log('📡 Making request to Supabase function:', supabaseUrl);
-    console.log('🔑 Using auth key (first 20 chars):', supabaseAnonKey.substring(0, 20) + '...');
     
     const response = await fetch(supabaseUrl, {
       method: 'POST',
@@ -314,63 +284,41 @@ async function sendToSTTService(base64Audio) {
       body: JSON.stringify(requestBody)
     });
     
-    console.log('📬 STT service response status:', response.status, response.statusText);
-    console.log('📬 Response headers:', Object.fromEntries(response.headers.entries()));
-    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ STT service error response:', errorText);
       throw new Error(`STT service error: ${response.status} - ${errorText}`);
     }
     
     const result = await response.json();
-    console.log('✅ STT service response:', result);
-    
     return result.text;
     
   } catch (error) {
     console.error('❌ Error calling STT service:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    
-    // Add more specific error handling
-    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-      console.error('🌐 Network connectivity issue - check if Supabase domain is accessible');
-      console.error('🔍 Trying to reach:', 'https://jafylkqbmvdptrqwwyed.supabase.co');
-    }
-    
     return null;
   }
 }
 
 function sendTranscription(text) {
   if (!text || !text.trim()) {
-    console.log('⚠️ No text to send or empty text');
     return;
   }
   
   console.log('📤 Sending transcription to background:', text);
-  console.log('📋 Session ID:', currentSessionId);
   
   try {
     const message = {
       type: 'transcription-result',
       text: text.trim(),
       timestamp: Date.now(),
-      source: 'whisper-api-dynamic',
+      source: 'whisper-api-realtime',
       sessionId: currentSessionId // Include session ID
     };
     
-    console.log('📨 Message being sent:', message);
-    
     chrome.runtime.sendMessage(message).catch((error) => {
-      console.warn('⚠️ Message send failed (this is normal if background script is busy):', error.message);
+      console.warn('⚠️ Message send failed:', error.message);
     });
     
-    console.log('✅ Transcription message sent with session ID');
+    console.log('✅ Real-time transcription sent with session ID');
   } catch (error) {
     console.error('💥 Error sending transcription:', error);
   }
@@ -381,7 +329,7 @@ async function stopAudioCapture() {
   
   // Send any remaining captured audio before stopping
   if (isCapturingPhrase && continuousAudioBuffer.length > 0) {
-    console.log('📤 Sending final captured phrase before stopping...');
+    console.log('📤 Sending final captured phrase...');
     await endPhraseCapture();
   }
   
@@ -396,16 +344,14 @@ async function stopAudioCapture() {
       workletNode = null;
       console.log('✅ Audio worklet stopped');
     } catch (error) {
-      console.warn('⚠️ Error stopping audio worklet:', error);
+      console.warn('⚠️ Error stopping worklet:', error);
     }
   }
   
   // Stop media stream
   if (mediaStream) {
     try {
-      mediaStream.getTracks().forEach(track => {
-        track.stop();
-      });
+      mediaStream.getTracks().forEach(track => track.stop());
       mediaStream = null;
       console.log('✅ Media stream stopped');
     } catch (error) {
@@ -439,4 +385,4 @@ window.addEventListener('beforeunload', () => {
   stopAudioCapture();
 });
 
-console.log('✅ Offscreen script ready for dynamic real-time transcription');
+console.log('✅ Offscreen script ready for real-time transcription');
