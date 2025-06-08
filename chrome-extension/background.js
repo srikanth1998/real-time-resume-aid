@@ -1,3 +1,4 @@
+
 /* global chrome */
 
 console.log('InterviewAce silent transcription background script loaded');
@@ -8,6 +9,7 @@ let currentTabId = null;
 let currentSessionId = null;
 let sessionPersisted = false;
 let meetingTabId = null;
+let permissionGranted = false; // Track if user has granted permission this session
 
 // Check if Chrome APIs are available before using them
 const isChromeExtensionContext = () => {
@@ -29,14 +31,30 @@ async function loadPersistedSession() {
   if (!isChromeExtensionContext()) return;
   
   try {
-    const result = await chrome.storage.local.get(['sessionId', 'sessionPersisted']);
+    const result = await chrome.storage.local.get(['sessionId', 'sessionPersisted', 'permissionGranted']);
     if (result.sessionId && result.sessionPersisted) {
       currentSessionId = result.sessionId;
       sessionPersisted = true;
+      permissionGranted = result.permissionGranted || false;
       console.log('✅ Loaded persisted session ID (silent mode):', currentSessionId);
+      console.log('🔐 Permission granted status:', permissionGranted);
     }
   } catch (error) {
     console.warn('Error loading persisted session:', error);
+  }
+}
+
+async function savePermissionState() {
+  if (!isChromeExtensionContext()) return;
+  
+  try {
+    await chrome.storage.local.set({ 
+      sessionId: currentSessionId,
+      sessionPersisted: sessionPersisted,
+      permissionGranted: permissionGranted
+    });
+  } catch (error) {
+    console.warn('Error saving permission state:', error);
   }
 }
 
@@ -119,6 +137,79 @@ async function hasAudioActivity(tabId) {
   }
 }
 
+// Request permission via browser notification (completely hidden from tab)
+async function requestCapturePermission(tab) {
+  if (!isChromeExtensionContext()) return false;
+  
+  try {
+    console.log('📢 Requesting capture permission via browser notification');
+    
+    // Create notification asking for permission
+    const notificationId = await chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon48.png',
+      title: 'InterviewAce - Audio Capture',
+      message: 'Click to enable automatic audio transcription for your interview session',
+      buttons: [
+        { title: 'Enable Audio Capture' },
+        { title: 'Not Now' }
+      ],
+      requireInteraction: true
+    });
+    
+    return new Promise((resolve) => {
+      // Handle notification click
+      const handleNotificationClick = (clickedNotificationId, buttonIndex) => {
+        if (clickedNotificationId === notificationId) {
+          chrome.notifications.clear(notificationId);
+          chrome.notifications.onButtonClicked.removeListener(handleNotificationClick);
+          chrome.notifications.onClicked.removeListener(handleDirectClick);
+          
+          if (buttonIndex === 0) { // Enable button clicked
+            console.log('✅ User granted audio capture permission');
+            permissionGranted = true;
+            savePermissionState();
+            resolve(true);
+          } else {
+            console.log('❌ User declined audio capture permission');
+            resolve(false);
+          }
+        }
+      };
+      
+      // Handle direct notification click (not button)
+      const handleDirectClick = (clickedNotificationId) => {
+        if (clickedNotificationId === notificationId) {
+          chrome.notifications.clear(notificationId);
+          chrome.notifications.onButtonClicked.removeListener(handleNotificationClick);
+          chrome.notifications.onClicked.removeListener(handleDirectClick);
+          
+          console.log('✅ User granted audio capture permission (direct click)');
+          permissionGranted = true;
+          savePermissionState();
+          resolve(true);
+        }
+      };
+      
+      chrome.notifications.onButtonClicked.addListener(handleNotificationClick);
+      chrome.notifications.onClicked.addListener(handleDirectClick);
+      
+      // Auto-timeout after 30 seconds
+      setTimeout(() => {
+        chrome.notifications.clear(notificationId);
+        chrome.notifications.onButtonClicked.removeListener(handleNotificationClick);
+        chrome.notifications.onClicked.removeListener(handleDirectClick);
+        console.log('⏰ Permission request timed out');
+        resolve(false);
+      }, 30000);
+    });
+    
+  } catch (error) {
+    console.error('Error requesting capture permission:', error);
+    return false;
+  }
+}
+
 // Check all tabs for audio activity when session becomes available
 async function checkAllTabsForAudio() {
   if (!currentSessionId || isCapturing) return;
@@ -146,16 +237,33 @@ async function checkAllTabsForAudio() {
         });
         
         meetingTabId = tab.id;
-        console.log('🚀 AUTO-STARTING TRANSCRIPTION for discovered audio tab:', tab.id);
         
-        setTimeout(async () => {
-          try {
-            await startTranscription(tab);
-            console.log('✅ AUTO-STARTED transcription for discovered audio tab:', tab.id);
-          } catch (error) {
-            console.error('❌ Error auto-starting transcription for discovered tab:', error);
+        // Check if permission is already granted
+        if (permissionGranted) {
+          console.log('🚀 Permission already granted - AUTO-STARTING TRANSCRIPTION');
+          setTimeout(async () => {
+            try {
+              await startTranscription(tab);
+              console.log('✅ AUTO-STARTED transcription for discovered audio tab:', tab.id);
+            } catch (error) {
+              console.error('❌ Error auto-starting transcription for discovered tab:', error);
+            }
+          }, 1000);
+        } else {
+          console.log('🔐 Requesting permission for audio capture...');
+          const granted = await requestCapturePermission(tab);
+          if (granted) {
+            console.log('🚀 Permission granted - starting transcription');
+            setTimeout(async () => {
+              try {
+                await startTranscription(tab);
+                console.log('✅ Started transcription after permission grant');
+              } catch (error) {
+                console.error('❌ Error starting transcription after permission:', error);
+              }
+            }, 1000);
           }
-        }, 1000);
+        }
         
         return; // Only start one transcription at a time
       }
@@ -224,18 +332,33 @@ if (isChromeExtensionContext() && chrome.tabs) {
             session: currentSessionId 
           });
           
-          console.log('🚀 AUTO-STARTING TRANSCRIPTION for audio tab:', tabId, 'session:', currentSessionId);
           meetingTabId = tabId;
           
-          // Small delay to let the audio page fully load
-          setTimeout(async () => {
-            try {
-              await startTranscription(tab);
-              console.log('✅ AUTO-STARTED transcription for audio tab:', tabId);
-            } catch (error) {
-              console.error('❌ Error auto-starting transcription:', error);
+          // Check permission before starting
+          if (permissionGranted) {
+            console.log('🚀 Permission already granted - AUTO-STARTING TRANSCRIPTION');
+            setTimeout(async () => {
+              try {
+                await startTranscription(tab);
+                console.log('✅ AUTO-STARTED transcription for audio tab:', tabId);
+              } catch (error) {
+                console.error('❌ Error auto-starting transcription:', error);
+              }
+            }, 2000);
+          } else {
+            console.log('🔐 Requesting permission for new audio source...');
+            const granted = await requestCapturePermission(tab);
+            if (granted) {
+              setTimeout(async () => {
+                try {
+                  await startTranscription(tab);
+                  console.log('✅ Started transcription after permission grant for audio tab:', tabId);
+                } catch (error) {
+                  console.error('❌ Error starting transcription after permission:', error);
+                }
+              }, 1000);
             }
-          }, 2000);
+          }
         }
       } else if (!currentSessionId) {
         console.log('⚠️ Audio activity detected but no session ID available yet');
@@ -252,14 +375,29 @@ if (isChromeExtensionContext() && chrome.tabs) {
         console.log('🔊 AUDIO STARTED on tab:', tabId, 'URL:', tab.url);
         meetingTabId = tabId;
         
-        setTimeout(async () => {
-          try {
-            await startTranscription(tab);
-            console.log('✅ AUTO-STARTED transcription for audible tab:', tabId);
-          } catch (error) {
-            console.error('❌ Error auto-starting transcription on audio change:', error);
+        if (permissionGranted) {
+          setTimeout(async () => {
+            try {
+              await startTranscription(tab);
+              console.log('✅ AUTO-STARTED transcription for audible tab:', tabId);
+            } catch (error) {
+              console.error('❌ Error auto-starting transcription on audio change:', error);
+            }
+          }, 1000);
+        } else {
+          console.log('🔐 Requesting permission for audible tab...');
+          const granted = await requestCapturePermission(tab);
+          if (granted) {
+            setTimeout(async () => {
+              try {
+                await startTranscription(tab);
+                console.log('✅ Started transcription after permission grant for audible tab:', tabId);
+              } catch (error) {
+                console.error('❌ Error starting transcription after permission:', error);
+              }
+            }, 1000);
           }
-        }, 1000);
+        }
       }
     }
   });
@@ -284,17 +422,33 @@ if (isChromeExtensionContext() && chrome.tabs) {
         const isKnownAudioSource = isAudioSourceTab(tab.url);
         
         if (hasAudio || isKnownAudioSource) {
-          console.log('🎯 FOCUSED ON AUDIO TAB - AUTO-STARTING TRANSCRIPTION');
+          console.log('🎯 FOCUSED ON AUDIO TAB');
           meetingTabId = activeInfo.tabId;
           
-          setTimeout(async () => {
-            try {
-              await startTranscription(tab);
-              console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
-            } catch (error) {
-              console.error('❌ Error auto-starting on focus:', error);
+          if (permissionGranted) {
+            console.log('🚀 Permission granted - AUTO-STARTING TRANSCRIPTION');
+            setTimeout(async () => {
+              try {
+                await startTranscription(tab);
+                console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
+              } catch (error) {
+                console.error('❌ Error auto-starting on focus:', error);
+              }
+            }, 1000);
+          } else {
+            console.log('🔐 Requesting permission for focused audio tab...');
+            const granted = await requestCapturePermission(tab);
+            if (granted) {
+              setTimeout(async () => {
+                try {
+                  await startTranscription(tab);
+                  console.log('✅ Started transcription after permission grant on focus:', activeInfo.tabId);
+                } catch (error) {
+                  console.error('❌ Error starting transcription after permission on focus:', error);
+                }
+              }, 1000);
             }
-          }, 1000);
+          }
         }
       }
     } catch (error) {
@@ -377,6 +531,9 @@ if (isChromeExtensionContext() && chrome.action) {
     
     try {
       if (!isCapturing) {
+        // Grant permission immediately when manually clicked
+        permissionGranted = true;
+        await savePermissionState();
         await startTranscription(tab);
       } else {
         await stopTranscription(tab);
@@ -400,6 +557,9 @@ if (isChromeExtensionContext()) {
           if (isCapturing) {
             await stopTranscription(tab);
           } else {
+            // Grant permission when manually toggled
+            permissionGranted = true;
+            await savePermissionState();
             await startTranscription(tab);
           }
           sendResponse({ 
@@ -439,8 +599,9 @@ if (isChromeExtensionContext()) {
     if (message.action === 'clearSession') {
       currentSessionId = null;
       sessionPersisted = false;
+      permissionGranted = false;
       try {
-        await chrome.storage.local.remove(['sessionId', 'sessionPersisted']);
+        await chrome.storage.local.remove(['sessionId', 'sessionPersisted', 'permissionGranted']);
         console.log('🧹 Session cleared (auto mode)');
         sendResponse({ success: true });
       } catch (error) {
@@ -455,7 +616,8 @@ if (isChromeExtensionContext()) {
         sessionId: currentSessionId,
         sessionPersisted: sessionPersisted,
         currentTabId: currentTabId,
-        meetingTabId: meetingTabId
+        meetingTabId: meetingTabId,
+        permissionGranted: permissionGranted
       });
       return true;
     }
