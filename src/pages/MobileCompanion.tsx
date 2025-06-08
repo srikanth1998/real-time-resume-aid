@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -228,7 +229,7 @@ const MobileCompanion = () => {
             <p><strong>Connected:</strong> {isConnected ? 'Yes' : 'No'}</p>
             <p><strong>Transcripts Count:</strong> {transcripts.length}</p>
             <p><strong>Session ID:</strong> {sessionId}</p>
-            <p><strong>Device Mode:</strong> Mobile Companion (No extension needed)</p>
+            <p><strong>Device Mode:</strong> Mobile Companion (Real-time updates only)</p>
           </div>
         </CardContent>
       </Card>
