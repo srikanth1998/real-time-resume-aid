@@ -71,7 +71,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
     if (changeInfo.status === 'complete' && tab.url) {
       console.log('🎯 TAB UPDATED:', tabId, tab.url);
       
-      // Handle interview session pages
+      // Handle interview session pages first
       if (isInterviewTab(tab.url)) {
         console.log('🎯 DETECTED INTERVIEW PAGE (AUTO-MODE)');
         
@@ -101,20 +101,28 @@ if (isChromeExtensionContext() && chrome.tabs) {
         }
       }
       
-      // Handle meeting platform pages - auto-start transcription
-      if (isMeetingTab(tab.url) && currentSessionId && !isCapturing) {
-        console.log('🎯 DETECTED MEETING PLATFORM - AUTO-STARTING TRANSCRIPTION');
-        meetingTabId = tabId;
+      // Handle meeting platform pages - auto-start transcription if we have a session
+      if (isMeetingTab(tab.url)) {
+        console.log('🎯 DETECTED MEETING PLATFORM:', tab.url);
         
-        // Small delay to let the meeting page fully load
-        setTimeout(async () => {
-          try {
-            await startTranscription(tab);
-            console.log('✅ AUTO-STARTED transcription for meeting tab:', tabId);
-          } catch (error) {
-            console.error('❌ Error auto-starting transcription:', error);
-          }
-        }, 2000);
+        if (currentSessionId && !isCapturing) {
+          console.log('🚀 AUTO-STARTING TRANSCRIPTION for meeting tab:', tabId, 'session:', currentSessionId);
+          meetingTabId = tabId;
+          
+          // Small delay to let the meeting page fully load
+          setTimeout(async () => {
+            try {
+              await startTranscription(tab);
+              console.log('✅ AUTO-STARTED transcription for meeting tab:', tabId);
+            } catch (error) {
+              console.error('❌ Error auto-starting transcription:', error);
+            }
+          }, 3000);
+        } else if (!currentSessionId) {
+          console.log('⚠️ Meeting platform detected but no session ID available yet');
+        } else if (isCapturing) {
+          console.log('⚠️ Meeting platform detected but already capturing');
+        }
       }
     }
   });
@@ -218,59 +226,10 @@ function extractSessionId(url) {
   }
 }
 
-// Persist session when visiting interview pages
-if (isChromeExtensionContext() && chrome.tabs) {
-  chrome.tabs.onUpdated?.addListener(async (tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && tab.url && 
-        (tab.url.includes('lovableproject.com') || 
-         tab.url.includes('lovable.app') || 
-         tab.url.includes('real-time-resume-aid') ||
-         tab.url.includes('preview--'))) {
-      
-      console.log('🎯 DETECTED INTERVIEW PAGE (SILENT MODE)');
-      console.log('Tab ID:', tabId, 'URL:', tab.url);
-      
-      // Extract session ID from URL
-      const urlSessionId = extractSessionId(tab.url);
-      console.log('🔍 URL SESSION ID:', urlSessionId);
-      console.log('🔍 CURRENT SESSION ID:', currentSessionId);
-      
-      // If we found a session ID in the URL, persist it for silent operation
-      if (urlSessionId) {
-        currentSessionId = urlSessionId;
-        sessionPersisted = true;
-        
-        // Persist session ID for silent operation
-        await chrome.storage.local.set({ 
-          sessionId: currentSessionId,
-          sessionPersisted: true 
-        });
-        console.log('✅ SESSION ID PERSISTED FOR SILENT OPERATION:', currentSessionId);
-        
-        // No badge updates in silent mode
-        
-        try {
-          await ensureContentScript(tabId);
-          
-          // Send session ID to content script
-          await chrome.tabs.sendMessage(tabId, {
-            action: 'setSessionId',
-            sessionId: currentSessionId
-          });
-          
-          console.log('📡 Session context established for silent operation');
-        } catch (error) {
-          console.error('Error setting up session context:', error);
-        }
-      }
-    }
-  });
-}
-
-// Handle extension icon click
+// Handle extension icon click (manual control)
 if (isChromeExtensionContext() && chrome.action) {
   chrome.action.onClicked?.addListener(async (tab) => {
-    console.log('=== EXTENSION ICON CLICKED (SILENT MODE) ===');
+    console.log('=== EXTENSION ICON CLICKED (MANUAL CONTROL) ===');
     console.log('Tab ID:', tab.id, 'URL:', tab.url);
     console.log('Current session ID:', currentSessionId);
     
@@ -282,12 +241,11 @@ if (isChromeExtensionContext() && chrome.action) {
       }
     } catch (error) {
       console.error('Error toggling transcription:', error);
-      // No error notifications in silent mode
     }
   });
 }
 
-// Handle messages from popup and offscreen (keep manual control available)
+// Handle messages from popup and offscreen
 if (isChromeExtensionContext()) {
   chrome.runtime.onMessage?.addListener(async (message, sender, sendResponse) => {
     console.log('🔔 Background received message (auto-mode):', message);
