@@ -83,12 +83,35 @@ function isAudioSourceTab(url) {
   return AUDIO_SOURCES.some(source => url.includes(source)) || isMeetingTab(url);
 }
 
+// Check if a tab can be captured (filter out Chrome internal pages)
+function canCaptureTab(url) {
+  if (!url) return false;
+  
+  // Filter out Chrome internal pages and extension pages
+  if (url.startsWith('chrome://') || 
+      url.startsWith('chrome-extension://') ||
+      url.startsWith('edge://') ||
+      url.startsWith('about:') ||
+      url.startsWith('moz-extension://')) {
+    return false;
+  }
+  
+  return true;
+}
+
 // Enhanced audio detection - check if tab has audio activity
 async function hasAudioActivity(tabId) {
   if (!isChromeExtensionContext()) return false;
   
   try {
     const tab = await chrome.tabs.get(tabId);
+    
+    // Check if we can capture this tab
+    if (!canCaptureTab(tab.url)) {
+      console.log('⚠️ Cannot capture tab:', tab.url);
+      return false;
+    }
+    
     return tab.audible || false;
   } catch (error) {
     console.warn('Could not check audio activity for tab:', tabId, error);
@@ -105,7 +128,9 @@ async function checkAllTabsForAudio() {
     console.log('🔍 Checking all tabs for audio activity...');
     
     for (const tab of tabs) {
-      if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+      // Skip if we can't capture this tab
+      if (!canCaptureTab(tab.url)) {
+        console.log('⚠️ Skipping non-capturable tab:', tab.url);
         continue;
       }
       
@@ -186,7 +211,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
       }
       
       // Handle any tab with audio activity if we have a session
-      if (currentSessionId && !isCapturing) {
+      if (currentSessionId && !isCapturing && canCaptureTab(tab.url)) {
         const hasAudio = await hasAudioActivity(tabId);
         const isKnownAudioSource = isAudioSourceTab(tab.url);
         
@@ -216,11 +241,13 @@ if (isChromeExtensionContext() && chrome.tabs) {
         console.log('⚠️ Audio activity detected but no session ID available yet');
       } else if (isCapturing) {
         console.log('⚠️ Audio activity detected but already capturing');
+      } else if (!canCaptureTab(tab.url)) {
+        console.log('⚠️ Cannot capture tab:', tab.url);
       }
     }
     
     // Also check for audio state changes
-    if (changeInfo.audible !== undefined && currentSessionId && !isCapturing) {
+    if (changeInfo.audible !== undefined && currentSessionId && !isCapturing && canCaptureTab(tab.url)) {
       if (changeInfo.audible) {
         console.log('🔊 AUDIO STARTED on tab:', tabId, 'URL:', tab.url);
         meetingTabId = tabId;
@@ -252,7 +279,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
       const tab = await chrome.tabs.get(activeInfo.tabId);
       
       // If we have a session and user switches to an audio tab, auto-start
-      if (currentSessionId && !isCapturing) {
+      if (currentSessionId && !isCapturing && canCaptureTab(tab.url)) {
         const hasAudio = await hasAudioActivity(activeInfo.tabId);
         const isKnownAudioSource = isAudioSourceTab(tab.url);
         
@@ -509,6 +536,12 @@ async function startTranscription(tab) {
   
   if (!currentSessionId) {
     console.warn('⚠️ No session ID available - need to visit interview page first');
+    return;
+  }
+  
+  // Additional check to ensure we can capture this tab
+  if (!canCaptureTab(tab.url)) {
+    console.warn('⚠️ Cannot capture this tab:', tab.url);
     return;
   }
   
