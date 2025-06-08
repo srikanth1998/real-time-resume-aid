@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Smartphone, Monitor, Wifi, WifiOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Device {
   id: string;
@@ -18,6 +17,8 @@ interface CrossDeviceStatusProps {
   deviceType: 'desktop' | 'mobile';
   className?: string;
 }
+
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY";
 
 export const CrossDeviceStatus = ({ sessionId, deviceType, className }: CrossDeviceStatusProps) => {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -35,7 +36,7 @@ export const CrossDeviceStatus = ({ sessionId, deviceType, className }: CrossDev
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabase.supabaseKey}`,
+              'Authorization': `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
             },
             body: JSON.stringify({
               sessionId,
@@ -64,7 +65,7 @@ export const CrossDeviceStatus = ({ sessionId, deviceType, className }: CrossDev
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabase.supabaseKey}`,
+              'Authorization': `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
             },
             body: JSON.stringify({
               sessionId,
