@@ -1,6 +1,6 @@
 /* global chrome */
 
-console.log('InterviewAce transcription background script loaded');
+console.log('InterviewAce silent transcription background script loaded');
 
 let isCapturing = false;
 let offscreenCreated = false;
@@ -23,11 +23,8 @@ async function loadPersistedSession() {
     if (result.sessionId && result.sessionPersisted) {
       currentSessionId = result.sessionId;
       sessionPersisted = true;
-      console.log('✅ Loaded persisted session ID:', currentSessionId);
-      
-      // Update badge to show session is active
-      chrome.action.setBadgeText({ text: 'SESS' });
-      chrome.action.setBadgeBackgroundColor({ color: '#1976d2' });
+      console.log('✅ Loaded persisted session ID (silent mode):', currentSessionId);
+      // No badge updates in silent mode
     }
   } catch (error) {
     console.warn('Error loading persisted session:', error);
@@ -36,7 +33,7 @@ async function loadPersistedSession() {
 
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
-  console.log('=== EXTENSION ICON CLICKED ===');
+  console.log('=== EXTENSION ICON CLICKED (SILENT MODE) ===');
   console.log('Tab ID:', tab.id, 'URL:', tab.url);
   console.log('Current session ID:', currentSessionId);
   
@@ -48,11 +45,10 @@ chrome.action.onClicked.addListener(async (tab) => {
     }
   } catch (error) {
     console.error('Error toggling transcription:', error);
-    showErrorNotification(error.message);
+    // No error notifications in silent mode
   }
 });
 
-// Enhanced session ID extraction function
 function extractSessionId(url) {
   try {
     console.log('🔍 EXTRACTING SESSION ID FROM URL:', url);
@@ -127,7 +123,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
        tab.url.includes('real-time-resume-aid') ||
        tab.url.includes('preview--'))) {
     
-    console.log('🎯 DETECTED INTERVIEW PAGE');
+    console.log('🎯 DETECTED INTERVIEW PAGE (SILENT MODE)');
     console.log('Tab ID:', tabId, 'URL:', tab.url);
     
     // Extract session ID from URL
@@ -135,21 +131,19 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     console.log('🔍 URL SESSION ID:', urlSessionId);
     console.log('🔍 CURRENT SESSION ID:', currentSessionId);
     
-    // If we found a session ID in the URL, persist it for independent operation
+    // If we found a session ID in the URL, persist it for silent operation
     if (urlSessionId) {
       currentSessionId = urlSessionId;
       sessionPersisted = true;
       
-      // Persist session ID for independent operation
+      // Persist session ID for silent operation
       await chrome.storage.local.set({ 
         sessionId: currentSessionId,
         sessionPersisted: true 
       });
-      console.log('✅ SESSION ID PERSISTED FOR INDEPENDENT OPERATION:', currentSessionId);
+      console.log('✅ SESSION ID PERSISTED FOR SILENT OPERATION:', currentSessionId);
       
-      // Update badge to show session is active
-      chrome.action.setBadgeText({ text: 'SESS' });
-      chrome.action.setBadgeBackgroundColor({ color: '#1976d2' });
+      // No badge updates in silent mode
       
       try {
         await ensureContentScript(tabId);
@@ -160,7 +154,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
           sessionId: currentSessionId
         });
         
-        console.log('📡 Session context established for independent operation');
+        console.log('📡 Session context established for silent operation');
       } catch (error) {
         console.error('Error setting up session context:', error);
       }
@@ -172,10 +166,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
-    // Only update current tab if we're capturing - allows independent operation
+    // Only update current tab if we're capturing - allows silent operation
     if (isCapturing) {
       currentTabId = activeInfo.tabId;
-      console.log('🎯 ACTIVE TAB UPDATED FOR TRANSCRIPTION:', activeInfo.tabId);
+      console.log('🎯 ACTIVE TAB UPDATED FOR TRANSCRIPTION (SILENT):', activeInfo.tabId);
     }
   } catch (error) {
     console.warn('Could not get tab info on activation:', error);
@@ -183,7 +177,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 });
 
 async function startTranscription(tab) {
-  console.log('🚀 STARTING INDEPENDENT TRANSCRIPTION FOR TAB:', tab.id);
+  console.log('🚀 STARTING SILENT TRANSCRIPTION FOR TAB:', tab.id);
   console.log('🎯 USING PERSISTED SESSION ID:', currentSessionId);
   
   // Check if we have a persisted session
@@ -197,10 +191,10 @@ async function startTranscription(tab) {
         sessionId: currentSessionId,
         sessionPersisted: true 
       });
-      console.log('🎯 Extracted and persisted session ID for independent operation:', currentSessionId);
+      console.log('🎯 Extracted and persisted session ID for silent operation:', currentSessionId);
     } else {
       console.warn('⚠️ No session ID available - extension needs to visit interview page first');
-      showErrorNotification('Please visit your interview page first to establish session context');
+      // No error notifications in silent mode
       return;
     }
   }
@@ -247,12 +241,11 @@ async function startTranscription(tab) {
     await notifyContentScript(tab.id, 'transcriptionStarted');
     
     isCapturing = true;
-    chrome.action.setBadgeText({ text: 'REC' });
-    chrome.action.setBadgeBackgroundColor({ color: '#34a853' });
-    console.log('✅ Independent transcription started successfully for tab:', tab.id, 'session:', currentSessionId);
+    // No badge updates in silent mode
+    console.log('✅ Silent transcription started successfully for tab:', tab.id, 'session:', currentSessionId);
     
   } catch (error) {
-    console.error('❌ Error starting independent transcription:', error);
+    console.error('❌ Error starting silent transcription:', error);
     currentTabId = null;
     isCapturing = false;
     await cleanupOffscreen();
@@ -261,7 +254,7 @@ async function startTranscription(tab) {
 }
 
 async function stopTranscription(tab) {
-  console.log('Stopping transcription...');
+  console.log('Stopping silent transcription...');
   
   try {
     if (offscreenCreated) {
@@ -275,15 +268,9 @@ async function stopTranscription(tab) {
     isCapturing = false;
     currentTabId = null;
     
-    // Keep session persisted but update badge
-    if (sessionPersisted) {
-      chrome.action.setBadgeText({ text: 'SESS' });
-      chrome.action.setBadgeBackgroundColor({ color: '#1976d2' });
-    } else {
-      chrome.action.setBadgeText({ text: '' });
-    }
+    // No badge updates in silent mode
     
-    console.log('✅ Transcription stopped - session remains available for independent operation');
+    console.log('✅ Silent transcription stopped - session remains available');
     
   } catch (error) {
     console.error('❌ Error stopping transcription:', error);
@@ -291,8 +278,6 @@ async function stopTranscription(tab) {
     await cleanupOffscreen();
   }
 }
-
-// ... keep existing code (ensureContentScript, notifyContentScript, createOffscreen, cleanupOffscreen, waitForOffscreenReady, sendMessageToOffscreen, showErrorNotification functions)
 
 async function ensureContentScript(tabId) {
   try {
@@ -431,7 +416,7 @@ async function showErrorNotification(message) {
 
 // Handle messages from popup and offscreen
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  console.log('🔔 Background received message:', message);
+  console.log('🔔 Background received message (silent mode):', message);
   
   // Handle popup messages
   if (message.action === 'toggle') {
@@ -463,7 +448,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       sessionId: currentSessionId,
       sessionPersisted: true 
     });
-    console.log('🎯 Session ID set from popup for independent operation:', currentSessionId);
+    console.log('🎯 Session ID set from popup for silent operation:', currentSessionId);
     sendResponse({ success: true });
     return true;
   }
@@ -473,8 +458,8 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     currentSessionId = null;
     sessionPersisted = false;
     await chrome.storage.local.remove(['sessionId', 'sessionPersisted']);
-    chrome.action.setBadgeText({ text: '' });
-    console.log('🧹 Session cleared');
+    // No badge updates in silent mode
+    console.log('🧹 Session cleared (silent mode)');
     sendResponse({ success: true });
     return true;
   }
@@ -492,14 +477,14 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   
   // Handle ready signal from offscreen
   if (message.type === 'offscreen-ready') {
-    console.log('✅ Offscreen document reported ready');
+    console.log('✅ Offscreen document reported ready (silent mode)');
     sendResponse({ success: true });
     return true;
   }
   
   // Handle transcription results from offscreen
   if (message.type === 'transcription-result' && message.text && message.text.trim()) {
-    console.log('📢 PROCESSING TRANSCRIPTION RESULT FROM OFFSCREEN');
+    console.log('📢 PROCESSING TRANSCRIPTION RESULT FROM OFFSCREEN (SILENT)');
     console.log('📝 Transcription text:', message.text);
     console.log('🎯 Current session ID:', currentSessionId);
     console.log('🎯 Message session ID:', message.sessionId);
@@ -526,9 +511,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
           action: 'transcriptionResult',
           ...transcriptionData
         });
-        console.log('✅ Transcription forwarded to local content script');
+        console.log('✅ Transcription forwarded to local content script (silent)');
       } catch (error) {
-        console.warn('❌ Error forwarding to local content script (this is OK for independent operation):', error);
+        console.warn('❌ Error forwarding to local content script (this is OK for silent operation):', error);
       }
     }
     
@@ -574,7 +559,7 @@ async function sendTranscriptionToSupabase(transcriptionData) {
       sessionId: transcriptionData.sessionId,
       text: transcriptionData.text,
       timestamp: transcriptionData.timestamp,
-      source: 'chrome-extension-independent'
+      source: 'chrome-extension-silent'
     })
   });
   

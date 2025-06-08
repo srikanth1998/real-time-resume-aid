@@ -10,7 +10,7 @@ export const useExtensionConnector = (onTranscription: (text: string, timestamp?
   const processingRef = useRef(false);
 
   const handleExtensionTranscriptionData = async (transcriptionText: string, timestamp?: number) => {
-    console.log('🎯 [INTERVIEW] PROCESSING TRANSCRIPTION FROM EXTENSION:', transcriptionText);
+    console.log('🎯 [INTERVIEW] PROCESSING TRANSCRIPTION FROM SILENT EXTENSION:', transcriptionText);
     
     if (processingRef.current) {
       console.log('⚠️ [INTERVIEW] Already processing, skipping...');
@@ -26,13 +26,11 @@ export const useExtensionConnector = (onTranscription: (text: string, timestamp?
     setExtensionStatus("Processing question...");
     
     try {
-      toast({
-        title: "🎤 Question Detected",
-        description: `Processing: "${transcriptionText.substring(0, 50)}..."`,
-      });
+      // No toast notifications for silent operation
+      console.log(`🔇 Question detected silently: "${transcriptionText.substring(0, 50)}..."`);
       
       onTranscription(transcriptionText, timestamp);
-      setExtensionStatus("Listening for questions");
+      setExtensionStatus("Listening silently");
     } catch (error) {
       console.error('❌ [INTERVIEW] Error processing extension transcription:', error);
       setExtensionStatus("Error - Please try again");
@@ -51,28 +49,26 @@ export const useExtensionConnector = (onTranscription: (text: string, timestamp?
     let cleanup: (() => void) | undefined;
 
     const initExtension = async () => {
-      console.log('🚀 [INTERVIEW] Initializing extension connector...');
+      console.log('🚀 [INTERVIEW] Initializing silent extension connector...');
       setExtensionStatus("Connecting...");
       
       cleanup = initializeExtensionConnector();
       
       const handleExtensionReady = (event: CustomEvent) => {
-        console.log('✅ [INTERVIEW] Extension ready event received:', event.detail);
+        console.log('✅ [INTERVIEW] Silent extension ready event received:', event.detail);
         setExtensionConnected(true);
-        setExtensionStatus("Listening for questions");
+        setExtensionStatus("Listening silently");
         (window as any).__extensionReady = true;
         
-        toast({
-          title: "🎤 Extension Connected",
-          description: "Chrome extension is now capturing meeting audio automatically",
-        });
+        // No connection toast for silent operation
+        console.log('🔇 Chrome extension connected and operating silently');
       };
 
       const handleExtensionTranscription = (event: CustomEvent) => {
-        console.log('📥 [INTERVIEW] TRANSCRIPTION RECEIVED FROM EXTENSION:', event.detail);
+        console.log('📥 [INTERVIEW] TRANSCRIPTION RECEIVED FROM SILENT EXTENSION:', event.detail);
         
         if (event.detail?.text && event.detail.text.trim()) {
-          console.log('🔄 [INTERVIEW] Processing transcription:', event.detail.text);
+          console.log('🔄 [INTERVIEW] Processing silent transcription:', event.detail.text);
           handleExtensionTranscriptionData(event.detail.text, event.detail.timestamp);
         } else {
           console.warn('⚠️ [INTERVIEW] Empty or invalid transcription received');
@@ -87,19 +83,23 @@ export const useExtensionConnector = (onTranscription: (text: string, timestamp?
           return;
         }
         
-        if (event.data.action === 'extensionReady' && event.data.source === 'interviewace-extension') {
-          console.log('✅ [INTERVIEW] Extension ready via window message');
+        // Handle both independent and silent extension sources
+        if (event.data.action === 'extensionReady' && 
+            (event.data.source === 'interviewace-extension-independent' || 
+             event.data.source === 'interviewace-extension-silent')) {
+          console.log('✅ [INTERVIEW] Silent extension ready via window message');
           setExtensionConnected(true);
-          setExtensionStatus("Listening for questions");
+          setExtensionStatus("Listening silently");
           
-          toast({
-            title: "🎤 Extension Connected",
-            description: "Chrome extension is now capturing meeting audio automatically",
-          });
+          // No connection toast for silent operation
+          console.log('🔇 Chrome extension connected and operating silently');
         }
         
-        if (event.data.action === 'processTranscription' && event.data.source === 'interviewace-extension' && event.data.text) {
-          console.log('📝 [INTERVIEW] Processing transcription via window message:', event.data.text);
+        if (event.data.action === 'processTranscription' && 
+            (event.data.source === 'interviewace-extension-independent' || 
+             event.data.source === 'interviewace-extension-silent') && 
+            event.data.text) {
+          console.log('📝 [INTERVIEW] Processing silent transcription via window message:', event.data.text);
           handleExtensionTranscriptionData(event.data.text, event.data.timestamp);
         }
       };
@@ -111,7 +111,7 @@ export const useExtensionConnector = (onTranscription: (text: string, timestamp?
       const isAvailable = checkExtensionAvailability();
       if (isAvailable) {
         setExtensionConnected(true);
-        setExtensionStatus("Listening for questions");
+        setExtensionStatus("Listening silently");
       }
 
       console.log('📢 [INTERVIEW] Sending interviewAppReady message');
