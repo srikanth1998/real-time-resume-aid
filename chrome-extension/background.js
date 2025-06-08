@@ -57,6 +57,20 @@ const INTERVIEW_PLATFORMS = [
   'preview--'
 ];
 
+// Audio sources that should be captured
+const AUDIO_SOURCES = [
+  'youtube.com',
+  'youtu.be',
+  'soundcloud.com',
+  'spotify.com',
+  'podcasts.google.com',
+  'open.spotify.com',
+  'music.apple.com',
+  'tidal.com',
+  'deezer.com',
+  'pandora.com'
+];
+
 function isMeetingTab(url) {
   return MEETING_PLATFORMS.some(platform => url.includes(platform));
 }
@@ -65,7 +79,24 @@ function isInterviewTab(url) {
   return INTERVIEW_PLATFORMS.some(platform => url.includes(platform));
 }
 
-// Auto-start when visiting interview pages or meeting platforms
+function isAudioSourceTab(url) {
+  return AUDIO_SOURCES.some(source => url.includes(source)) || isMeetingTab(url);
+}
+
+// Enhanced audio detection - check if tab has audio activity
+async function hasAudioActivity(tabId) {
+  if (!isChromeExtensionContext()) return false;
+  
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab.audible || false;
+  } catch (error) {
+    console.warn('Could not check audio activity for tab:', tabId, error);
+    return false;
+  }
+}
+
+// Auto-start when visiting interview pages or detecting audio activity
 if (isChromeExtensionContext() && chrome.tabs) {
   chrome.tabs.onUpdated?.addListener(async (tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url) {
@@ -101,59 +132,90 @@ if (isChromeExtensionContext() && chrome.tabs) {
         }
       }
       
-      // Handle meeting platform pages - auto-start transcription if we have a session
-      if (isMeetingTab(tab.url)) {
-        console.log('🎯 DETECTED MEETING PLATFORM:', tab.url);
+      // Handle any tab with audio activity if we have a session
+      if (currentSessionId && !isCapturing) {
+        const hasAudio = await hasAudioActivity(tabId);
+        const isKnownAudioSource = isAudioSourceTab(tab.url);
         
-        if (currentSessionId && !isCapturing) {
-          console.log('🚀 AUTO-STARTING TRANSCRIPTION for meeting tab:', tabId, 'session:', currentSessionId);
+        if (hasAudio || isKnownAudioSource) {
+          console.log('🔊 DETECTED AUDIO ACTIVITY:', { 
+            tabId, 
+            url: tab.url, 
+            audible: hasAudio, 
+            knownSource: isKnownAudioSource,
+            session: currentSessionId 
+          });
+          
+          console.log('🚀 AUTO-STARTING TRANSCRIPTION for audio tab:', tabId, 'session:', currentSessionId);
           meetingTabId = tabId;
           
-          // Small delay to let the meeting page fully load
+          // Small delay to let the audio page fully load
           setTimeout(async () => {
             try {
               await startTranscription(tab);
-              console.log('✅ AUTO-STARTED transcription for meeting tab:', tabId);
+              console.log('✅ AUTO-STARTED transcription for audio tab:', tabId);
             } catch (error) {
               console.error('❌ Error auto-starting transcription:', error);
             }
-          }, 3000);
-        } else if (!currentSessionId) {
-          console.log('⚠️ Meeting platform detected but no session ID available yet');
-        } else if (isCapturing) {
-          console.log('⚠️ Meeting platform detected but already capturing');
+          }, 2000);
         }
+      } else if (!currentSessionId) {
+        console.log('⚠️ Audio activity detected but no session ID available yet');
+      } else if (isCapturing) {
+        console.log('⚠️ Audio activity detected but already capturing');
+      }
+    }
+    
+    // Also check for audio state changes
+    if (changeInfo.audible !== undefined && currentSessionId && !isCapturing) {
+      if (changeInfo.audible) {
+        console.log('🔊 AUDIO STARTED on tab:', tabId, 'URL:', tab.url);
+        meetingTabId = tabId;
+        
+        setTimeout(async () => {
+          try {
+            await startTranscription(tab);
+            console.log('✅ AUTO-STARTED transcription for audible tab:', tabId);
+          } catch (error) {
+            console.error('❌ Error auto-starting transcription on audio change:', error);
+          }
+        }, 1000);
       }
     }
   });
 
-  // Auto-stop when leaving meeting tabs
+  // Auto-stop when leaving audio tabs
   chrome.tabs.onRemoved?.addListener(async (tabId) => {
     if (tabId === meetingTabId && isCapturing) {
-      console.log('🛑 MEETING TAB CLOSED - AUTO-STOPPING TRANSCRIPTION');
+      console.log('🛑 AUDIO TAB CLOSED - AUTO-STOPPING TRANSCRIPTION');
       await stopTranscription({ id: meetingTabId });
       meetingTabId = null;
     }
   });
 
-  // Track tab focus changes for active meeting detection
+  // Track tab focus changes for active audio detection
   chrome.tabs.onActivated?.addListener(async (activeInfo) => {
     try {
       const tab = await chrome.tabs.get(activeInfo.tabId);
       
-      // If we have a session and user switches to a meeting tab, auto-start
-      if (isMeetingTab(tab.url) && currentSessionId && !isCapturing) {
-        console.log('🎯 FOCUSED ON MEETING TAB - AUTO-STARTING TRANSCRIPTION');
-        meetingTabId = activeInfo.tabId;
+      // If we have a session and user switches to an audio tab, auto-start
+      if (currentSessionId && !isCapturing) {
+        const hasAudio = await hasAudioActivity(activeInfo.tabId);
+        const isKnownAudioSource = isAudioSourceTab(tab.url);
         
-        setTimeout(async () => {
-          try {
-            await startTranscription(tab);
-            console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
-          } catch (error) {
-            console.error('❌ Error auto-starting on focus:', error);
-          }
-        }, 1000);
+        if (hasAudio || isKnownAudioSource) {
+          console.log('🎯 FOCUSED ON AUDIO TAB - AUTO-STARTING TRANSCRIPTION');
+          meetingTabId = activeInfo.tabId;
+          
+          setTimeout(async () => {
+            try {
+              await startTranscription(tab);
+              console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
+            } catch (error) {
+              console.error('❌ Error auto-starting on focus:', error);
+            }
+          }, 1000);
+        }
       }
     } catch (error) {
       console.warn('Could not get tab info on activation:', error);
