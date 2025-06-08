@@ -2,7 +2,7 @@
 /* global chrome, QRCode */
 
 let currentSessionId = null;
-let qrCodeCanvas = null;
+let qrCodeInstance = null;
 
 // DOM elements
 const statusEl = document.getElementById('status');
@@ -73,7 +73,7 @@ function updateUIWithSession(sessionId) {
   }).catch(err => console.warn('Could not send session ID to background:', err));
 }
 
-// Generate QR code
+// Generate QR code using a simpler approach
 function generateQRCode(url) {
   console.log('Generating QR code for URL:', url);
   
@@ -81,15 +81,21 @@ function generateQRCode(url) {
     // Clear existing QR code
     qrCodeEl.innerHTML = '';
     
-    // Create new QR code
-    const qr = new QRCode(0, 'M'); // Version 0 (auto), Error correction level M
-    qr.addData(url);
-    qr.make();
+    // Check if QRCode is available
+    if (typeof QRCode === 'undefined') {
+      console.error('QRCode library not loaded');
+      showFallbackUrl(url);
+      return;
+    }
     
-    // Convert to canvas
-    const canvas = QRCode.toCanvas(qr, qrCodeEl, {
+    // Create QR code instance with simple configuration
+    qrCodeInstance = new QRCode(qrCodeEl, {
+      text: url,
       width: 200,
-      height: 200
+      height: 200,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
     });
     
     statusEl.textContent = 'QR code ready. Scan with your phone to connect.';
@@ -97,14 +103,19 @@ function generateQRCode(url) {
     
   } catch (error) {
     console.error('Error generating QR code:', error);
-    statusEl.textContent = 'Error generating QR code. Use manual entry.';
-    
-    // Fallback: show URL as text
-    const urlDiv = document.createElement('div');
-    urlDiv.style.cssText = 'font-size: 10px; word-break: break-all; border: 1px solid #ddd; padding: 8px; margin: 8px 0;';
-    urlDiv.textContent = url;
-    qrCodeEl.appendChild(urlDiv);
+    showFallbackUrl(url);
   }
+}
+
+// Show fallback URL if QR code generation fails
+function showFallbackUrl(url) {
+  statusEl.textContent = 'QR code failed to load. Use URL below or manual entry.';
+  
+  // Create fallback URL display
+  const urlDiv = document.createElement('div');
+  urlDiv.style.cssText = 'font-size: 10px; word-break: break-all; border: 1px solid #ddd; padding: 8px; margin: 8px 0; background: #f9f9f9; border-radius: 4px;';
+  urlDiv.innerHTML = `<strong>Mobile URL:</strong><br>${url}`;
+  qrCodeEl.appendChild(urlDiv);
 }
 
 // Handle manual session ID connection
@@ -151,7 +162,7 @@ async function handleToggleTranscription() {
     
     if (response && response.success) {
       statusEl.textContent = response.isCapturing ? 'Transcription started' : 'Transcription stopped';
-      toggleBtn.textContent = response.isCapturing ? 'Stop' : 'Start';
+      toggleBtn.textContent = response.isCapturing ? 'Stop Transcription' : 'Start Transcription';
     } else {
       statusEl.textContent = 'Error toggling transcription';
     }
@@ -170,7 +181,7 @@ async function checkTranscriptionStatus() {
   try {
     const response = await chrome.runtime.sendMessage({ action: 'getStatus' });
     if (response) {
-      toggleBtn.textContent = response.isCapturing ? 'Stop' : 'Start';
+      toggleBtn.textContent = response.isCapturing ? 'Stop Transcription' : 'Start Transcription';
       if (response.isCapturing) {
         statusEl.textContent = 'Transcription active';
       }
