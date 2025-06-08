@@ -14,6 +14,7 @@ interface Transcript {
   generated_answer: string;
   timestamp: string;
   session_id: string;
+  created_at: string;
 }
 
 const MobileCompanion = () => {
@@ -27,40 +28,52 @@ const MobileCompanion = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
+    console.log('🔥 Mobile Companion mounted with session ID:', sessionId);
+    
     const checkSession = async () => {
       if (!sessionId) {
+        console.error('❌ No session ID provided');
         toast({
           title: "No session found",
           description: "Please use the link provided in your email.",
           variant: "destructive"
         });
+        setLoading(false);
         return;
       }
 
       try {
-        // Fetch session details
+        console.log('🔍 Fetching session details for:', sessionId);
+        
+        // Fetch session details - don't filter by device_mode since we removed that requirement
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
           .eq('id', sessionId)
-          .eq('device_mode', 'cross')
           .single();
 
+        console.log('📊 Session data:', sessionData);
+        console.log('❌ Session error:', error);
+
         if (error || !sessionData) {
+          console.error('❌ Session not found:', error);
           toast({
             title: "Session not found",
-            description: "This session is not available for cross-device access.",
+            description: "This session ID is not valid or has expired.",
             variant: "destructive"
           });
+          setLoading(false);
           return;
         }
 
         setSession(sessionData);
         setIsConnected(true);
 
+        console.log('✅ Session found, setting up real-time subscription...');
+
         // Set up real-time subscription for transcripts
         const channel = supabase
-          .channel('transcripts')
+          .channel(`transcripts-${sessionId}`)
           .on(
             'postgres_changes',
             {
@@ -70,29 +83,53 @@ const MobileCompanion = () => {
               filter: `session_id=eq.${sessionId}`
             },
             (payload) => {
-              console.log('New transcript received:', payload);
-              setTranscripts(prev => [payload.new as Transcript, ...prev]);
+              console.log('📥 New transcript received via real-time:', payload);
+              const newTranscript = payload.new as Transcript;
+              setTranscripts(prev => {
+                // Check if transcript already exists to avoid duplicates
+                const exists = prev.find(t => t.id === newTranscript.id);
+                if (exists) {
+                  console.log('⚠️ Transcript already exists, skipping duplicate');
+                  return prev;
+                }
+                console.log('➕ Adding new transcript to list');
+                return [newTranscript, ...prev];
+              });
+              
+              toast({
+                title: "New Question",
+                description: `"${newTranscript.question_text.substring(0, 50)}..."`,
+              });
             }
           )
-          .subscribe();
+          .subscribe((status) => {
+            console.log('📡 Real-time subscription status:', status);
+          });
 
+        console.log('📚 Fetching existing transcripts...');
+        
         // Fetch existing transcripts
-        const { data: existingTranscripts } = await supabase
+        const { data: existingTranscripts, error: transcriptError } = await supabase
           .from('transcripts')
           .select('*')
           .eq('session_id', sessionId)
           .order('created_at', { ascending: false });
 
+        console.log('📋 Existing transcripts:', existingTranscripts);
+        console.log('❌ Transcript error:', transcriptError);
+
         if (existingTranscripts) {
           setTranscripts(existingTranscripts);
+          console.log(`✅ Loaded ${existingTranscripts.length} existing transcripts`);
         }
 
         return () => {
+          console.log('🧹 Cleaning up real-time subscription');
           supabase.removeChannel(channel);
         };
 
       } catch (error) {
-        console.error('Error checking session:', error);
+        console.error('💥 Error checking session:', error);
         toast({
           title: "Error",
           description: "Failed to connect to session.",
@@ -112,6 +149,7 @@ const MobileCompanion = () => {
         <div className="text-center">
           <Smartphone className="h-8 w-8 animate-pulse mx-auto mb-4 text-purple-600" />
           <p>Connecting to session...</p>
+          <p className="text-sm text-gray-500 mt-2">Session ID: {sessionId}</p>
         </div>
       </div>
     );
@@ -128,9 +166,10 @@ const MobileCompanion = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600">
-              This session is not available for cross-device access. Please check your email for the correct mobile link.
+            <p className="text-gray-600 mb-4">
+              This session ID is not valid or has expired.
             </p>
+            <p className="text-sm text-gray-500">Session ID: {sessionId}</p>
           </CardContent>
         </Card>
       </div>
@@ -147,13 +186,14 @@ const MobileCompanion = () => {
         </div>
         <div className="flex items-center justify-center space-x-2">
           <Badge variant={session.status === 'in_progress' ? "default" : "secondary"}>
-            {session.status === 'in_progress' ? 'Live Interview' : 'Waiting...'}
+            {session.status === 'in_progress' ? 'Live Interview' : session.status}
           </Badge>
           <Badge variant="outline" className="flex items-center space-x-1">
             <Clock className="h-3 w-3" />
             <span>{session.duration_minutes}m</span>
           </Badge>
         </div>
+        <p className="text-sm text-gray-500 mt-2">Session: {sessionId}</p>
       </div>
 
       {/* Connection Status */}
@@ -184,12 +224,18 @@ const MobileCompanion = () => {
 
       {/* AI Answers */}
       <div className="space-y-4">
-        {transcripts.length === 0 && session.status === 'in_progress' && (
+        {transcripts.length === 0 && (
           <Card>
             <CardContent className="p-6 text-center">
               <Smartphone className="h-8 w-8 mx-auto mb-3 text-gray-400" />
               <p className="text-gray-600">
-                Listening for questions... AI answers will appear here in real-time.
+                {session.status === 'in_progress' 
+                  ? 'Listening for questions... AI answers will appear here in real-time.'
+                  : 'No questions yet. Start your interview and questions will appear here.'
+                }
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Real-time updates active
               </p>
             </CardContent>
           </Card>
@@ -205,11 +251,11 @@ const MobileCompanion = () => {
                       Question {transcripts.length - index}
                     </Badge>
                     <span className="text-xs text-gray-500">
-                      {new Date(transcript.timestamp).toLocaleTimeString()}
+                      {new Date(transcript.created_at).toLocaleTimeString()}
                     </span>
                   </div>
                   <p className="text-sm font-medium text-gray-700 mb-3">
-                    {transcript.question_text}
+                    "{transcript.question_text}"
                   </p>
                 </div>
               </div>
