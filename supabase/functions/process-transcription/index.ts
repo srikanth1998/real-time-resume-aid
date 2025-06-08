@@ -42,13 +42,30 @@ serve(async (req) => {
       throw new Error(`Session is not active or in progress (current status: ${session.status})`)
     }
 
-    // Store the transcription for processing
+    // Generate AI answer first
+    console.log('Generating AI answer for question:', text)
+    const { data: aiResponse, error: aiError } = await supabase.functions.invoke('generate-interview-answer', {
+      body: {
+        sessionId: sessionId,
+        question: text,
+        streaming: false
+      }
+    })
+
+    if (aiError) {
+      console.error('Failed to generate AI answer:', aiError)
+    }
+
+    const generatedAnswer = aiResponse?.answer || 'Sorry, I could not generate an answer at this time.'
+    console.log('Generated answer:', generatedAnswer.substring(0, 100) + '...')
+
+    // Store the transcription with the generated answer
     const { error: transcriptError } = await supabase
       .from('transcripts')
       .insert({
         session_id: sessionId,
         question_text: text,
-        generated_answer: '', // Will be filled by answer generation
+        generated_answer: generatedAnswer,
         timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString()
       })
 
@@ -57,32 +74,14 @@ serve(async (req) => {
       throw transcriptError
     }
 
-    // Trigger real-time update for cross-device sync
-    const { error: realtimeError } = await supabase
-      .channel('transcription-updates')
-      .send({
-        type: 'broadcast',
-        event: 'new-transcription',
-        payload: {
-          sessionId,
-          text,
-          timestamp: timestamp || Date.now(),
-          source
-        }
-      })
-
-    if (realtimeError) {
-      console.warn('Failed to send real-time update:', realtimeError)
-      // Don't fail the whole operation for real-time issues
-    }
-
-    console.log('Transcription processed successfully for session:', sessionId)
+    console.log('Transcription and answer stored successfully for session:', sessionId)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Transcription processed successfully',
-        sessionId 
+        message: 'Transcription processed and answer generated successfully',
+        sessionId,
+        answer: generatedAnswer
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
