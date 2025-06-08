@@ -26,7 +26,7 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Verify the session exists and is active
+    // Verify the session exists and is active or in_progress
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select('*')
@@ -38,8 +38,8 @@ serve(async (req) => {
       throw new Error('Session not found or invalid')
     }
 
-    if (session.status !== 'active') {
-      throw new Error('Session is not active')
+    if (session.status !== 'active' && session.status !== 'in_progress') {
+      throw new Error(`Session is not active or in progress (current status: ${session.status})`)
     }
 
     // Store the transcription for processing
