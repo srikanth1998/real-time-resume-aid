@@ -1,8 +1,17 @@
 
+import { useState, useEffect } from 'react';
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Smartphone, Monitor, Wifi, WifiOff, Users } from "lucide-react";
-import { useCrossDeviceSync } from "@/hooks/useCrossDeviceSync";
+import { Smartphone, Monitor, Wifi, WifiOff } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Device {
+  id: string;
+  device_type: string;
+  connection_id: string;
+  last_ping: string;
+  created_at: string;
+}
 
 interface CrossDeviceStatusProps {
   sessionId: string;
@@ -11,70 +20,164 @@ interface CrossDeviceStatusProps {
 }
 
 export const CrossDeviceStatus = ({ sessionId, deviceType, className }: CrossDeviceStatusProps) => {
-  const { isConnected, deviceCount, activeDevices, loading } = useCrossDeviceSync(sessionId, deviceType);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isRegistered, setIsRegistered] = useState(false);
+
+  useEffect(() => {
+    const registerDevice = async () => {
+      console.log('Registering device:', { sessionId, deviceType });
+      
+      try {
+        const response = await fetch(
+          `https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/cross-device-sync`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabase.supabaseKey}`,
+            },
+            body: JSON.stringify({
+              sessionId,
+              action: 'register_device',
+              deviceType,
+            }),
+          }
+        );
+
+        const result = await response.json();
+        console.log('Device registration response:', result);
+        
+        if (result.success) {
+          setIsRegistered(true);
+        }
+      } catch (error) {
+        console.error('Failed to register device:', error);
+      }
+    };
+
+    const fetchDevices = async () => {
+      try {
+        const response = await fetch(
+          `https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/cross-device-sync`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabase.supabaseKey}`,
+            },
+            body: JSON.stringify({
+              sessionId,
+              action: 'get_active_devices',
+            }),
+          }
+        );
+
+        const result = await response.json();
+        if (result.success && result.devices) {
+          setDevices(result.devices);
+        }
+      } catch (error) {
+        console.error('Failed to fetch devices:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    registerDevice();
+    fetchDevices();
+
+    // Set up periodic device checking
+    const interval = setInterval(fetchDevices, 5000);
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, [sessionId, deviceType]);
+
+  const getDeviceIcon = (type: string) => {
+    return type === 'mobile' ? <Smartphone className="h-4 w-4" /> : <Monitor className="h-4 w-4" />;
+  };
+
+  const getConnectionStatus = () => {
+    const hasDesktop = devices.some(d => d.device_type === 'desktop');
+    const hasMobile = devices.some(d => d.device_type === 'mobile');
+    
+    if (deviceType === 'mobile') {
+      return hasDesktop ? 'connected' : 'waiting';
+    } else {
+      return hasMobile ? 'connected' : 'single-device';
+    }
+  };
+
+  const connectionStatus = getConnectionStatus();
+
+  if (loading) {
+    return (
+      <Card className={className}>
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-2">
+            <Wifi className="h-4 w-4 animate-pulse" />
+            <span className="text-sm">Checking device connections...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className={className}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center space-x-2 text-lg">
-          {isConnected ? (
-            <Wifi className="h-5 w-5 text-green-500" />
-          ) : (
-            <WifiOff className="h-5 w-5 text-red-500" />
-          )}
-          <span>Cross-Device Status</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Connection Status</span>
-          <Badge variant={isConnected ? "default" : "destructive"}>
-            {loading ? "Connecting..." : isConnected ? "Connected" : "Disconnected"}
-          </Badge>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Active Devices</span>
-          <div className="flex items-center space-x-1">
-            <Users className="h-4 w-4 text-gray-500" />
-            <span className="text-sm font-medium">{deviceCount}</span>
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Cross-Device Status</span>
+            {connectionStatus === 'connected' ? (
+              <Badge variant="default" className="flex items-center space-x-1">
+                <Wifi className="h-3 w-3" />
+                <span>Connected</span>
+              </Badge>
+            ) : connectionStatus === 'waiting' ? (
+              <Badge variant="secondary" className="flex items-center space-x-1">
+                <WifiOff className="h-3 w-3" />
+                <span>Waiting for Desktop</span>
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <Monitor className="h-3 w-3" />
+                <span>Single Device</span>
+              </Badge>
+            )}
           </div>
-        </div>
 
-        {activeDevices.length > 0 && (
           <div className="space-y-2">
-            <span className="text-sm text-gray-600">Connected Devices:</span>
-            {activeDevices.map((device) => (
-              <div key={device.connection_id} className="flex items-center space-x-2">
-                {device.device_type === 'desktop' ? (
-                  <Monitor className="h-4 w-4 text-blue-500" />
-                ) : (
-                  <Smartphone className="h-4 w-4 text-green-500" />
-                )}
-                <span className="text-sm capitalize">{device.device_type}</span>
-                <Badge variant="outline" className="text-xs">
-                  {new Date(device.last_ping).toLocaleTimeString()}
-                </Badge>
+            {devices.map((device) => (
+              <div key={device.id} className="flex items-center justify-between text-sm">
+                <div className="flex items-center space-x-2">
+                  {getDeviceIcon(device.device_type)}
+                  <span className="capitalize">{device.device_type}</span>
+                  {device.device_type === deviceType && (
+                    <Badge variant="outline" className="text-xs">This Device</Badge>
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">
+                  Active {Math.round((Date.now() - new Date(device.last_ping).getTime()) / 1000)}s ago
+                </span>
               </div>
             ))}
           </div>
-        )}
 
-        {deviceType === 'mobile' && isConnected && (
-          <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-            <p className="text-sm text-green-800">
-              ✅ This device is ready to receive AI answers from your desktop interview session.
+          {connectionStatus === 'waiting' && (
+            <p className="text-xs text-gray-600">
+              Open your interview session on desktop to see AI answers here in real-time.
             </p>
-          </div>
-        )}
+          )}
 
-        {deviceType === 'desktop' && isConnected && (
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-800">
-              ✅ Chrome extension will capture audio and sync answers to your connected mobile device.
+          {connectionStatus === 'connected' && (
+            <p className="text-xs text-green-600">
+              ✓ Cross-device sync active - answers will appear in real-time
             </p>
-          </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   );
