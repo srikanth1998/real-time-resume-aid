@@ -34,6 +34,7 @@ function App() {
             <Route path="/interview" element={<Interview />} />
             <Route path="/complete" element={<Complete />} />
             <Route path="/mobile" element={<MobileCompanion />} />
+            <Route path="/mobile-companion" element={<MobileCompanion />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
