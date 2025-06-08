@@ -2,114 +2,46 @@
 /* global chrome */
 let banner;
 let extensionStatus = 'disconnected';
-let currentSessionId = null;
 
 function ensureBanner() {
   if (banner) return banner;
   banner = document.createElement('div');
   banner.style.cssText =
-    'position:fixed;bottom:24px;right:24px;max-width:340px;padding:12px 16px;'
+    'position:fixed;bottom:24px;right:24px;max-width:360px;padding:12px 16px;'
   + 'font:14px/1.4 sans-serif;color:#fff;background:#34a853;border-radius:12px;'
   + 'box-shadow:0 4px 12px rgba(0,0,0,.35);z-index:2147483647;transition:all 0.3s ease;';
-  banner.textContent = '🎤 InterviewAce - Extension connected and ready';
+  banner.textContent = '🎤 InterviewAce - Ready for independent transcription';
   banner.hidden = true;
   document.documentElement.appendChild(banner);
   return banner;
 }
 
-function updateBannerStatus(status) {
+function updateBannerStatus(status, sessionId = null) {
   const b = ensureBanner();
   extensionStatus = status;
   
   switch (status) {
-    case 'connected':
-      b.style.background = '#34a853';
-      b.textContent = '🎤 InterviewAce - Extension connected and ready';
-      break;
     case 'transcribing':
       b.style.background = '#34a853';
-      b.textContent = '🎤 InterviewAce - Audio capture active, transcribing...';
+      b.textContent = `🎤 InterviewAce - Recording (Independent Mode)${sessionId ? ' - Session: ' + sessionId.substring(0, 8) + '...' : ''}`;
       break;
     case 'processing':
       b.style.background = '#1976d2';
-      b.textContent = '🧠 InterviewAce - Processing speech...';
+      b.textContent = '🧠 InterviewAce - Processing speech (Independent)...';
       break;
     case 'stopped':
       b.style.background = '#757575';
       b.textContent = '⏹️ InterviewAce - Transcription stopped';
       break;
-  }
-}
-
-// Extract session ID from current page URL
-function extractSessionIdFromURL() {
-  try {
-    const url = window.location.href;
-    console.log('🔍 CONTENT SCRIPT: Extracting session ID from URL:', url);
-    
-    // Method 1: Query parameter session_id
-    if (url.includes('session_id=')) {
-      const match = url.match(/[?&]session_id=([^&#+]*)/);
-      if (match && match[1]) {
-        const sessionId = decodeURIComponent(match[1]);
-        console.log('✅ CONTENT SCRIPT: Found session_id in query params:', sessionId);
-        return sessionId;
-      }
-    }
-    
-    // Method 2: Query parameter sessionId (camelCase)
-    if (url.includes('sessionId=')) {
-      const match = url.match(/[?&]sessionId=([^&#+]*)/);
-      if (match && match[1]) {
-        const sessionId = decodeURIComponent(match[1]);
-        console.log('✅ CONTENT SCRIPT: Found sessionId in query params:', sessionId);
-        return sessionId;
-      }
-    }
-    
-    // Method 3: URL object parsing
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const sessionId = urlParams.get('session_id') || urlParams.get('sessionId');
-      if (sessionId) {
-        console.log('✅ CONTENT SCRIPT: Extracted session ID from URL params:', sessionId);
-        return sessionId;
-      }
-    } catch (urlError) {
-      console.warn('CONTENT SCRIPT: Error parsing URL params:', urlError);
-    }
-    
-    // Method 4: Check path for session ID like /interview/session-id
-    try {
-      const pathParts = window.location.pathname.split('/').filter(part => part.length > 0);
-      console.log('🔍 CONTENT SCRIPT: Path parts:', pathParts);
-      
-      const interviewIndex = pathParts.findIndex(part => part.toLowerCase().includes('interview'));
-      if (interviewIndex !== -1 && pathParts[interviewIndex + 1]) {
-        const sessionId = pathParts[interviewIndex + 1];
-        console.log('✅ CONTENT SCRIPT: Extracted session ID from path:', sessionId);
-        return sessionId;
-      }
-    } catch (pathError) {
-      console.warn('CONTENT SCRIPT: Error parsing URL path:', pathError);
-    }
-    
-    console.log('❌ CONTENT SCRIPT: No session ID found in URL');
-    return null;
-  } catch (error) {
-    console.error('CONTENT SCRIPT: Error extracting session ID:', error);
-    return null;
+    case 'session-ready':
+      b.style.background = '#1976d2';
+      b.textContent = `📱 InterviewAce - Session ready${sessionId ? ' - ' + sessionId.substring(0, 8) + '...' : ''}`;
+      break;
   }
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('🔔 CONTENT SCRIPT RECEIVED MESSAGE:', message);
-  console.log('📋 Message details:', {
-    action: message.action,
-    text: message.text ? `"${message.text.substring(0, 50)}..."` : 'undefined',
-    timestamp: message.timestamp,
-    sessionId: message.sessionId || currentSessionId
-  });
   
   // Handle ping messages from background script
   if (message.action === 'ping') {
@@ -118,26 +50,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
-  // Handle session ID setting from background script
-  if (message.action === 'setSessionId') {
-    currentSessionId = message.sessionId;
-    console.log('🎯 CONTENT SCRIPT: Session ID set to:', currentSessionId);
-    sendResponse({ success: true });
-    return true;
-  }
-  
   const { action, text, timestamp, sessionId } = message;
   const b = ensureBanner();
   
+  if (action === 'setSessionId') {
+    console.log('🎯 Session ID set for independent operation:', sessionId);
+    updateBannerStatus('session-ready', sessionId);
+    b.hidden = false;
+    setTimeout(() => {
+      if (extensionStatus === 'session-ready') {
+        b.hidden = true;
+      }
+    }, 3000);
+    sendResponse({ success: true });
+  }
+  
   if (action === 'transcriptionStarted') {
-    console.log('🎬 Showing transcription banner');
-    updateBannerStatus('transcribing');
+    console.log('🎬 Starting independent transcription mode');
+    updateBannerStatus('transcribing', sessionId);
     b.hidden = false;
     sendResponse({ success: true });
   }
   
   if (action === 'transcriptionStopped') {
-    console.log('🛑 Hiding transcription banner');
+    console.log('🛑 Stopping transcription (independent mode continues)');
     updateBannerStatus('stopped');
     setTimeout(() => {
       b.hidden = true;
@@ -145,56 +81,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
   }
   
-  // Handle transcription results and forward to web application
+  // Handle transcription results - note these still work for local feedback
   if (action === 'transcriptionResult' && text && text.trim()) {
-    console.log('📢 PROCESSING TRANSCRIPTION RESULT FROM BACKGROUND');
+    console.log('📢 PROCESSING TRANSCRIPTION RESULT (INDEPENDENT MODE)');
     console.log('📝 Transcribed text:', text);
-    console.log('⏰ Timestamp:', timestamp);
-    console.log('🎯 Session ID from message:', sessionId);
-    console.log('🎯 Current session ID:', currentSessionId);
-    
-    // Use session ID from message or current session ID
-    const finalSessionId = sessionId || currentSessionId;
-    console.log('🎯 Final session ID for forwarding:', finalSessionId);
+    console.log('🎯 Session ID:', sessionId);
     
     // Show processing status briefly
     updateBannerStatus('processing');
     setTimeout(() => {
       if (extensionStatus === 'processing') {
-        updateBannerStatus('transcribing');
+        updateBannerStatus('transcribing', sessionId);
       }
-    }, 1000);
+    }, 1500);
     
-    // Send transcription to web application using multiple methods for reliability
+    // Send transcription to web application (if present)
     const messageData = {
       action: 'processTranscription',
       text: text,
-      source: 'interviewace-extension',
+      source: 'interviewace-extension-independent',
       timestamp: timestamp || Date.now(),
-      sessionId: finalSessionId,
-      type: 'real-time-transcription'
+      sessionId: sessionId,
+      type: 'independent-transcription'
     };
     
-    console.log('📨 Posting window message:', messageData);
+    console.log('📨 Posting independent transcription message:', messageData);
     window.postMessage(messageData, '*');
     
     // Also dispatch custom event
-    console.log('🎯 Dispatching extensionTranscription event');
+    console.log('🎯 Dispatching independent transcription event');
     const transcriptionEvent = new CustomEvent('extensionTranscription', {
       detail: { 
         text: text,
         timestamp: timestamp || Date.now(),
-        sessionId: finalSessionId,
-        type: 'real-time-transcription'
+        sessionId: sessionId,
+        type: 'independent-transcription'
       }
     });
     window.dispatchEvent(transcriptionEvent);
-    console.log('✅ Extension transcription event dispatched');
+    console.log('✅ Independent transcription processed - sent to Supabase for cross-device sync');
     
     sendResponse({ success: true });
   }
   
-  return true; // Keep message channel open for async response
+  return true;
 });
 
 // Listen for messages from the web application
@@ -202,62 +132,36 @@ window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   
   if (event.data.action === 'interviewAppReady') {
-    console.log('🎯 INTERVIEW APP READY MESSAGE RECEIVED');
-    console.log('📢 Notifying that extension is ready...');
-    
-    // Show connected banner
-    updateBannerStatus('connected');
-    ensureBanner().hidden = false;
-    
-    // Include current session ID in response
-    const sessionId = currentSessionId || extractSessionIdFromURL();
-    if (sessionId && !currentSessionId) {
-      currentSessionId = sessionId;
-    }
-    
-    // Notify app that extension is ready
+    console.log('🎯 INTERVIEW APP READY - INDEPENDENT MODE ACTIVE');
+    console.log('📢 Notifying app of independent transcription capabilities...');
     window.postMessage({
       action: 'extensionReady',
-      source: 'interviewace-extension',
-      capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
-      sessionId: currentSessionId,
+      source: 'interviewace-extension-independent',
+      capabilities: ['localTranscription', 'crossDeviceSync', 'independentOperation', 'sessionPersistence'],
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Extension ready message posted with session ID:', currentSessionId);
+    console.log('✅ Extension ready message posted with independent operation capabilities');
   }
   
   if (event.data.action === 'testConnection') {
-    console.log('🧪 TEST CONNECTION MESSAGE RECEIVED');
-    const sessionId = currentSessionId || extractSessionIdFromURL();
+    console.log('🧪 TEST CONNECTION - INDEPENDENT MODE');
     window.postMessage({
       action: 'extensionReady',
-      source: 'interviewace-extension',
-      capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
-      sessionId: sessionId,
+      source: 'interviewace-extension-independent',
+      capabilities: ['localTranscription', 'crossDeviceSync', 'independentOperation', 'sessionPersistence'],
       timestamp: Date.now()
     }, '*');
-    console.log('✅ Test connection response sent with session ID:', sessionId);
+    console.log('✅ Test connection response sent with independent capabilities');
   }
 });
 
-// Notify web app that extension is loaded
-console.log('🚀 INTERVIEWACE EXTENSION LOADED');
+// Notify web app that extension is loaded with independent capabilities
+console.log('🚀 INTERVIEWACE INDEPENDENT TRANSCRIPTION EXTENSION LOADED');
 console.log('🌐 Page URL:', window.location.href);
-
-// Extract session ID from URL and set it
-currentSessionId = extractSessionIdFromURL();
-if (currentSessionId) {
-  console.log('📍 Current session ID detected:', currentSessionId);
-} else {
-  console.log('⚠️ No session ID found in current URL');
-}
-
-// Initial extension ready message
 window.postMessage({
   action: 'extensionReady',
-  source: 'interviewace-extension',
-  capabilities: ['localTranscription', 'privacyFocused', 'audioPassthrough'],
-  sessionId: currentSessionId,
+  source: 'interviewace-extension-independent',
+  capabilities: ['localTranscription', 'crossDeviceSync', 'independentOperation', 'sessionPersistence'],
   timestamp: Date.now()
 }, '*');
-console.log('✅ Initial extension ready message posted with session ID:', currentSessionId);
+console.log('✅ Initial extension ready message posted with independent operation capabilities');
