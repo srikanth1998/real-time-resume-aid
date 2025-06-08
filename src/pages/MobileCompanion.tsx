@@ -97,7 +97,7 @@ const MobileCompanion = () => {
               });
               
               toast({
-                title: "New Question",
+                title: "New Question & Answer",
                 description: `"${newTranscript.question_text.substring(0, 50)}..."`,
               });
             }
@@ -229,6 +229,7 @@ const MobileCompanion = () => {
             <p><strong>Connected:</strong> {isConnected ? 'Yes' : 'No'}</p>
             <p><strong>Transcripts Count:</strong> {transcripts.length}</p>
             <p><strong>Session ID:</strong> {sessionId}</p>
+            <p><strong>Device Mode:</strong> Mobile Companion (No extension needed)</p>
           </div>
         </CardContent>
       </Card>
@@ -242,7 +243,7 @@ const MobileCompanion = () => {
               <div>
                 <p className="font-medium">Waiting for interview to start</p>
                 <p className="text-sm text-gray-600">
-                  AI answers will appear here in real-time when your interview begins.
+                  AI answers will appear here in real-time when your interview begins on your desktop.
                 </p>
               </div>
             </div>
@@ -258,12 +259,12 @@ const MobileCompanion = () => {
               <Smartphone className="h-8 w-8 mx-auto mb-3 text-gray-400" />
               <p className="text-gray-600">
                 {session.status === 'in_progress' 
-                  ? 'Listening for questions... AI answers will appear here in real-time.'
-                  : 'No questions yet. Start your interview and questions will appear here.'
+                  ? 'Listening for questions from your desktop interview... AI answers will appear here in real-time.'
+                  : 'No questions yet. Start your interview on desktop and questions will appear here.'
                 }
               </p>
               <p className="text-xs text-gray-500 mt-2">
-                Real-time updates active
+                Real-time updates active • Mobile companion mode
               </p>
             </CardContent>
           </Card>
@@ -306,7 +307,7 @@ const MobileCompanion = () => {
       {/* Footer */}
       <div className="mt-8 text-center">
         <p className="text-xs text-gray-500">
-          Keep this page open to receive real-time AI assistance
+          Keep this page open to receive real-time AI assistance from your desktop interview
         </p>
       </div>
     </div>
