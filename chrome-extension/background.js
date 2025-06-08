@@ -96,6 +96,52 @@ async function hasAudioActivity(tabId) {
   }
 }
 
+// Check all tabs for audio activity when session becomes available
+async function checkAllTabsForAudio() {
+  if (!currentSessionId || isCapturing) return;
+  
+  try {
+    const tabs = await chrome.tabs.query({});
+    console.log('🔍 Checking all tabs for audio activity...');
+    
+    for (const tab of tabs) {
+      if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+        continue;
+      }
+      
+      const hasAudio = await hasAudioActivity(tab.id);
+      const isKnownAudioSource = isAudioSourceTab(tab.url);
+      
+      if (hasAudio || (isKnownAudioSource && tab.audible)) {
+        console.log('🔊 FOUND AUDIO TAB:', { 
+          tabId: tab.id, 
+          url: tab.url, 
+          audible: hasAudio, 
+          knownSource: isKnownAudioSource 
+        });
+        
+        meetingTabId = tab.id;
+        console.log('🚀 AUTO-STARTING TRANSCRIPTION for discovered audio tab:', tab.id);
+        
+        setTimeout(async () => {
+          try {
+            await startTranscription(tab);
+            console.log('✅ AUTO-STARTED transcription for discovered audio tab:', tab.id);
+          } catch (error) {
+            console.error('❌ Error auto-starting transcription for discovered tab:', error);
+          }
+        }, 1000);
+        
+        return; // Only start one transcription at a time
+      }
+    }
+    
+    console.log('🔍 No audio activity found in current tabs');
+  } catch (error) {
+    console.error('Error checking tabs for audio:', error);
+  }
+}
+
 // Auto-start when visiting interview pages or detecting audio activity
 if (isChromeExtensionContext() && chrome.tabs) {
   chrome.tabs.onUpdated?.addListener(async (tabId, changeInfo, tab) => {
@@ -126,10 +172,17 @@ if (isChromeExtensionContext() && chrome.tabs) {
               sessionId: currentSessionId
             });
             console.log('📡 Session context auto-established');
+            
+            // Now check all tabs for existing audio activity
+            setTimeout(() => {
+              checkAllTabsForAudio();
+            }, 2000);
+            
           } catch (error) {
             console.error('Error auto-setting up session context:', error);
           }
         }
+        return; // Don't process as audio tab
       }
       
       // Handle any tab with audio activity if we have a session
@@ -343,6 +396,12 @@ if (isChromeExtensionContext()) {
           sessionPersisted: true 
         });
         console.log('🎯 Session ID set from popup for auto operation:', currentSessionId);
+        
+        // Check for existing audio activity when session is manually set
+        setTimeout(() => {
+          checkAllTabsForAudio();
+        }, 1000);
+        
         sendResponse({ success: true });
       } catch (error) {
         sendResponse({ success: false, error: error.message });
