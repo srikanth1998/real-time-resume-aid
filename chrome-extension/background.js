@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 console.log('InterviewAce silent transcription background script loaded');
@@ -144,10 +143,9 @@ async function requestCapturePermission(tab) {
   try {
     console.log('📢 Requesting capture permission via browser notification');
     
-    // Create notification asking for permission
+    // Create notification asking for permission WITHOUT icon to avoid download errors
     const notificationId = await chrome.notifications.create({
       type: 'basic',
-      iconUrl: 'icons/icon48.png',
       title: 'InterviewAce - Audio Capture',
       message: 'Click to enable automatic audio transcription for your interview session',
       buttons: [
