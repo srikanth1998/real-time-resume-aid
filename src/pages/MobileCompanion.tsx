@@ -45,7 +45,7 @@ const MobileCompanion = () => {
       try {
         console.log('🔍 Fetching session details for:', sessionId);
         
-        // Fetch session details - don't filter by device_mode since we removed that requirement
+        // Fetch session details
         const { data: sessionData, error } = await supabase
           .from('sessions')
           .select('*')
@@ -100,6 +100,22 @@ const MobileCompanion = () => {
                 title: "New Question",
                 description: `"${newTranscript.question_text.substring(0, 50)}..."`,
               });
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'transcripts',
+              filter: `session_id=eq.${sessionId}`
+            },
+            (payload) => {
+              console.log('📝 Transcript updated via real-time:', payload);
+              const updatedTranscript = payload.new as Transcript;
+              setTranscripts(prev => 
+                prev.map(t => t.id === updatedTranscript.id ? updatedTranscript : t)
+              );
             }
           )
           .subscribe((status) => {
@@ -204,6 +220,18 @@ const MobileCompanion = () => {
           className="mb-6"
         />
       )}
+
+      {/* Debug Info */}
+      <Card className="mb-6 bg-blue-50 border-blue-200">
+        <CardContent className="p-4">
+          <div className="text-sm space-y-1">
+            <p><strong>Session Status:</strong> {session.status}</p>
+            <p><strong>Connected:</strong> {isConnected ? 'Yes' : 'No'}</p>
+            <p><strong>Transcripts Count:</strong> {transcripts.length}</p>
+            <p><strong>Session ID:</strong> {sessionId}</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Interview Status */}
       {session.status !== 'in_progress' && (
