@@ -41,7 +41,10 @@ export const useExtensionConnector = (onTranscription: (text: string, timestamp?
         variant: "destructive"
       });
     } finally {
-      processingRef.current = false;
+      // Reset processing flag after a delay
+      setTimeout(() => {
+        processingRef.current = false;
+      }, 2000);
     }
   };
 
@@ -83,12 +86,12 @@ export const useExtensionConnector = (onTranscription: (text: string, timestamp?
           return;
         }
         
-        // Handle both independent, silent, and auto extension sources
+        // Handle extension ready messages
         if (event.data.action === 'extensionReady' && 
-            (event.data.source === 'interviewace-extension-independent' || 
-             event.data.source === 'interviewace-extension-silent' ||
-             event.data.source === 'interviewace-extension-auto')) {
-          console.log('✅ [INTERVIEW] Auto-extension ready via window message');
+            (event.data.source === 'interviewace-extension-auto' || 
+             event.data.source === 'interviewace-extension' ||
+             event.data.source === 'interviewace-extension-silent')) {
+          console.log('✅ [INTERVIEW] Extension ready via window message');
           setExtensionConnected(true);
           setExtensionStatus("Auto-listening");
           
@@ -96,33 +99,53 @@ export const useExtensionConnector = (onTranscription: (text: string, timestamp?
           console.log('🔇 Chrome extension connected and operating automatically');
         }
         
+        // Handle transcription messages
         if (event.data.action === 'processTranscription' && 
-            (event.data.source === 'interviewace-extension-independent' || 
-             event.data.source === 'interviewace-extension-silent' ||
-             event.data.source === 'interviewace-extension-auto') && 
+            (event.data.source === 'interviewace-extension-auto' || 
+             event.data.source === 'interviewace-extension' ||
+             event.data.source === 'interviewace-extension-silent') && 
             event.data.text) {
           console.log('📝 [INTERVIEW] Processing auto-transcription via window message:', event.data.text);
           handleExtensionTranscriptionData(event.data.text, event.data.timestamp);
         }
       };
 
+      // Set up global function for direct extension access
+      (window as any).handleExtensionTranscription = (text: string, sessionId?: string, timestamp?: number) => {
+        console.log('🎯 [INTERVIEW] Direct extension transcription call:', text);
+        handleExtensionTranscriptionData(text, timestamp);
+      };
+
       window.addEventListener('extensionReady', handleExtensionReady as EventListener);
       window.addEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
       window.addEventListener('message', handleWindowMessage);
 
+      // Check if extension is already available
       const isAvailable = checkExtensionAvailability();
       if (isAvailable) {
+        console.log('🎯 [INTERVIEW] Extension already available, setting connected state');
         setExtensionConnected(true);
         setExtensionStatus("Auto-listening");
       }
 
-      console.log('📢 [INTERVIEW] Sending interviewAppReady message for auto-mode');
-      window.postMessage({
-        action: 'interviewAppReady',
-        timestamp: Date.now()
-      }, '*');
+      // Enhanced app ready notification
+      const sendAppReady = () => {
+        console.log('📢 [INTERVIEW] Sending interviewAppReady message for auto-mode');
+        const readyMessage = {
+          action: 'interviewAppReady',
+          timestamp: Date.now()
+        };
+        
+        // Send multiple times for reliability
+        window.postMessage(readyMessage, '*');
+        setTimeout(() => window.postMessage(readyMessage, '*'), 500);
+        setTimeout(() => window.postMessage(readyMessage, '*'), 1000);
+      };
+
+      sendAppReady();
 
       return () => {
+        delete (window as any).handleExtensionTranscription;
         window.removeEventListener('extensionReady', handleExtensionReady as EventListener);
         window.removeEventListener('extensionTranscription', handleExtensionTranscription as EventListener);
         window.removeEventListener('message', handleWindowMessage);

@@ -52,7 +52,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     }, 1500);
     
-    // Send transcription to web application (if present)
+    // Send transcription to web application with multiple approaches for reliability
     const messageData = {
       action: 'processTranscription',
       text: text,
@@ -63,20 +63,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     };
     
     console.log('📨 Posting auto-transcription message:', messageData);
-    window.postMessage(messageData, '*');
     
-    // Also dispatch custom event
-    console.log('🎯 Dispatching auto-transcription event');
-    const transcriptionEvent = new CustomEvent('extensionTranscription', {
-      detail: { 
-        text: text,
-        timestamp: timestamp || Date.now(),
-        sessionId: sessionId,
-        type: 'auto-transcription'
+    // Method 1: Window postMessage (primary)
+    try {
+      window.postMessage(messageData, '*');
+      console.log('✅ PostMessage sent successfully');
+    } catch (error) {
+      console.error('❌ PostMessage failed:', error);
+    }
+    
+    // Method 2: Custom event dispatch (backup)
+    try {
+      const transcriptionEvent = new CustomEvent('extensionTranscription', {
+        detail: { 
+          text: text,
+          timestamp: timestamp || Date.now(),
+          sessionId: sessionId,
+          type: 'auto-transcription'
+        }
+      });
+      window.dispatchEvent(transcriptionEvent);
+      console.log('✅ Custom event dispatched successfully');
+    } catch (error) {
+      console.error('❌ Custom event dispatch failed:', error);
+    }
+    
+    // Method 3: Direct function call if available (additional backup)
+    try {
+      if (window.handleExtensionTranscription && typeof window.handleExtensionTranscription === 'function') {
+        window.handleExtensionTranscription(text, sessionId, timestamp);
+        console.log('✅ Direct function call successful');
       }
-    });
-    window.dispatchEvent(transcriptionEvent);
-    console.log('✅ Auto-transcription processed - sent to Supabase for cross-device sync');
+    } catch (error) {
+      console.error('❌ Direct function call failed:', error);
+    }
+    
+    console.log('✅ Auto-transcription processed - sent to app for display');
     
     sendResponse({ success: true });
   }
@@ -112,13 +134,41 @@ window.addEventListener('message', (event) => {
   }
 });
 
-// Notify web app that extension is loaded with auto capabilities
-console.log('🚀 INTERVIEWACE AUTO-TRANSCRIPTION EXTENSION LOADED');
-console.log('🌐 Page URL:', window.location.href);
-window.postMessage({
-  action: 'extensionReady',
-  source: 'interviewace-extension-auto',
-  capabilities: ['localTranscription', 'crossDeviceSync', 'autoOperation', 'sessionPersistence'],
-  timestamp: Date.now()
-}, '*');
-console.log('✅ Initial extension ready message posted with auto-operation capabilities');
+// Enhanced app ready detection
+const notifyAppReady = () => {
+  console.log('🚀 INTERVIEWACE AUTO-TRANSCRIPTION EXTENSION LOADED');
+  console.log('🌐 Page URL:', window.location.href);
+  
+  // Send multiple ready messages to ensure delivery
+  const readyMessage = {
+    action: 'extensionReady',
+    source: 'interviewace-extension-auto',
+    capabilities: ['localTranscription', 'crossDeviceSync', 'autoOperation', 'sessionPersistence'],
+    timestamp: Date.now()
+  };
+  
+  // Send immediately
+  window.postMessage(readyMessage, '*');
+  
+  // Send again after a short delay to catch late-loading apps
+  setTimeout(() => {
+    window.postMessage(readyMessage, '*');
+    console.log('✅ Extension ready message re-sent for reliability');
+  }, 1000);
+  
+  // Also expose a global function for direct access
+  window.extensionReady = true;
+  window.extensionCapabilities = ['localTranscription', 'crossDeviceSync', 'autoOperation', 'sessionPersistence'];
+  
+  console.log('✅ Extension ready state established');
+};
+
+// Notify when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', notifyAppReady);
+} else {
+  notifyAppReady();
+}
+
+// Also notify when page is fully loaded
+window.addEventListener('load', notifyAppReady);

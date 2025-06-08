@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Brain, AlertTriangle } from "lucide-react";
@@ -148,6 +147,7 @@ const Interview = () => {
 
   // Handle transcription from extension
   const handleExtensionTranscription = (text: string, timestamp?: number) => {
+    console.log('🎯 [INTERVIEW] Received transcription from extension:', text);
     speechRecognition.setCurrentTranscript(text);
     generateStreamingAnswer(text);
   };
