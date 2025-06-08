@@ -3,8 +3,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CrossDeviceStatus } from "@/components/CrossDeviceStatus";
-import { Brain, Clock, Smartphone, Wifi, AlertCircle } from "lucide-react";
+import { Brain, Clock, Smartphone, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,7 +24,6 @@ const MobileCompanion = () => {
   const [session, setSession] = useState<any>(null);
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     console.log('🔥 Mobile Companion mounted with session ID:', sessionId);
@@ -67,7 +65,6 @@ const MobileCompanion = () => {
         }
 
         setSession(sessionData);
-        setIsConnected(true);
 
         console.log('✅ Session found, setting up real-time subscription...');
 
@@ -97,7 +94,7 @@ const MobileCompanion = () => {
               });
               
               toast({
-                title: "New Question & Answer",
+                title: "New Question",
                 description: `"${newTranscript.question_text.substring(0, 50)}..."`,
               });
             }
@@ -164,8 +161,7 @@ const MobileCompanion = () => {
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-4">
         <div className="text-center">
           <Smartphone className="h-8 w-8 animate-pulse mx-auto mb-4 text-purple-600" />
-          <p>Connecting to session...</p>
-          <p className="text-sm text-gray-500 mt-2">Session ID: {sessionId}</p>
+          <p>Connecting...</p>
         </div>
       </div>
     );
@@ -182,10 +178,9 @@ const MobileCompanion = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600">
               This session ID is not valid or has expired.
             </p>
-            <p className="text-sm text-gray-500">Session ID: {sessionId}</p>
           </CardContent>
         </Card>
       </div>
@@ -193,109 +188,71 @@ const MobileCompanion = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 p-4">
-      {/* Header */}
-      <div className="text-center mb-6">
-        <div className="flex items-center justify-center space-x-2 mb-4">
-          <Brain className="h-6 w-6 text-purple-600" />
-          <span className="text-xl font-bold text-gray-900">InterviewAce Mobile</span>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
+      {/* Minimal Header */}
+      <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b border-gray-200 p-3 z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Brain className="h-5 w-5 text-purple-600" />
+            <span className="font-semibold text-gray-900">InterviewAce</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Badge variant={session.status === 'in_progress' ? "default" : "secondary"} className="text-xs">
+              {session.status === 'in_progress' ? 'Live' : 'Ready'}
+            </Badge>
+            <Badge variant="outline" className="flex items-center space-x-1 text-xs">
+              <Clock className="h-3 w-3" />
+              <span>{session.duration_minutes}m</span>
+            </Badge>
+          </div>
         </div>
-        <div className="flex items-center justify-center space-x-2">
-          <Badge variant={session.status === 'in_progress' ? "default" : "secondary"}>
-            {session.status === 'in_progress' ? 'Live Interview' : session.status}
-          </Badge>
-          <Badge variant="outline" className="flex items-center space-x-1">
-            <Clock className="h-3 w-3" />
-            <span>{session.duration_minutes}m</span>
-          </Badge>
-        </div>
-        <p className="text-sm text-gray-500 mt-2">Session: {sessionId}</p>
       </div>
 
-      {/* Connection Status */}
-      {sessionId && (
-        <CrossDeviceStatus 
-          sessionId={sessionId} 
-          deviceType="mobile" 
-          className="mb-6"
-        />
-      )}
-
-      {/* Debug Info */}
-      <Card className="mb-6 bg-blue-50 border-blue-200">
-        <CardContent className="p-4">
-          <div className="text-sm space-y-1">
-            <p><strong>Session Status:</strong> {session.status}</p>
-            <p><strong>Connected:</strong> {isConnected ? 'Yes' : 'No'}</p>
-            <p><strong>Transcripts Count:</strong> {transcripts.length}</p>
-            <p><strong>Session ID:</strong> {sessionId}</p>
-            <p><strong>Device Mode:</strong> Mobile Companion (Real-time updates only)</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Interview Status */}
-      {session.status !== 'in_progress' && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <Wifi className="h-5 w-5 text-orange-500" />
-              <div>
-                <p className="font-medium">Waiting for interview to start</p>
-                <p className="text-sm text-gray-600">
-                  AI answers will appear here in real-time when your interview begins on your desktop.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* AI Answers */}
-      <div className="space-y-4">
+      {/* Questions & Answers */}
+      <div className="p-4 space-y-4">
         {transcripts.length === 0 && (
-          <Card>
+          <Card className="border-dashed border-2 border-gray-300">
             <CardContent className="p-6 text-center">
-              <Smartphone className="h-8 w-8 mx-auto mb-3 text-gray-400" />
-              <p className="text-gray-600">
+              <Smartphone className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+              <h3 className="font-medium text-gray-900 mb-2">Ready for Questions</h3>
+              <p className="text-gray-600 text-sm">
                 {session.status === 'in_progress' 
-                  ? 'Listening for questions from your desktop interview... AI answers will appear here in real-time.'
-                  : 'No questions yet. Start your interview on desktop and questions will appear here.'
+                  ? 'AI answers will appear here as questions are asked in your interview.'
+                  : 'Start your interview and questions will appear here in real-time.'
                 }
-              </p>
-              <p className="text-xs text-gray-500 mt-2">
-                Real-time updates active • Mobile companion mode
               </p>
             </CardContent>
           </Card>
         )}
 
         {transcripts.map((transcript, index) => (
-          <Card key={transcript.id} className="relative">
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Badge variant="outline" className="text-xs">
-                      Question {transcripts.length - index}
-                    </Badge>
-                    <span className="text-xs text-gray-500">
-                      {new Date(transcript.created_at).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <p className="text-sm font-medium text-gray-700 mb-3">
-                    "{transcript.question_text}"
-                  </p>
+          <Card key={transcript.id} className="shadow-sm">
+            <CardContent className="p-4">
+              {/* Question */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <Badge variant="outline" className="text-xs">
+                    Q{transcripts.length - index}
+                  </Badge>
+                  <span className="text-xs text-gray-500">
+                    {new Date(transcript.created_at).toLocaleTimeString([], { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </span>
                 </div>
+                <p className="text-gray-800 font-medium leading-relaxed">
+                  "{transcript.question_text}"
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+
+              {/* AI Answer */}
+              <div className="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-400">
                 <div className="flex items-center space-x-2 mb-2">
                   <Brain className="h-4 w-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-800">AI Answer</span>
                 </div>
-                <p className="text-sm text-blue-900 leading-relaxed">
+                <p className="text-blue-900 leading-relaxed text-sm">
                   {transcript.generated_answer}
                 </p>
               </div>
@@ -305,11 +262,13 @@ const MobileCompanion = () => {
       </div>
 
       {/* Footer */}
-      <div className="mt-8 text-center">
-        <p className="text-xs text-gray-500">
-          Keep this page open to receive real-time AI assistance from your desktop interview
-        </p>
-      </div>
+      {transcripts.length > 0 && (
+        <div className="p-4 text-center">
+          <p className="text-xs text-gray-500">
+            {transcripts.length} question{transcripts.length !== 1 ? 's' : ''} answered
+          </p>
+        </div>
+      )}
     </div>
   );
 };
