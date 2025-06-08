@@ -9,16 +9,25 @@ let currentSessionId = null;
 let sessionPersisted = false;
 let meetingTabId = null;
 
-// Load session ID from storage on startup and when extension starts
-chrome.runtime.onStartup.addListener(async () => {
-  await loadPersistedSession();
-});
+// Check if Chrome APIs are available before using them
+const isChromeExtensionContext = () => {
+  return typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+};
 
-chrome.runtime.onInstalled.addListener(async () => {
-  await loadPersistedSession();
-});
+// Load session ID from storage on startup and when extension starts
+if (isChromeExtensionContext()) {
+  chrome.runtime.onStartup?.addListener(async () => {
+    await loadPersistedSession();
+  });
+
+  chrome.runtime.onInstalled?.addListener(async () => {
+    await loadPersistedSession();
+  });
+}
 
 async function loadPersistedSession() {
+  if (!isChromeExtensionContext()) return;
+  
   try {
     const result = await chrome.storage.local.get(['sessionId', 'sessionPersisted']);
     if (result.sessionId && result.sessionPersisted) {
@@ -57,90 +66,92 @@ function isInterviewTab(url) {
 }
 
 // Auto-start when visiting interview pages or meeting platforms
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
-    console.log('🎯 TAB UPDATED:', tabId, tab.url);
-    
-    // Handle interview session pages
-    if (isInterviewTab(tab.url)) {
-      console.log('🎯 DETECTED INTERVIEW PAGE (AUTO-MODE)');
+if (isChromeExtensionContext() && chrome.tabs) {
+  chrome.tabs.onUpdated?.addListener(async (tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url) {
+      console.log('🎯 TAB UPDATED:', tabId, tab.url);
       
-      const urlSessionId = extractSessionId(tab.url);
-      console.log('🔍 URL SESSION ID:', urlSessionId);
-      
-      if (urlSessionId) {
-        currentSessionId = urlSessionId;
-        sessionPersisted = true;
+      // Handle interview session pages
+      if (isInterviewTab(tab.url)) {
+        console.log('🎯 DETECTED INTERVIEW PAGE (AUTO-MODE)');
         
-        await chrome.storage.local.set({ 
-          sessionId: currentSessionId,
-          sessionPersisted: true 
-        });
-        console.log('✅ SESSION ID AUTO-PERSISTED:', currentSessionId);
+        const urlSessionId = extractSessionId(tab.url);
+        console.log('🔍 URL SESSION ID:', urlSessionId);
         
-        try {
-          await ensureContentScript(tabId);
-          await chrome.tabs.sendMessage(tabId, {
-            action: 'setSessionId',
-            sessionId: currentSessionId
-          });
-          console.log('📡 Session context auto-established');
-        } catch (error) {
-          console.error('Error auto-setting up session context:', error);
+        if (urlSessionId) {
+          currentSessionId = urlSessionId;
+          sessionPersisted = true;
+          
+          try {
+            await chrome.storage.local.set({ 
+              sessionId: currentSessionId,
+              sessionPersisted: true 
+            });
+            console.log('✅ SESSION ID AUTO-PERSISTED:', currentSessionId);
+            
+            await ensureContentScript(tabId);
+            await chrome.tabs.sendMessage(tabId, {
+              action: 'setSessionId',
+              sessionId: currentSessionId
+            });
+            console.log('📡 Session context auto-established');
+          } catch (error) {
+            console.error('Error auto-setting up session context:', error);
+          }
         }
       }
-    }
-    
-    // Handle meeting platform pages - auto-start transcription
-    if (isMeetingTab(tab.url) && currentSessionId && !isCapturing) {
-      console.log('🎯 DETECTED MEETING PLATFORM - AUTO-STARTING TRANSCRIPTION');
-      meetingTabId = tabId;
       
-      // Small delay to let the meeting page fully load
-      setTimeout(async () => {
-        try {
-          await startTranscription(tab);
-          console.log('✅ AUTO-STARTED transcription for meeting tab:', tabId);
-        } catch (error) {
-          console.error('❌ Error auto-starting transcription:', error);
-        }
-      }, 2000);
+      // Handle meeting platform pages - auto-start transcription
+      if (isMeetingTab(tab.url) && currentSessionId && !isCapturing) {
+        console.log('🎯 DETECTED MEETING PLATFORM - AUTO-STARTING TRANSCRIPTION');
+        meetingTabId = tabId;
+        
+        // Small delay to let the meeting page fully load
+        setTimeout(async () => {
+          try {
+            await startTranscription(tab);
+            console.log('✅ AUTO-STARTED transcription for meeting tab:', tabId);
+          } catch (error) {
+            console.error('❌ Error auto-starting transcription:', error);
+          }
+        }, 2000);
+      }
     }
-  }
-});
+  });
 
-// Auto-stop when leaving meeting tabs
-chrome.tabs.onRemoved.addListener(async (tabId) => {
-  if (tabId === meetingTabId && isCapturing) {
-    console.log('🛑 MEETING TAB CLOSED - AUTO-STOPPING TRANSCRIPTION');
-    await stopTranscription({ id: meetingTabId });
-    meetingTabId = null;
-  }
-});
+  // Auto-stop when leaving meeting tabs
+  chrome.tabs.onRemoved?.addListener(async (tabId) => {
+    if (tabId === meetingTabId && isCapturing) {
+      console.log('🛑 MEETING TAB CLOSED - AUTO-STOPPING TRANSCRIPTION');
+      await stopTranscription({ id: meetingTabId });
+      meetingTabId = null;
+    }
+  });
 
-// Track tab focus changes for active meeting detection
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  try {
-    const tab = await chrome.tabs.get(activeInfo.tabId);
-    
-    // If we have a session and user switches to a meeting tab, auto-start
-    if (isMeetingTab(tab.url) && currentSessionId && !isCapturing) {
-      console.log('🎯 FOCUSED ON MEETING TAB - AUTO-STARTING TRANSCRIPTION');
-      meetingTabId = activeInfo.tabId;
+  // Track tab focus changes for active meeting detection
+  chrome.tabs.onActivated?.addListener(async (activeInfo) => {
+    try {
+      const tab = await chrome.tabs.get(activeInfo.tabId);
       
-      setTimeout(async () => {
-        try {
-          await startTranscription(tab);
-          console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
-        } catch (error) {
-          console.error('❌ Error auto-starting on focus:', error);
-        }
-      }, 1000);
+      // If we have a session and user switches to a meeting tab, auto-start
+      if (isMeetingTab(tab.url) && currentSessionId && !isCapturing) {
+        console.log('🎯 FOCUSED ON MEETING TAB - AUTO-STARTING TRANSCRIPTION');
+        meetingTabId = activeInfo.tabId;
+        
+        setTimeout(async () => {
+          try {
+            await startTranscription(tab);
+            console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
+          } catch (error) {
+            console.error('❌ Error auto-starting on focus:', error);
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.warn('Could not get tab info on activation:', error);
     }
-  } catch (error) {
-    console.warn('Could not get tab info on activation:', error);
-  }
-});
+  });
+}
 
 function extractSessionId(url) {
   try {
@@ -208,193 +219,212 @@ function extractSessionId(url) {
 }
 
 // Persist session when visiting interview pages
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url && 
-      (tab.url.includes('lovableproject.com') || 
-       tab.url.includes('lovable.app') || 
-       tab.url.includes('real-time-resume-aid') ||
-       tab.url.includes('preview--'))) {
-    
-    console.log('🎯 DETECTED INTERVIEW PAGE (SILENT MODE)');
-    console.log('Tab ID:', tabId, 'URL:', tab.url);
-    
-    // Extract session ID from URL
-    const urlSessionId = extractSessionId(tab.url);
-    console.log('🔍 URL SESSION ID:', urlSessionId);
-    console.log('🔍 CURRENT SESSION ID:', currentSessionId);
-    
-    // If we found a session ID in the URL, persist it for silent operation
-    if (urlSessionId) {
-      currentSessionId = urlSessionId;
-      sessionPersisted = true;
+if (isChromeExtensionContext() && chrome.tabs) {
+  chrome.tabs.onUpdated?.addListener(async (tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url && 
+        (tab.url.includes('lovableproject.com') || 
+         tab.url.includes('lovable.app') || 
+         tab.url.includes('real-time-resume-aid') ||
+         tab.url.includes('preview--'))) {
       
-      // Persist session ID for silent operation
-      await chrome.storage.local.set({ 
-        sessionId: currentSessionId,
-        sessionPersisted: true 
-      });
-      console.log('✅ SESSION ID PERSISTED FOR SILENT OPERATION:', currentSessionId);
+      console.log('🎯 DETECTED INTERVIEW PAGE (SILENT MODE)');
+      console.log('Tab ID:', tabId, 'URL:', tab.url);
       
-      // No badge updates in silent mode
+      // Extract session ID from URL
+      const urlSessionId = extractSessionId(tab.url);
+      console.log('🔍 URL SESSION ID:', urlSessionId);
+      console.log('🔍 CURRENT SESSION ID:', currentSessionId);
       
-      try {
-        await ensureContentScript(tabId);
+      // If we found a session ID in the URL, persist it for silent operation
+      if (urlSessionId) {
+        currentSessionId = urlSessionId;
+        sessionPersisted = true;
         
-        // Send session ID to content script
-        await chrome.tabs.sendMessage(tabId, {
-          action: 'setSessionId',
-          sessionId: currentSessionId
+        // Persist session ID for silent operation
+        await chrome.storage.local.set({ 
+          sessionId: currentSessionId,
+          sessionPersisted: true 
         });
+        console.log('✅ SESSION ID PERSISTED FOR SILENT OPERATION:', currentSessionId);
         
-        console.log('📡 Session context established for silent operation');
-      } catch (error) {
-        console.error('Error setting up session context:', error);
+        // No badge updates in silent mode
+        
+        try {
+          await ensureContentScript(tabId);
+          
+          // Send session ID to content script
+          await chrome.tabs.sendMessage(tabId, {
+            action: 'setSessionId',
+            sessionId: currentSessionId
+          });
+          
+          console.log('📡 Session context established for silent operation');
+        } catch (error) {
+          console.error('Error setting up session context:', error);
+        }
       }
     }
-  }
-});
+  });
+}
 
 // Handle extension icon click
-chrome.action.onClicked.addListener(async (tab) => {
-  console.log('=== EXTENSION ICON CLICKED (SILENT MODE) ===');
-  console.log('Tab ID:', tab.id, 'URL:', tab.url);
-  console.log('Current session ID:', currentSessionId);
-  
-  try {
-    if (!isCapturing) {
-      await startTranscription(tab);
-    } else {
-      await stopTranscription(tab);
+if (isChromeExtensionContext() && chrome.action) {
+  chrome.action.onClicked?.addListener(async (tab) => {
+    console.log('=== EXTENSION ICON CLICKED (SILENT MODE) ===');
+    console.log('Tab ID:', tab.id, 'URL:', tab.url);
+    console.log('Current session ID:', currentSessionId);
+    
+    try {
+      if (!isCapturing) {
+        await startTranscription(tab);
+      } else {
+        await stopTranscription(tab);
+      }
+    } catch (error) {
+      console.error('Error toggling transcription:', error);
+      // No error notifications in silent mode
     }
-  } catch (error) {
-    console.error('Error toggling transcription:', error);
-    // No error notifications in silent mode
-  }
-});
+  });
+}
 
 // Handle messages from popup and offscreen (keep manual control available)
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  console.log('🔔 Background received message (auto-mode):', message);
-  
-  // Handle popup messages
-  if (message.action === 'toggle') {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab) {
+if (isChromeExtensionContext()) {
+  chrome.runtime.onMessage?.addListener(async (message, sender, sendResponse) => {
+    console.log('🔔 Background received message (auto-mode):', message);
+    
+    // Handle popup messages
+    if (message.action === 'toggle') {
       try {
-        if (isCapturing) {
-          await stopTranscription(tab);
-        } else {
-          await startTranscription(tab);
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab) {
+          if (isCapturing) {
+            await stopTranscription(tab);
+          } else {
+            await startTranscription(tab);
+          }
+          sendResponse({ 
+            success: true, 
+            isCapturing: isCapturing,
+            sessionId: currentSessionId 
+          });
         }
-        sendResponse({ 
-          success: true, 
-          isCapturing: isCapturing,
-          sessionId: currentSessionId 
-        });
       } catch (error) {
         sendResponse({ success: false, error: error.message });
       }
-    }
-    return true;
-  }
-  
-  if (message.action === 'setSessionId') {
-    currentSessionId = message.sessionId;
-    sessionPersisted = true;
-    await chrome.storage.local.set({ 
-      sessionId: currentSessionId,
-      sessionPersisted: true 
-    });
-    console.log('🎯 Session ID set from popup for auto operation:', currentSessionId);
-    sendResponse({ success: true });
-    return true;
-  }
-  
-  if (message.action === 'clearSession') {
-    currentSessionId = null;
-    sessionPersisted = false;
-    await chrome.storage.local.remove(['sessionId', 'sessionPersisted']);
-    console.log('🧹 Session cleared (auto mode)');
-    sendResponse({ success: true });
-    return true;
-  }
-  
-  if (message.action === 'getStatus') {
-    sendResponse({ 
-      isCapturing: isCapturing, 
-      sessionId: currentSessionId,
-      sessionPersisted: sessionPersisted,
-      currentTabId: currentTabId,
-      meetingTabId: meetingTabId
-    });
-    return true;
-  }
-  
-  if (message.type === 'offscreen-ready') {
-    console.log('✅ Offscreen document reported ready (auto mode)');
-    sendResponse({ success: true });
-    return true;
-  }
-  
-  // Handle transcription results from offscreen
-  if (message.type === 'transcription-result' && message.text && message.text.trim()) {
-    console.log('📢 PROCESSING AUTO-TRANSCRIPTION RESULT FROM OFFSCREEN');
-    console.log('📝 Transcription text:', message.text);
-    console.log('🎯 Current session ID:', currentSessionId);
-    
-    const sessionId = message.sessionId || currentSessionId;
-    console.log('🎯 Final session ID for processing:', sessionId);
-    
-    if (!sessionId) {
-      console.warn('⚠️ NO SESSION ID AVAILABLE - TRANSCRIPTION WILL NOT SYNC');
+      return true;
     }
     
-    const transcriptionData = {
-      text: message.text.trim(),
-      timestamp: message.timestamp || Date.now(),
-      sessionId: sessionId
-    };
-    
-    // Forward to local content script for immediate UI update (if available)
-    if (currentTabId) {
+    if (message.action === 'setSessionId') {
+      currentSessionId = message.sessionId;
+      sessionPersisted = true;
       try {
-        await chrome.tabs.sendMessage(currentTabId, {
-          action: 'transcriptionResult',
-          ...transcriptionData
+        await chrome.storage.local.set({ 
+          sessionId: currentSessionId,
+          sessionPersisted: true 
         });
-        console.log('✅ Auto-transcription forwarded to local content script');
+        console.log('🎯 Session ID set from popup for auto operation:', currentSessionId);
+        sendResponse({ success: true });
       } catch (error) {
-        console.warn('❌ Error forwarding to local content script (this is OK for auto operation):', error);
+        sendResponse({ success: false, error: error.message });
       }
+      return true;
     }
     
-    // Send to Supabase for cross-device sync and answer generation (MAIN FUNCTION)
-    if (sessionId) {
+    if (message.action === 'clearSession') {
+      currentSessionId = null;
+      sessionPersisted = false;
       try {
-        console.log('📡 Sending auto-transcription to Supabase for cross-device sync and AI answer...');
-        await sendTranscriptionToSupabase(transcriptionData);
-        console.log('✅ Auto-transcription sent to Supabase successfully - all devices will receive updates');
+        await chrome.storage.local.remove(['sessionId', 'sessionPersisted']);
+        console.log('🧹 Session cleared (auto mode)');
+        sendResponse({ success: true });
       } catch (error) {
-        console.error('❌ Error sending auto-transcription to Supabase:', error);
+        sendResponse({ success: false, error: error.message });
       }
-    } else {
-      console.warn('⚠️ No session ID available, skipping cross-device sync and AI answers');
+      return true;
     }
     
-    sendResponse({ success: true, forwarded: true, synced: !!sessionId });
+    if (message.action === 'getStatus') {
+      sendResponse({ 
+        isCapturing: isCapturing, 
+        sessionId: currentSessionId,
+        sessionPersisted: sessionPersisted,
+        currentTabId: currentTabId,
+        meetingTabId: meetingTabId
+      });
+      return true;
+    }
+    
+    if (message.type === 'offscreen-ready') {
+      console.log('✅ Offscreen document reported ready (auto mode)');
+      sendResponse({ success: true });
+      return true;
+    }
+    
+    // Handle transcription results from offscreen
+    if (message.type === 'transcription-result' && message.text && message.text.trim()) {
+      console.log('📢 PROCESSING AUTO-TRANSCRIPTION RESULT FROM OFFSCREEN');
+      console.log('📝 Transcription text:', message.text);
+      console.log('🎯 Current session ID:', currentSessionId);
+      
+      const sessionId = message.sessionId || currentSessionId;
+      console.log('🎯 Final session ID for processing:', sessionId);
+      
+      if (!sessionId) {
+        console.warn('⚠️ NO SESSION ID AVAILABLE - TRANSCRIPTION WILL NOT SYNC');
+      }
+      
+      const transcriptionData = {
+        text: message.text.trim(),
+        timestamp: message.timestamp || Date.now(),
+        sessionId: sessionId
+      };
+      
+      // Forward to local content script for immediate UI update (if available)
+      if (currentTabId) {
+        try {
+          await chrome.tabs.sendMessage(currentTabId, {
+            action: 'transcriptionResult',
+            ...transcriptionData
+          });
+          console.log('✅ Auto-transcription forwarded to local content script');
+        } catch (error) {
+          console.warn('❌ Error forwarding to local content script (this is OK for auto operation):', error);
+        }
+      }
+      
+      // Send to Supabase for cross-device sync and answer generation (MAIN FUNCTION)
+      if (sessionId) {
+        try {
+          console.log('📡 Sending auto-transcription to Supabase for cross-device sync and AI answer...');
+          await sendTranscriptionToSupabase(transcriptionData);
+          console.log('✅ Auto-transcription sent to Supabase successfully - all devices will receive updates');
+        } catch (error) {
+          console.error('❌ Error sending auto-transcription to Supabase:', error);
+        }
+      } else {
+        console.warn('⚠️ No session ID available, skipping cross-device sync and AI answers');
+      }
+      
+      sendResponse({ success: true, forwarded: true, synced: !!sessionId });
+      return true;
+    }
+    
+    if (message.type === 'ping') {
+      sendResponse({ success: true, message: 'pong' });
+      return true;
+    }
+    
+    sendResponse({ success: true });
     return true;
-  }
-  
-  if (message.type === 'ping') {
-    sendResponse({ success: true, message: 'pong' });
-    return true;
-  }
-  
-  sendResponse({ success: true });
-  return true;
-});
+  });
+}
 
 async function startTranscription(tab) {
+  if (!isChromeExtensionContext()) {
+    console.warn('Chrome extension context not available');
+    return;
+  }
+
   console.log('🚀 AUTO-STARTING SILENT TRANSCRIPTION FOR TAB:', tab.id);
   console.log('🎯 USING PERSISTED SESSION ID:', currentSessionId);
   
@@ -447,6 +477,8 @@ async function startTranscription(tab) {
 }
 
 async function stopTranscription(tab) {
+  if (!isChromeExtensionContext()) return;
+
   console.log('🛑 AUTO-STOPPING silent transcription...');
   
   try {
@@ -473,6 +505,8 @@ async function stopTranscription(tab) {
 
 // Helper functions
 async function ensureContentScript(tabId) {
+  if (!isChromeExtensionContext()) return;
+
   try {
     await chrome.tabs.sendMessage(tabId, { action: 'ping' });
     console.log('Content script already injected for tab:', tabId);
@@ -493,7 +527,7 @@ async function ensureContentScript(tabId) {
 }
 
 async function notifyContentScript(tabId, action) {
-  if (!tabId) return;
+  if (!tabId || !isChromeExtensionContext()) return;
   
   try {
     await chrome.tabs.sendMessage(tabId, { action });
@@ -504,6 +538,8 @@ async function notifyContentScript(tabId, action) {
 }
 
 async function createOffscreen() {
+  if (!isChromeExtensionContext()) return;
+
   try {
     console.log('Creating offscreen document...');
     await chrome.offscreen.createDocument({
@@ -522,6 +558,8 @@ async function createOffscreen() {
 }
 
 async function cleanupOffscreen() {
+  if (!isChromeExtensionContext()) return;
+
   try {
     if (offscreenCreated) {
       console.log('Cleaning up offscreen document...');
@@ -536,6 +574,8 @@ async function cleanupOffscreen() {
 }
 
 async function waitForOffscreenReady() {
+  if (!isChromeExtensionContext()) return;
+
   console.log('Waiting for offscreen to be ready...');
   
   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -561,6 +601,10 @@ async function waitForOffscreenReady() {
 }
 
 async function sendMessageToOffscreen(message, timeoutMs = 15000) {
+  if (!isChromeExtensionContext()) {
+    throw new Error('Chrome extension context not available');
+  }
+
   return new Promise((resolve, reject) => {
     if (!offscreenCreated) {
       reject(new Error('Offscreen document not created'));
@@ -617,7 +661,9 @@ async function sendTranscriptionToSupabase(transcriptionData) {
 }
 
 // Clean up when extension is disabled/reloaded
-chrome.runtime.onSuspend.addListener(() => {
-  console.log('Extension suspending, cleaning up...');
-  cleanupOffscreen();
-});
+if (isChromeExtensionContext()) {
+  chrome.runtime.onSuspend?.addListener(() => {
+    console.log('Extension suspending, cleaning up...');
+    cleanupOffscreen();
+  });
+}
