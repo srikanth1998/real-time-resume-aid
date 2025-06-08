@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Smartphone, Monitor, Wifi, WifiOff } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Device {
   id: string;
@@ -18,8 +19,6 @@ interface CrossDeviceStatusProps {
   className?: string;
 }
 
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY";
-
 export const CrossDeviceStatus = ({ sessionId, deviceType, className }: CrossDeviceStatusProps) => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,26 +29,22 @@ export const CrossDeviceStatus = ({ sessionId, deviceType, className }: CrossDev
       console.log('Registering device:', { sessionId, deviceType });
       
       try {
-        const response = await fetch(
-          `https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/cross-device-sync`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              sessionId,
-              action: 'register_device',
-              deviceType,
-            }),
-          }
-        );
-
-        const result = await response.json();
-        console.log('Device registration response:', result);
+        // Register device connection in session_connections table
+        const connectionId = `${sessionId}_${deviceType}_${Date.now()}`;
         
-        if (result.success) {
+        const { error } = await supabase
+          .from('session_connections')
+          .insert({
+            session_id: sessionId,
+            connection_id: connectionId,
+            device_type: deviceType,
+            last_ping: new Date().toISOString()
+          });
+
+        if (error) {
+          console.error('Failed to register device:', error);
+        } else {
+          console.log('Device registered successfully:', connectionId);
           setIsRegistered(true);
         }
       } catch (error) {
@@ -59,24 +54,17 @@ export const CrossDeviceStatus = ({ sessionId, deviceType, className }: CrossDev
 
     const fetchDevices = async () => {
       try {
-        const response = await fetch(
-          `https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/cross-device-sync`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              sessionId,
-              action: 'get_active_devices',
-            }),
-          }
-        );
+        // Get active devices from session_connections table
+        const { data: connections, error } = await supabase
+          .from('session_connections')
+          .select('*')
+          .eq('session_id', sessionId)
+          .gte('last_ping', new Date(Date.now() - 2 * 60 * 1000).toISOString()); // Active in last 2 minutes
 
-        const result = await response.json();
-        if (result.success && result.devices) {
-          setDevices(result.devices);
+        if (error) {
+          console.error('Failed to fetch devices:', error);
+        } else {
+          setDevices(connections || []);
         }
       } catch (error) {
         console.error('Failed to fetch devices:', error);
