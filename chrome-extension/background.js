@@ -140,6 +140,7 @@ async function hasAudioActivity(tabId) {
 function setBadgeForPermissionRequest() {
   if (!isChromeExtensionContext()) return;
   
+  console.log('🔔 SETTING BADGE - REQUESTING PERMISSION');
   chrome.action.setBadgeText({ text: 'CLICK' });
   chrome.action.setBadgeBackgroundColor({ color: '#ff9500' }); // Orange for attention
   chrome.action.setTitle({ title: 'Click to enable audio capture for your interview' });
@@ -150,6 +151,7 @@ function setBadgeForPermissionRequest() {
 function setBadgeForActiveCapture() {
   if (!isChromeExtensionContext()) return;
   
+  console.log('✅ SETTING BADGE - ACTIVE CAPTURE');
   chrome.action.setBadgeText({ text: 'ON' });
   chrome.action.setBadgeBackgroundColor({ color: '#34a853' }); // Green for active
   chrome.action.setTitle({ title: 'Audio capture is active - click to stop' });
@@ -160,6 +162,7 @@ function setBadgeForActiveCapture() {
 function clearBadge() {
   if (!isChromeExtensionContext()) return;
   
+  console.log('🧹 CLEARING BADGE');
   chrome.action.setBadgeText({ text: '' });
   chrome.action.setTitle({ title: 'InterviewAce Audio Transcription' });
   console.log('🧹 Badge cleared');
@@ -205,7 +208,7 @@ async function checkAllTabsForAudio() {
             }
           }, 1000);
         } else {
-          console.log('🔔 Requesting permission via extension badge...');
+          console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
           setBadgeForPermissionRequest();
         }
         
@@ -290,7 +293,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
               }
             }, 2000);
           } else {
-            console.log('🔔 Requesting permission via extension badge...');
+            console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
             setBadgeForPermissionRequest();
           }
         }
@@ -319,7 +322,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
             }
           }, 1000);
         } else {
-          console.log('🔔 Requesting permission via extension badge...');
+          console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
           setBadgeForPermissionRequest();
         }
       }
@@ -360,7 +363,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
               }
             }, 1000);
           } else {
-            console.log('🔔 Requesting permission via extension badge...');
+            console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
             setBadgeForPermissionRequest();
           }
         }
