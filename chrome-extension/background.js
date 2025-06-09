@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 import { SessionManager } from './utils/sessionManager.js';
@@ -23,128 +22,146 @@ const isChromeExtensionContext = () => {
 // Load session ID from storage on startup and when extension starts
 if (isChromeExtensionContext()) {
   chrome.runtime.onStartup?.addListener(async () => {
-    await sessionManager.loadPersistedSession();
+    try {
+      await sessionManager.loadPersistedSession();
+    } catch (error) {
+      console.error('Error loading persisted session on startup:', error);
+    }
   });
 
   chrome.runtime.onInstalled?.addListener(async () => {
-    await sessionManager.loadPersistedSession();
+    try {
+      await sessionManager.loadPersistedSession();
+    } catch (error) {
+      console.error('Error loading persisted session on install:', error);
+    }
   });
 }
 
 // Auto-start when visiting interview pages or detecting audio activity
 if (isChromeExtensionContext() && chrome.tabs) {
   chrome.tabs.onUpdated?.addListener(async (tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && tab.url) {
-      console.log('🎯 TAB UPDATED:', tabId, tab.url);
-      
-      // Handle interview session pages first
-      if (PlatformDetector.isInterviewTab(tab.url)) {
-        console.log('🎯 DETECTED INTERVIEW PAGE (AUTO-MODE)');
+    try {
+      if (changeInfo.status === 'complete' && tab.url) {
+        console.log('🎯 TAB UPDATED:', tabId, tab.url);
         
-        const urlSessionId = sessionManager.extractSessionId(tab.url);
-        console.log('🔍 URL SESSION ID:', urlSessionId);
-        
-        if (urlSessionId) {
-          await sessionManager.setSessionId(urlSessionId);
-          console.log('✅ SESSION ID AUTO-PERSISTED:', urlSessionId);
+        // Handle interview session pages first
+        if (PlatformDetector.isInterviewTab(tab.url)) {
+          console.log('🎯 DETECTED INTERVIEW PAGE (AUTO-MODE)');
           
-          try {
-            await transcriptionManager.ensureContentScript(tabId);
-            await chrome.tabs.sendMessage(tabId, {
-              action: 'setSessionId',
-              sessionId: urlSessionId
-            });
-            console.log('📡 Session context auto-established');
+          const urlSessionId = sessionManager.extractSessionId(tab.url);
+          console.log('🔍 URL SESSION ID:', urlSessionId);
+          
+          if (urlSessionId) {
+            await sessionManager.setSessionId(urlSessionId);
+            console.log('✅ SESSION ID AUTO-PERSISTED:', urlSessionId);
             
-            // Now check all tabs for existing audio activity
-            setTimeout(() => {
-              AudioDetector.checkAllTabsForAudio(
-                sessionManager, 
-                BadgeManager, 
-                (tab) => transcriptionManager.startTranscription(tab, sessionManager)
-              ).then(foundTabId => {
-                if (foundTabId) meetingTabId = foundTabId;
+            try {
+              await transcriptionManager.ensureContentScript(tabId);
+              await chrome.tabs.sendMessage(tabId, {
+                action: 'setSessionId',
+                sessionId: urlSessionId
               });
-            }, 2000);
+              console.log('📡 Session context auto-established');
+              
+              // Now check all tabs for existing audio activity
+              setTimeout(() => {
+                AudioDetector.checkAllTabsForAudio(
+                  sessionManager, 
+                  BadgeManager, 
+                  (tab) => transcriptionManager.startTranscription(tab, sessionManager)
+                ).then(foundTabId => {
+                  if (foundTabId) meetingTabId = foundTabId;
+                }).catch(error => {
+                  console.error('Error checking tabs for audio:', error);
+                });
+              }, 2000);
+              
+            } catch (error) {
+              console.error('Error auto-setting up session context:', error);
+            }
+          }
+          return; // Don't process as audio tab
+        }
+        
+        // Handle any tab with audio activity if we have a session
+        const sessionState = sessionManager.getState();
+        const transcriptionState = transcriptionManager.getState();
+        
+        if (sessionState.currentSessionId && !transcriptionState.isCapturing && PlatformDetector.canCaptureTab(tab.url)) {
+          const hasAudio = await AudioDetector.hasAudioActivity(tabId);
+          const isKnownAudioSource = PlatformDetector.isAudioSourceTab(tab.url);
+          
+          if (hasAudio || isKnownAudioSource) {
+            console.log('🔊 DETECTED AUDIO ACTIVITY:', { 
+              tabId, 
+              url: tab.url, 
+              audible: hasAudio, 
+              knownSource: isKnownAudioSource,
+              session: sessionState.currentSessionId 
+            });
             
-          } catch (error) {
-            console.error('Error auto-setting up session context:', error);
+            meetingTabId = tabId;
+            
+            // Check permission before starting
+            if (sessionState.permissionGranted) {
+              console.log('🚀 Permission already granted - AUTO-STARTING TRANSCRIPTION');
+              setTimeout(async () => {
+                try {
+                  await transcriptionManager.startTranscription(tab, sessionManager);
+                  console.log('✅ AUTO-STARTED transcription for audio tab:', tabId);
+                } catch (error) {
+                  console.error('❌ Error auto-starting transcription:', error);
+                }
+              }, 2000);
+            } else {
+              console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
+              BadgeManager.setBadgeForPermissionRequest();
+            }
           }
         }
-        return; // Don't process as audio tab
       }
       
-      // Handle any tab with audio activity if we have a session
+      // Also check for audio state changes
       const sessionState = sessionManager.getState();
       const transcriptionState = transcriptionManager.getState();
       
-      if (sessionState.currentSessionId && !transcriptionState.isCapturing && PlatformDetector.canCaptureTab(tab.url)) {
-        const hasAudio = await AudioDetector.hasAudioActivity(tabId);
-        const isKnownAudioSource = PlatformDetector.isAudioSourceTab(tab.url);
-        
-        if (hasAudio || isKnownAudioSource) {
-          console.log('🔊 DETECTED AUDIO ACTIVITY:', { 
-            tabId, 
-            url: tab.url, 
-            audible: hasAudio, 
-            knownSource: isKnownAudioSource,
-            session: sessionState.currentSessionId 
-          });
-          
+      if (changeInfo.audible !== undefined && sessionState.currentSessionId && !transcriptionState.isCapturing && PlatformDetector.canCaptureTab(tab.url)) {
+        if (changeInfo.audible) {
+          console.log('🔊 AUDIO STARTED on tab:', tabId, 'URL:', tab.url);
           meetingTabId = tabId;
           
-          // Check permission before starting
           if (sessionState.permissionGranted) {
-            console.log('🚀 Permission already granted - AUTO-STARTING TRANSCRIPTION');
             setTimeout(async () => {
               try {
                 await transcriptionManager.startTranscription(tab, sessionManager);
-                console.log('✅ AUTO-STARTED transcription for audio tab:', tabId);
+                console.log('✅ AUTO-STARTED transcription for audible tab:', tabId);
               } catch (error) {
-                console.error('❌ Error auto-starting transcription:', error);
+                console.error('❌ Error auto-starting transcription on audio change:', error);
               }
-            }, 2000);
+            }, 1000);
           } else {
             console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
             BadgeManager.setBadgeForPermissionRequest();
           }
         }
       }
-    }
-    
-    // Also check for audio state changes
-    const sessionState = sessionManager.getState();
-    const transcriptionState = transcriptionManager.getState();
-    
-    if (changeInfo.audible !== undefined && sessionState.currentSessionId && !transcriptionState.isCapturing && PlatformDetector.canCaptureTab(tab.url)) {
-      if (changeInfo.audible) {
-        console.log('🔊 AUDIO STARTED on tab:', tabId, 'URL:', tab.url);
-        meetingTabId = tabId;
-        
-        if (sessionState.permissionGranted) {
-          setTimeout(async () => {
-            try {
-              await transcriptionManager.startTranscription(tab, sessionManager);
-              console.log('✅ AUTO-STARTED transcription for audible tab:', tabId);
-            } catch (error) {
-              console.error('❌ Error auto-starting transcription on audio change:', error);
-            }
-          }, 1000);
-        } else {
-          console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
-          BadgeManager.setBadgeForPermissionRequest();
-        }
-      }
+    } catch (error) {
+      console.error('Error in tabs.onUpdated listener:', error);
     }
   });
 
   // Auto-stop when leaving audio tabs
   chrome.tabs.onRemoved?.addListener(async (tabId) => {
-    const transcriptionState = transcriptionManager.getState();
-    if (tabId === meetingTabId && transcriptionState.isCapturing) {
-      console.log('🛑 AUDIO TAB CLOSED - AUTO-STOPPING TRANSCRIPTION');
-      await transcriptionManager.stopTranscription({ id: meetingTabId });
-      meetingTabId = null;
+    try {
+      const transcriptionState = transcriptionManager.getState();
+      if (tabId === meetingTabId && transcriptionState.isCapturing) {
+        console.log('🛑 AUDIO TAB CLOSED - AUTO-STOPPING TRANSCRIPTION');
+        await transcriptionManager.stopTranscription({ id: meetingTabId });
+        meetingTabId = null;
+      }
+    } catch (error) {
+      console.error('Error in tabs.onRemoved listener:', error);
     }
   });
 
@@ -238,142 +255,150 @@ if (isChromeExtensionContext() && chrome.action) {
 // Handle messages from popup and offscreen
 if (isChromeExtensionContext()) {
   chrome.runtime.onMessage?.addListener(async (message, sender, sendResponse) => {
-    console.log('🔔 Background received message (auto-mode):', message);
-    
-    // Handle popup messages
-    if (message.action === 'toggle') {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab) {
-          const transcriptionState = transcriptionManager.getState();
-          if (transcriptionState.isCapturing) {
-            await transcriptionManager.stopTranscription(tab);
-          } else {
-            // Grant permission when manually toggled
-            sessionManager.grantPermission();
-            await transcriptionManager.startTranscription(tab, sessionManager);
+    try {
+      console.log('🔔 Background received message (auto-mode):', message);
+      
+      // Handle popup messages
+      if (message.action === 'toggle') {
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab) {
+            const transcriptionState = transcriptionManager.getState();
+            if (transcriptionState.isCapturing) {
+              await transcriptionManager.stopTranscription(tab);
+            } else {
+              // Grant permission when manually toggled
+              sessionManager.grantPermission();
+              await transcriptionManager.startTranscription(tab, sessionManager);
+            }
+            const newTranscriptionState = transcriptionManager.getState();
+            const sessionState = sessionManager.getState();
+            sendResponse({ 
+              success: true, 
+              isCapturing: newTranscriptionState.isCapturing,
+              sessionId: sessionState.currentSessionId 
+            });
           }
-          const newTranscriptionState = transcriptionManager.getState();
-          const sessionState = sessionManager.getState();
-          sendResponse({ 
-            success: true, 
-            isCapturing: newTranscriptionState.isCapturing,
-            sessionId: sessionState.currentSessionId 
-          });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
         }
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
+        return true;
       }
-      return true;
-    }
-    
-    if (message.action === 'setSessionId') {
-      await sessionManager.setSessionId(message.sessionId);
-      console.log('🎯 Session ID set from popup for auto operation:', message.sessionId);
       
-      // Check for existing audio activity when session is manually set
-      setTimeout(() => {
-        AudioDetector.checkAllTabsForAudio(
-          sessionManager, 
-          BadgeManager, 
-          (tab) => transcriptionManager.startTranscription(tab, sessionManager)
-        ).then(foundTabId => {
-          if (foundTabId) meetingTabId = foundTabId;
+      if (message.action === 'setSessionId') {
+        await sessionManager.setSessionId(message.sessionId);
+        console.log('🎯 Session ID set from popup for auto operation:', message.sessionId);
+        
+        // Check for existing audio activity when session is manually set
+        setTimeout(() => {
+          AudioDetector.checkAllTabsForAudio(
+            sessionManager, 
+            BadgeManager, 
+            (tab) => transcriptionManager.startTranscription(tab, sessionManager)
+          ).then(foundTabId => {
+            if (foundTabId) meetingTabId = foundTabId;
+          }).catch(error => {
+            console.error('Error checking tabs for audio after setting session ID:', error);
+          });
+        }, 1000);
+        
+        sendResponse({ success: true });
+        return true;
+      }
+      
+      if (message.action === 'clearSession') {
+        await sessionManager.clearSession();
+        console.log('🧹 Session cleared (auto mode)');
+        BadgeManager.clearBadge();
+        sendResponse({ success: true });
+        return true;
+      }
+      
+      if (message.action === 'getStatus') {
+        const sessionState = sessionManager.getState();
+        const transcriptionState = transcriptionManager.getState();
+        sendResponse({ 
+          isCapturing: transcriptionState.isCapturing, 
+          sessionId: sessionState.currentSessionId,
+          sessionPersisted: sessionState.sessionPersisted,
+          currentTabId: transcriptionState.currentTabId,
+          meetingTabId: meetingTabId,
+          permissionGranted: sessionState.permissionGranted
         });
-      }, 1000);
-      
-      sendResponse({ success: true });
-      return true;
-    }
-    
-    if (message.action === 'clearSession') {
-      await sessionManager.clearSession();
-      console.log('🧹 Session cleared (auto mode)');
-      BadgeManager.clearBadge();
-      sendResponse({ success: true });
-      return true;
-    }
-    
-    if (message.action === 'getStatus') {
-      const sessionState = sessionManager.getState();
-      const transcriptionState = transcriptionManager.getState();
-      sendResponse({ 
-        isCapturing: transcriptionState.isCapturing, 
-        sessionId: sessionState.currentSessionId,
-        sessionPersisted: sessionState.sessionPersisted,
-        currentTabId: transcriptionState.currentTabId,
-        meetingTabId: meetingTabId,
-        permissionGranted: sessionState.permissionGranted
-      });
-      return true;
-    }
-    
-    if (message.type === 'offscreen-ready') {
-      console.log('✅ Offscreen document reported ready (auto mode)');
-      sendResponse({ success: true });
-      return true;
-    }
-    
-    // Handle transcription results from offscreen
-    if (message.type === 'transcription-result' && message.text && message.text.trim()) {
-      console.log('📢 PROCESSING AUTO-TRANSCRIPTION RESULT FROM OFFSCREEN');
-      console.log('📝 Transcription text:', message.text);
-      
-      const sessionState = sessionManager.getState();
-      const transcriptionState = transcriptionManager.getState();
-      
-      console.log('🎯 Current session ID:', sessionState.currentSessionId);
-      
-      const sessionId = message.sessionId || sessionState.currentSessionId;
-      console.log('🎯 Final session ID for processing:', sessionId);
-      
-      if (!sessionId) {
-        console.warn('⚠️ NO SESSION ID AVAILABLE - TRANSCRIPTION WILL NOT SYNC');
+        return true;
       }
       
-      const transcriptionData = {
-        text: message.text.trim(),
-        timestamp: message.timestamp || Date.now(),
-        sessionId: sessionId
-      };
+      if (message.type === 'offscreen-ready') {
+        console.log('✅ Offscreen document reported ready (auto mode)');
+        sendResponse({ success: true });
+        return true;
+      }
       
-      // Forward to local content script for immediate UI update (if available)
-      if (transcriptionState.currentTabId) {
-        try {
-          await chrome.tabs.sendMessage(transcriptionState.currentTabId, {
-            action: 'transcriptionResult',
-            ...transcriptionData
-          });
-          console.log('✅ Auto-transcription forwarded to local content script');
-        } catch (error) {
-          console.warn('❌ Error forwarding to local content script (this is OK for auto operation):', error);
+      // Handle transcription results from offscreen
+      if (message.type === 'transcription-result' && message.text && message.text.trim()) {
+        console.log('📢 PROCESSING AUTO-TRANSCRIPTION RESULT FROM OFFSCREEN');
+        console.log('📝 Transcription text:', message.text);
+        
+        const sessionState = sessionManager.getState();
+        const transcriptionState = transcriptionManager.getState();
+        
+        console.log('🎯 Current session ID:', sessionState.currentSessionId);
+        
+        const sessionId = message.sessionId || sessionState.currentSessionId;
+        console.log('🎯 Final session ID for processing:', sessionId);
+        
+        if (!sessionId) {
+          console.warn('⚠️ NO SESSION ID AVAILABLE - TRANSCRIPTION WILL NOT SYNC');
         }
-      }
-      
-      // Send to Supabase for cross-device sync and answer generation (MAIN FUNCTION)
-      if (sessionId) {
-        try {
-          console.log('📡 Sending auto-transcription to Supabase for cross-device sync and AI answer...');
-          await SupabaseApi.sendTranscriptionToSupabase(transcriptionData);
-          console.log('✅ Auto-transcription sent to Supabase successfully - all devices will receive updates');
-        } catch (error) {
-          console.error('❌ Error sending auto-transcription to Supabase:', error);
+        
+        const transcriptionData = {
+          text: message.text.trim(),
+          timestamp: message.timestamp || Date.now(),
+          sessionId: sessionId
+        };
+        
+        // Forward to local content script for immediate UI update (if available)
+        if (transcriptionState.currentTabId) {
+          try {
+            await chrome.tabs.sendMessage(transcriptionState.currentTabId, {
+              action: 'transcriptionResult',
+              ...transcriptionData
+            });
+            console.log('✅ Auto-transcription forwarded to local content script');
+          } catch (error) {
+            console.warn('❌ Error forwarding to local content script (this is OK for auto operation):', error);
+          }
         }
-      } else {
-        console.warn('⚠️ No session ID available, skipping cross-device sync and AI answers');
+        
+        // Send to Supabase for cross-device sync and answer generation (MAIN FUNCTION)
+        if (sessionId) {
+          try {
+            console.log('📡 Sending auto-transcription to Supabase for cross-device sync and AI answer...');
+            await SupabaseApi.sendTranscriptionToSupabase(transcriptionData);
+            console.log('✅ Auto-transcription sent to Supabase successfully - all devices will receive updates');
+          } catch (error) {
+            console.error('❌ Error sending auto-transcription to Supabase:', error);
+          }
+        } else {
+          console.warn('⚠️ No session ID available, skipping cross-device sync and AI answers');
+        }
+        
+        sendResponse({ success: true, forwarded: true, synced: !!sessionId });
+        return true;
       }
       
-      sendResponse({ success: true, forwarded: true, synced: !!sessionId });
+      if (message.type === 'ping') {
+        sendResponse({ success: true, message: 'pong' });
+        return true;
+      }
+      
+      sendResponse({ success: true });
+      return true;
+    } catch (error) {
+      console.error('Error in message listener:', error);
+      sendResponse({ success: false, error: error.message });
       return true;
     }
-    
-    if (message.type === 'ping') {
-      sendResponse({ success: true, message: 'pong' });
-      return true;
-    }
-    
-    sendResponse({ success: true });
-    return true;
   });
 }
 
@@ -381,6 +406,10 @@ if (isChromeExtensionContext()) {
 if (isChromeExtensionContext()) {
   chrome.runtime.onSuspend?.addListener(() => {
     console.log('Extension suspending, cleaning up...');
-    transcriptionManager.cleanupOffscreen();
+    try {
+      transcriptionManager.cleanupOffscreen();
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+    }
   });
 }
