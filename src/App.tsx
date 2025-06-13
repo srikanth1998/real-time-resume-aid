@@ -13,6 +13,7 @@ import Lobby from "./pages/Lobby";
 import Interview from "./pages/Interview";
 import Complete from "./pages/Complete";
 import MobileCompanion from "./pages/MobileCompanion";
+import { Downloads } from "./pages/Downloads";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ function App() {
             <Route path="/lobby" element={<Lobby />} />
             <Route path="/interview" element={<Interview />} />
             <Route path="/complete" element={<Complete />} />
+            <Route path="/downloads" element={<Downloads />} />
             <Route path="/mobile" element={<MobileCompanion />} />
             <Route path="/mobile-companion" element={<MobileCompanion />} />
             <Route path="*" element={<NotFound />} />

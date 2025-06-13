@@ -28,10 +28,10 @@ export const NativeAudioSetup = () => {
   };
 
   const downloadHelper = () => {
-    // This would download the appropriate helper for the platform
+    // Download from Supabase Storage
     const downloadUrl = platform === 'windows' 
-      ? '/downloads/InterviewAce-Helper-Windows.exe'
-      : '/downloads/InterviewAce-Helper-macOS.dmg';
+      ? 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe'
+      : 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-macOS.dmg';
     
     window.open(downloadUrl, '_blank');
   };

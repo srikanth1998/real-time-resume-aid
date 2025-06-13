@@ -87,7 +87,28 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         
-      - name: Deploy to release storage
+      - name: Install Supabase CLI
         run: |
-          # Upload to your CDN/storage service
-          echo "Deploying native helpers to download server..."
+          curl -sSfL https://supabase.com/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        
+      - name: Upload to Supabase Storage
+        env:
+          SUPABASE_URL: https://jafylkqbmvdptrqwwyed.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          # Upload Windows helper
+          if [ -f windows-helper/*.exe ]; then
+            curl -X POST "$SUPABASE_URL/storage/v1/object/native-helpers/InterviewAce-Helper-Windows.exe" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @windows-helper/*.exe
+          fi
+          
+          # Upload macOS helper  
+          if [ -f macos-helper/*.dmg ]; then
+            curl -X POST "$SUPABASE_URL/storage/v1/object/native-helpers/InterviewAce-Helper-macOS.dmg" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @macos-helper/*.dmg
+          fi
