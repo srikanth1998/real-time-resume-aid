@@ -49,31 +49,58 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Map plan types to valid enum values
-    const planTypeMapping = {
-      'basic': 'basic',
-      'pro': 'pro'
+    // Map plan types to valid enum values and configuration
+    const planConfigs = {
+      'pay-as-you-go': {
+        name: 'Pay-As-You-Go',
+        billing: 'one-time',
+        duration: 60,
+        price: 1800, // $18.00 in cents
+        description: '60-minute live interview session'
+      },
+      'pro': {
+        name: 'Pro Subscription', 
+        billing: 'monthly',
+        duration: 240, // 4 sessions * 60 min each
+        price: 2900, // $29.00 in cents
+        description: '4 sessions per month'
+      },
+      'coach': {
+        name: 'Coach Bundle',
+        billing: 'monthly', 
+        duration: 1200, // 20 credits * 60 min each
+        price: 9900, // $99.00 in cents
+        description: '20 session credits'
+      },
+      'enterprise': {
+        name: 'Enterprise',
+        billing: 'custom',
+        duration: 30000, // 500+ credits * 60 min each
+        price: 0, // Custom pricing
+        description: '500+ credits per year'
+      }
     }
 
-    // Map plan types to duration minutes
-    const durationMapping = {
-      'basic': 15,
-      'pro': 30
+    const planConfig = planConfigs[planType as keyof typeof planConfigs]
+    if (!planConfig) {
+      throw new Error(`Invalid plan type: ${planType}`)
     }
 
-    const validPlanType = planTypeMapping[planType as keyof typeof planTypeMapping] || 'basic'
-    const durationMinutes = durationMapping[planType as keyof typeof durationMapping] || 15
+    // Handle enterprise plan differently
+    if (planType === 'enterprise') {
+      throw new Error('Enterprise plans require custom quote. Please contact sales.')
+    }
 
-    console.log('Using plan type:', validPlanType, 'with duration:', durationMinutes)
+    console.log('Using plan config:', planConfig)
 
     // Create a new session record for tracking
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .insert({
         user_id: userId,
-        plan_type: validPlanType,
-        duration_minutes: durationMinutes,
-        price_cents: priceAmount,
+        plan_type: planType,
+        duration_minutes: planConfig.duration,
+        price_cents: planConfig.price,
         device_mode: deviceMode,
         status: 'pending_payment',
         created_at: new Date().toISOString(),
@@ -98,9 +125,10 @@ serve(async (req) => {
     )
 
     const deviceModeText = deviceMode === 'cross' ? ' (Cross-Device)' : ''
+    const isSubscription = planConfig.billing === 'monthly'
 
     // Create Stripe checkout session
-    const checkoutSession = await stripe.checkout.sessions.create({
+    const checkoutSessionData: any = {
       payment_method_types: ['card'],
       customer_email: userEmail,
       line_items: [
@@ -108,24 +136,30 @@ serve(async (req) => {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `InterviewAce ${planName} Plan${deviceModeText}`,
-              description: `${duration} of real-time interview assistance${deviceModeText}`,
+              name: `InterviewAce ${planConfig.name}${deviceModeText}`,
+              description: `${planConfig.description}${deviceModeText}`,
             },
-            unit_amount: priceAmount,
+            unit_amount: planConfig.price,
+            ...(isSubscription && {
+              recurring: { interval: 'month' }
+            })
           },
           quantity: 1,
         },
       ],
-      mode: 'payment',
+      mode: isSubscription ? 'subscription' : 'payment',
       success_url: `${req.headers.get('origin')}/payment-success?session_id=${session.id}`,
       cancel_url: `${req.headers.get('origin')}/payment?cancelled=true`,
       metadata: {
         session_id: session.id,
-        plan_type: validPlanType,
+        plan_type: planType,
         device_mode: deviceMode,
         user_email: userEmail,
+        billing_type: planConfig.billing
       },
-    })
+    }
+
+    const checkoutSession = await stripe.checkout.sessions.create(checkoutSessionData)
 
     console.log('Created Stripe session:', checkoutSession.id)
 

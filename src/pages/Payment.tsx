@@ -16,7 +16,7 @@ const Payment = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const planType = (searchParams.get('plan') as 'basic' | 'pro') || 'basic';
+  const planType = (searchParams.get('plan') as 'pay-as-you-go' | 'pro' | 'coach' | 'enterprise') || 'pay-as-you-go';
   const verifiedEmail = searchParams.get('email') || '';
   const initialDeviceMode = (searchParams.get('device') as 'single' | 'cross') || 'single';
   
@@ -24,32 +24,80 @@ const Payment = () => {
   const [deviceMode, setDeviceMode] = useState<'single' | 'cross'>(initialDeviceMode);
   const [loading, setLoading] = useState(false);
 
-  const planConfig = {
-    basic: {
-      price: 9.99,
-      duration: 15,
-      description: "Basic interview preparation",
+  const planConfigs = {
+    'pay-as-you-go': {
+      price: 18.00,
+      duration: '60 minutes',
+      billing: 'one-time',
+      description: "One-off interview prep",
       features: [
-        "15-minute session",
-        "AI-powered question generation",
-        "Real-time answer suggestions",
+        "60-min live audio capture",
+        "Stealth overlay & phone dashboard", 
+        "Real-time AI whisper suggestions",
+        "Transcript + AI summary download",
+        "7-day storage included"
       ],
     },
-    pro: {
-      price: 19.99,
-      duration: 30,
-      description: "Advanced interview preparation",
+    'pro': {
+      price: 29.00,
+      duration: '4 sessions',
+      billing: 'monthly',
+      description: "Active job seekers",
       features: [
-        "30-minute session",
-        "AI-powered question generation",
-        "Real-time answer suggestions",
-        "Detailed performance analysis",
+        "4 sessions per month (rollover 1 mo)",
+        "24-hour transcript storage",
+        "Priority Whisper queue (≤5s latency)",
+        "Extra sessions at $15 each",
+        "Advanced performance analytics"
       ],
     },
-  }[planType];
+    'coach': {
+      price: 99.00,
+      duration: '20 credits',
+      billing: 'monthly',
+      description: "Career & placement coaches",
+      features: [
+        "20 session credits (shareable)",
+        "Client management dashboard",
+        "White-label PDF reports",
+        "Logo upload & branding", 
+        "Overages at $12 each"
+      ],
+    },
+    'enterprise': {
+      price: 0,
+      duration: '500+ credits',
+      billing: 'custom',
+      description: "Job platforms, bootcamps",
+      features: [
+        "500+ credits per year",
+        "SSO (SAML/OIDC)",
+        "Usage analytics export",
+        "Dedicated Slack support",
+        "24-hour SLA guarantee"
+      ],
+    }
+  };
+
+  const planConfig = planConfigs[planType as keyof typeof planConfigs];
+  
+  if (!planConfig) {
+    navigate('/');
+    return null;
+  }
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Handle enterprise plan differently
+    if (planType === 'enterprise') {
+      toast({
+        title: "Enterprise Plans",
+        description: "Enterprise plans require custom pricing. Please contact our sales team.",
+        variant: "default"
+      });
+      return;
+    }
     
     if (!email || !email.includes('@')) {
       toast({
@@ -69,12 +117,7 @@ const Payment = () => {
         body: {
           planType,
           userEmail: email,
-          deviceMode,
-          priceAmount: Math.round(planConfig.price * 100),
-          planName: `${planType.charAt(0).toUpperCase() + planType.slice(1)}`,
-          duration: `${planConfig.duration} minutes`,
-          successUrl: `${window.location.origin}/payment-success`,
-          cancelUrl: `${window.location.origin}/payment?plan=${planType}`
+          deviceMode
         }
       });
 
@@ -118,14 +161,14 @@ const Payment = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span className="capitalize">{planType} Plan</span>
+                <span className="capitalize">{planType.replace('-', ' ')} Plan</span>
                 <Badge variant="secondary" className="flex items-center space-x-1">
                   <DollarSign className="h-4 w-4" />
-                  <span>${planConfig.price}</span>
+                  <span>{planConfig.price === 0 ? 'Custom quote' : `$${planConfig.price}`}</span>
                 </Badge>
               </CardTitle>
               <CardDescription>
-                {planConfig.duration} minutes • {planConfig.description}
+                {planConfig.duration} • {planConfig.description}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -193,6 +236,8 @@ const Payment = () => {
                 <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                 Processing...
               </>
+            ) : planType === 'enterprise' ? (
+              'Contact Sales Team'
             ) : (
               <>
                 Complete Payment • ${planConfig.price}

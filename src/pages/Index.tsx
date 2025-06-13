@@ -13,33 +13,76 @@ const Index = () => {
 
   const plans = [
     {
-      id: 'basic',
-      name: 'Basic',
-      price: '$9.99',
-      duration: '15 minutes',
-      description: 'Perfect for quick interview practice',
+      id: 'pay-as-you-go',
+      name: 'Pay-As-You-Go',
+      price: '$18',
+      priceUnit: '/ session',
+      billing: 'one-time',
+      duration: '60 minutes',
+      description: 'One-off interview prep',
+      bestFor: 'Single interview preparation',
       features: [
-        'AI-powered question generation',
-        'Real-time answer suggestions',
-        'Basic performance insights',
-        'Email support'
+        '60-min live audio capture',
+        'Stealth overlay & phone dashboard',
+        'Real-time AI whisper suggestions',
+        'Transcript + AI summary download',
+        '7-day storage included'
       ],
       popular: false,
     },
     {
       id: 'pro',
-      name: 'Pro',
-      price: '$19.99',
-      duration: '30 minutes',
-      description: 'Comprehensive interview preparation',
+      name: 'Pro Subscription',
+      price: '$29',
+      priceUnit: '/ month',
+      billing: 'monthly',
+      duration: '4 sessions',
+      description: 'Active job seekers',
+      bestFor: 'Doing ≥3 interviews / month',
       features: [
-        'Extended 30-minute sessions',
-        'Advanced AI recommendations',
-        'Detailed performance analysis',
-        'Priority support',
-        'Interview recording review'
+        '4 sessions per month (rollover 1 mo)',
+        '24-hour transcript storage',
+        'Priority Whisper queue (≤5s latency)',
+        'Extra sessions at $15 each',
+        'Advanced performance analytics'
       ],
       popular: true,
+    },
+    {
+      id: 'coach',
+      name: 'Coach Bundle',
+      price: '$99',
+      priceUnit: '/ month',
+      billing: 'monthly',
+      duration: '20 credits',
+      description: 'Career & placement coaches',
+      bestFor: 'Professional coaching practice',
+      features: [
+        '20 session credits (shareable)',
+        'Client management dashboard',
+        'White-label PDF reports',
+        'Logo upload & branding',
+        'Overages at $12 each'
+      ],
+      popular: false,
+    },
+    {
+      id: 'enterprise',
+      name: 'Enterprise / API',
+      price: 'Custom',
+      priceUnit: 'quote',
+      billing: 'annual',
+      duration: '500+ credits',
+      description: 'Job platforms, bootcamps',
+      bestFor: 'High-volume usage',
+      features: [
+        '500+ credits per year',
+        'SSO (SAML/OIDC)',
+        'Usage analytics export',
+        'Dedicated Slack support',
+        '24-hour SLA guarantee'
+      ],
+      popular: false,
     }
   ];
 
@@ -95,13 +138,13 @@ const Index = () => {
           <p className="text-gray-600">Select the perfect plan for your interview preparation needs</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <div className="grid lg:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {plans.map((plan) => (
             <Card 
               key={plan.id} 
               className={`relative transition-all hover:shadow-lg ${
                 plan.popular ? 'ring-2 ring-blue-500 scale-105' : ''
-              }`}
+              } ${plan.id === 'enterprise' ? 'border-purple-200' : ''}`}
             >
               {plan.popular && (
                 <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500">
@@ -110,17 +153,15 @@ const Index = () => {
               )}
               
               <CardHeader className="text-center pb-4">
-                <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                <CardDescription className="text-gray-600">{plan.description}</CardDescription>
-                <div className="flex items-center justify-center space-x-2 mt-4">
-                  <span className="text-4xl font-bold text-gray-900">{plan.price}</span>
-                  <div className="text-left">
-                    <div className="text-sm text-gray-500">per session</div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="h-4 w-4 mr-1" />
-                      {plan.duration}
-                    </div>
-                  </div>
+                <CardTitle className="text-xl">{plan.name}</CardTitle>
+                <CardDescription className="text-sm text-gray-600 mb-2">{plan.bestFor}</CardDescription>
+                <div className="flex items-center justify-center space-x-1 mt-4">
+                  <span className="text-3xl font-bold text-gray-900">{plan.price}</span>
+                  <span className="text-sm text-gray-500">{plan.priceUnit}</span>
+                </div>
+                <div className="flex items-center justify-center text-sm text-gray-600 mt-2">
+                  <Clock className="h-4 w-4 mr-1" />
+                  {plan.duration}
                 </div>
               </CardHeader>
               

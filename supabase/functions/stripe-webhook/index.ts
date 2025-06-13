@@ -103,25 +103,25 @@ serve(async (req) => {
       console.log('[WEBHOOK] Generated new session ID:', sessionId)
 
       // Determine duration and price based on plan type
-      let durationMinutes = 30
-      let priceCents = 1999 // Default $19.99
+      let durationMinutes = 60
+      let priceCents = 1800 // Default Pay-As-You-Go $18.00
 
       switch (planType) {
-        case 'basic':
-          durationMinutes = 30
-          priceCents = 1999
-          break
-        case 'premium':
+        case 'pay-as-you-go':
           durationMinutes = 60
-          priceCents = 2999
+          priceCents = 1800
           break
         case 'pro':
-          durationMinutes = 120
-          priceCents = 10800
+          durationMinutes = 240 // 4 sessions * 60 min each
+          priceCents = 2900
+          break
+        case 'coach':
+          durationMinutes = 1200 // 20 credits * 60 min each
+          priceCents = 9900
           break
         case 'enterprise':
-          durationMinutes = 90
-          priceCents = 4999
+          durationMinutes = 30000 // 500+ credits * 60 min each
+          priceCents = 0 // Custom pricing
           break
       }
 
