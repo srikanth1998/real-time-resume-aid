@@ -143,9 +143,9 @@ const Index = () => {
             <span className="text-white font-poppins font-semibold">InterviewAce</span>
           </div>
           <div className="hidden md:flex items-center space-x-6 text-white/80">
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
+            <button onClick={() => navigate("/how-it-works")} className="hover:text-white transition-colors">How It Works</button>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-            <a href="#demo" className="hover:text-white transition-colors">Demo</a>
+            <button onClick={() => navigate("/faq")} className="hover:text-white transition-colors">FAQ</button>
           </div>
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -180,8 +180,8 @@ const Index = () => {
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-400"> AI</span>
               </h1>
               <p className="text-xl text-white/80 font-inter mb-8 leading-relaxed">
-                Get real-time AI-powered suggestions and answers during your live interviews. 
-                Practice with confidence and land your dream job.
+                Get real-time clarity reminders during live interviews with our privacy-first overlay. 
+                Your personal interview coach that stays completely private—invisible to screen shares.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
@@ -197,6 +197,7 @@ const Index = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.98 }}
+                  onClick={() => navigate("/how-it-works")}
                   className="backdrop-blur-md bg-glass border border-glass-border text-white px-8 py-4 rounded-xl font-medium text-lg hover:bg-white/20 transition-all"
                 >
                   See How It Works
@@ -413,10 +414,10 @@ const Index = () => {
           <div className="backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 inline-block">
             <p className="text-white/80 mb-4">✨ All plans include:</p>
             <div className="flex flex-wrap justify-center gap-6 text-sm text-white/70">
-              <span>• Voice Recognition</span>
-              <span>• Real-time AI Assistance</span>
-              <span>• Native Audio Capture</span>
-              <span>• Secure & Private</span>
+              <span>• Live clarity coaching</span>
+              <span>• Private coaching overlay</span>
+              <span>• Invisible to screen shares</span>
+              <span>• Secure & ethical</span>
             </div>
           </div>
         </motion.div>

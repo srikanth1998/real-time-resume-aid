@@ -15,6 +15,11 @@ import Complete from "./pages/Complete";
 import MobileCompanion from "./pages/MobileCompanion";
 import { Downloads } from "./pages/Downloads";
 import NotFound from "./pages/NotFound";
+import HowItWorks from "./pages/HowItWorks";
+import FAQ from "./pages/FAQ";
+import Integrity from "./pages/Integrity";
+import SessionReady from "./pages/SessionReady";
+import PostInterview from "./pages/PostInterview";
 
 const queryClient = new QueryClient();
 
@@ -27,13 +32,18 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/integrity" element={<Integrity />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/payment" element={<Payment />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/lobby" element={<Lobby />} />
+            <Route path="/session-ready" element={<SessionReady />} />
             <Route path="/interview" element={<Interview />} />
             <Route path="/complete" element={<Complete />} />
+            <Route path="/post-interview" element={<PostInterview />} />
             <Route path="/downloads" element={<Downloads />} />
             <Route path="/mobile" element={<MobileCompanion />} />
             <Route path="/mobile-companion" element={<MobileCompanion />} />
