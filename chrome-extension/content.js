@@ -1,12 +1,130 @@
 
 /* global chrome */
 let extensionStatus = 'disconnected';
+let floatingTrigger = null;
 
-// No banner creation - extension operates invisibly in auto-mode
+// Create a subtle floating trigger element
+function createFloatingTrigger() {
+  if (floatingTrigger) return floatingTrigger;
+  
+  floatingTrigger = document.createElement('div');
+  floatingTrigger.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    background: rgba(52, 168, 83, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2147483647;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+    font-size: 18px;
+    backdrop-filter: blur(10px);
+    opacity: 0.7;
+  `;
+  
+  floatingTrigger.innerHTML = '🎤';
+  floatingTrigger.title = 'Start InterviewAce Transcription';
+  
+  // Hover effects
+  floatingTrigger.addEventListener('mouseenter', () => {
+    floatingTrigger.style.opacity = '1';
+    floatingTrigger.style.transform = 'scale(1.1)';
+  });
+  
+  floatingTrigger.addEventListener('mouseleave', () => {
+    floatingTrigger.style.opacity = '0.7';
+    floatingTrigger.style.transform = 'scale(1)';
+  });
+  
+  // Click handler
+  floatingTrigger.addEventListener('click', () => {
+    console.log('🖱️ Manual transcription trigger clicked');
+    handleManualStart();
+  });
+  
+  document.documentElement.appendChild(floatingTrigger);
+  return floatingTrigger;
+}
+
+function handleManualStart() {
+  console.log('🚀 Manual transcription start requested');
+  
+  // Send message to background script to start transcription
+  chrome.runtime.sendMessage({
+    action: 'manual-start-transcription',
+    tabId: getCurrentTabId(),
+    timestamp: Date.now()
+  }).then(response => {
+    if (response?.success) {
+      console.log('✅ Manual transcription started successfully');
+      updateTriggerState('active');
+    } else {
+      console.error('❌ Failed to start manual transcription:', response?.error);
+    }
+  }).catch(error => {
+    console.error('❌ Error starting manual transcription:', error);
+  });
+}
+
+function getCurrentTabId() {
+  // Helper to get current tab ID (will be provided by background script)
+  return new URLSearchParams(window.location.search).get('tabId') || 'unknown';
+}
+
+function updateTriggerState(state) {
+  if (!floatingTrigger) return;
+  
+  switch (state) {
+    case 'active':
+      floatingTrigger.style.background = 'rgba(25, 118, 210, 0.9)';
+      floatingTrigger.innerHTML = '🔵';
+      floatingTrigger.title = 'InterviewAce Transcription Active';
+      break;
+    case 'processing':
+      floatingTrigger.style.background = 'rgba(255, 193, 7, 0.9)';
+      floatingTrigger.innerHTML = '🟡';
+      floatingTrigger.title = 'Processing Audio...';
+      break;
+    case 'stopped':
+      floatingTrigger.style.background = 'rgba(117, 117, 117, 0.9)';
+      floatingTrigger.innerHTML = '⚪';
+      floatingTrigger.title = 'Transcription Stopped';
+      break;
+    default:
+      floatingTrigger.style.background = 'rgba(52, 168, 83, 0.9)';
+      floatingTrigger.innerHTML = '🎤';
+      floatingTrigger.title = 'Start InterviewAce Transcription';
+  }
+}
+
+function hideTrigger() {
+  if (floatingTrigger) {
+    floatingTrigger.style.display = 'none';
+  }
+}
+
+function showTrigger() {
+  if (floatingTrigger) {
+    floatingTrigger.style.display = 'flex';
+  } else {
+    createFloatingTrigger();
+  }
+}
+
+// No banner creation - extension operates invisibly in auto-mode with manual trigger
 function updateBannerStatus(status, sessionId = null) {
   extensionStatus = status;
-  // Only log status changes, no visual feedback
+  // Only log status changes, no visual feedback except trigger state
   console.log(`🔇 InterviewAce extension status (AUTO-MODE): ${status}${sessionId ? ' (Session: ' + sessionId.substring(0, 8) + '...)' : ''}`);
+  
+  // Update trigger state based on status
+  updateTriggerState(status === 'transcribing' ? 'active' : status);
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -24,6 +142,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (action === 'setSessionId') {
     console.log('🎯 Session ID set for auto operation:', sessionId);
     updateBannerStatus('session-ready', sessionId);
+    showTrigger(); // Show manual trigger when session is ready
     sendResponse({ success: true });
   }
   
@@ -36,6 +155,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (action === 'transcriptionStopped') {
     console.log('🛑 Stopping auto-transcription (session remains active)');
     updateBannerStatus('stopped');
+    showTrigger(); // Show trigger again when stopped
     sendResponse({ success: true });
   }
   
@@ -161,6 +281,11 @@ const notifyAppReady = () => {
   window.extensionCapabilities = ['localTranscription', 'crossDeviceSync', 'autoOperation', 'sessionPersistence'];
   
   console.log('✅ Extension ready state established');
+  
+  // Show manual trigger after initialization
+  setTimeout(() => {
+    showTrigger();
+  }, 2000);
 };
 
 // Notify when DOM is ready
@@ -172,3 +297,18 @@ if (document.readyState === 'loading') {
 
 // Also notify when page is fully loaded
 window.addEventListener('load', notifyAppReady);
+
+// Hide trigger when user scrolls (to avoid interference)
+let scrollTimeout;
+window.addEventListener('scroll', () => {
+  if (floatingTrigger) {
+    floatingTrigger.style.opacity = '0.3';
+  }
+  
+  clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(() => {
+    if (floatingTrigger) {
+      floatingTrigger.style.opacity = '0.7';
+    }
+  }, 1000);
+});
