@@ -1,0 +1,262 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InterviewAce Helper</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #ffffff;
+            font-size: 14px;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3b82f6;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #9ca3af;
+            font-size: 12px;
+        }
+        .status-card {
+            background: #2d2d2d;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid #404040;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+        .status-label {
+            color: #d1d5db;
+            font-size: 13px;
+        }
+        .status-value {
+            font-weight: 500;
+            font-size: 13px;
+        }
+        .status-good { color: #10b981; }
+        .status-warning { color: #f59e0b; }
+        .status-error { color: #ef4444; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+        .btn-secondary {
+            background: #6b7280;
+        }
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        .installation-steps {
+            margin-top: 16px;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .step-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .step-completed {
+            background: #10b981;
+            color: white;
+        }
+        .step-pending {
+            background: #6b7280;
+            color: white;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">InterviewAce Helper</div>
+            <div class="subtitle">Native Audio Capture Service</div>
+        </div>
+
+        <div class="status-card">
+            <h3 style="margin-top: 0; font-size: 16px;">System Status</h3>
+            
+            <div class="status-item">
+                <span class="status-label">Platform:</span>
+                <span class="status-value" id="platform">-</span>
+            </div>
+            
+            <div class="status-item">
+                <span class="status-label">Helper Status:</span>
+                <span class="status-value status-good" id="helper-status">Active</span>
+            </div>
+            
+            <div class="status-item">
+                <span class="status-label">Virtual Driver:</span>
+                <span class="status-value" id="driver-status">Checking...</span>
+            </div>
+            
+            <div class="status-item">
+                <span class="status-label">WebSocket Port:</span>
+                <span class="status-value">8765</span>
+            </div>
+        </div>
+
+        <div class="status-card" id="driver-card">
+            <h3 style="margin-top: 0; font-size: 16px;">Driver Installation</h3>
+            
+            <div id="driver-installed" class="hidden">
+                <p style="color: #10b981; margin: 0;">✓ Virtual audio driver is installed and ready!</p>
+            </div>
+            
+            <div id="driver-missing">
+                <p style="color: #f59e0b; margin-bottom: 16px;">⚠ Virtual audio driver not detected</p>
+                
+                <div style="margin-bottom: 16px;">
+                    <button class="btn" id="download-driver">Download Driver</button>
+                    <button class="btn btn-secondary" id="check-driver" style="margin-left: 8px;">Check Again</button>
+                </div>
+                
+                <div class="installation-steps" id="installation-steps">
+                    <!-- Steps will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h3 style="margin-top: 0; font-size: 16px;">Instructions</h3>
+            <div style="font-size: 12px; color: #9ca3af; line-height: 1.4;">
+                <p>• Keep this helper running while using InterviewAce</p>
+                <p>• Virtual driver required for system audio capture</p>
+                <p>• Window stays hidden during screen sharing</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize the status page
+        async function initializeStatus() {
+            // Set platform info
+            const platform = navigator.platform;
+            document.getElementById('platform').textContent = platform.includes('Win') ? 'Windows' : 
+                                                             platform.includes('Mac') ? 'macOS' : 'Unknown';
+            
+            // Check driver status
+            await checkDriverStatus();
+            
+            // Set up event listeners
+            document.getElementById('download-driver').addEventListener('click', downloadDriver);
+            document.getElementById('check-driver').addEventListener('click', checkDriverStatus);
+        }
+
+        async function checkDriverStatus() {
+            try {
+                const status = await window.electronAPI.checkDriverStatus();
+                updateDriverStatus(status);
+                
+                if (!status.installed) {
+                    const steps = await window.electronAPI.getInstallationSteps();
+                    displayInstallationSteps(steps);
+                }
+            } catch (error) {
+                console.error('Failed to check driver status:', error);
+                document.getElementById('driver-status').textContent = 'Check Failed';
+                document.getElementById('driver-status').className = 'status-value status-error';
+            }
+        }
+
+        function updateDriverStatus(status) {
+            const statusEl = document.getElementById('driver-status');
+            const installedEl = document.getElementById('driver-installed');
+            const missingEl = document.getElementById('driver-missing');
+            
+            if (status.installed) {
+                statusEl.textContent = status.deviceName || 'Installed';
+                statusEl.className = 'status-value status-good';
+                installedEl.classList.remove('hidden');
+                missingEl.classList.add('hidden');
+            } else {
+                statusEl.textContent = 'Not Installed';
+                statusEl.className = 'status-value status-error';
+                installedEl.classList.add('hidden');
+                missingEl.classList.remove('hidden');
+            }
+        }
+
+        function displayInstallationSteps(steps) {
+            const container = document.getElementById('installation-steps');
+            container.innerHTML = '';
+            
+            steps.forEach(step => {
+                const stepEl = document.createElement('div');
+                stepEl.className = 'step';
+                
+                const iconEl = document.createElement('div');
+                iconEl.className = `step-icon ${step.completed ? 'step-completed' : 'step-pending'}`;
+                iconEl.textContent = step.completed ? '✓' : '•';
+                
+                const textEl = document.createElement('span');
+                textEl.textContent = step.title;
+                
+                stepEl.appendChild(iconEl);
+                stepEl.appendChild(textEl);
+                container.appendChild(stepEl);
+            });
+        }
+
+        async function downloadDriver() {
+            try {
+                await window.electronAPI.openDriverDownload();
+            } catch (error) {
+                console.error('Failed to open driver download:', error);
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initializeStatus);
+        
+        // Refresh status every 30 seconds
+        setInterval(checkDriverStatus, 30000);
+    </script>
+</body>
+</html>

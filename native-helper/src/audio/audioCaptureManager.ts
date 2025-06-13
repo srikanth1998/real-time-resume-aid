@@ -1,17 +1,36 @@
-
 import { spawn, ChildProcess } from 'child_process';
 import { WebSocket } from 'ws';
 import { createNativeAudioCapture, NativeAudioCapture } from './nativeAudioBridge';
+import { DriverDetector, DriverStatus } from './driverDetection';
+import { DriverInstaller } from './driverInstaller';
 
 export class AudioCaptureManager {
   private nativeCapture: NativeAudioCapture | null = null;
   private supabaseWs: WebSocket | null = null;
   private isCapturing = false;
   private sessionId: string | null = null;
+  private driverStatus: DriverStatus | null = null;
+
+  async initialize(): Promise<void> {
+    // Check driver status on initialization
+    await this.checkDriverStatus();
+  }
+
+  async checkDriverStatus(): Promise<DriverStatus> {
+    this.driverStatus = await DriverDetector.getCurrentPlatformDriver();
+    console.log('Driver status:', this.driverStatus);
+    return this.driverStatus;
+  }
 
   async startCapture(sessionId: string, jwt: string, supabaseConfig: any) {
     if (this.isCapturing) {
       throw new Error('Capture already in progress');
+    }
+
+    // Verify driver is installed before starting capture
+    const driverStatus = await this.checkDriverStatus();
+    if (!driverStatus.installed) {
+      throw new Error(`Virtual audio driver not installed. Please install ${DriverDetector.getDriverName()} first.`);
     }
 
     this.sessionId = sessionId;
@@ -83,8 +102,13 @@ export class AudioCaptureManager {
       isCapturing: this.isCapturing,
       sessionId: this.sessionId,
       hasNativeSupport: this.nativeCapture !== null,
-      platform: process.platform
+      platform: process.platform,
+      driverStatus: this.driverStatus
     };
+  }
+
+  getDriverInstaller(): DriverInstaller {
+    return DriverInstaller.getInstance();
   }
 
   private async connectToSupabase(config: any, sessionId: string, jwt: string) {
