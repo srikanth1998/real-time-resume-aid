@@ -21,11 +21,8 @@ export const Downloads = () => {
   }, []);
 
   const downloadHelper = (targetPlatform: 'windows' | 'macos') => {
-    const downloadUrl = targetPlatform === 'windows' 
-      ? 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe'
-      : 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-macOS.dmg';
-    
-    window.open(downloadUrl, '_blank');
+    // Show coming soon alert instead of broken download
+    alert(`${targetPlatform === 'windows' ? 'Windows' : 'macOS'} helper is currently being built. For now, you can use the web app's voice recognition or text input modes. The native helper will be available soon!`);
   };
 
   const openDriverLink = (targetPlatform: 'windows' | 'macos') => {
@@ -47,6 +44,14 @@ export const Downloads = () => {
             <p className="text-xl text-gray-300 mb-6">
               Advanced audio capture and stealth overlay features for InterviewAce
             </p>
+            
+            <Alert className="bg-yellow-900/20 border-yellow-700 text-yellow-200 max-w-2xl mx-auto mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Development Notice:</strong> Native helpers are currently being built. 
+                In the meantime, you can use the web app with voice recognition or text input modes.
+              </AlertDescription>
+            </Alert>
             
             {platform !== 'unknown' && (
               <Alert className="bg-blue-900/20 border-blue-700 text-blue-200 max-w-md mx-auto">
@@ -90,10 +95,11 @@ export const Downloads = () => {
                 <div className="space-y-2">
                   <Button 
                     onClick={() => downloadHelper('windows')}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-gray-600 hover:bg-gray-700"
+                    disabled
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Download Windows Helper
+                    Coming Soon - Windows Helper
                   </Button>
                   
                   <Button 
@@ -139,10 +145,11 @@ export const Downloads = () => {
                 <div className="space-y-2">
                   <Button 
                     onClick={() => downloadHelper('macos')}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-gray-600 hover:bg-gray-700"
+                    disabled
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Download macOS Helper
+                    Coming Soon - macOS Helper
                   </Button>
                   
                   <Button 
