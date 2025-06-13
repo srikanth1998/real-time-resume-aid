@@ -13,8 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail } = await req.json()
-    console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail })
+    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail, totalPrice } = await req.json()
+    console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail, totalPrice })
 
     if (!userEmail) {
       throw new Error('User email is required')
@@ -51,33 +51,23 @@ serve(async (req) => {
 
     // Map plan types to valid enum values and configuration
     const planConfigs = {
-      'pay-as-you-go': {
-        name: 'Pay-As-You-Go',
+      'standard': {
+        name: 'Single Session',
         billing: 'one-time',
         duration: 60,
-        price: 1800, // $18.00 in cents
-        description: '60-minute live interview session'
+        description: 'Private coaching overlay'
       },
       'pro': {
-        name: 'Pro Subscription', 
+        name: 'Pro Plan', 
         billing: 'monthly',
         duration: 240, // 4 sessions * 60 min each
-        price: 2900, // $29.00 in cents
-        description: '4 sessions per month'
+        description: '4 coaching sessions per month'
       },
-      'coach': {
-        name: 'Coach Bundle',
+      'elite': {
+        name: 'Elite Plan',
         billing: 'monthly', 
         duration: 1200, // 20 credits * 60 min each
-        price: 9900, // $99.00 in cents
-        description: '20 session credits'
-      },
-      'enterprise': {
-        name: 'Enterprise',
-        billing: 'custom',
-        duration: 30000, // 500+ credits * 60 min each
-        price: 0, // Custom pricing
-        description: '500+ credits per year'
+        description: 'Premium coaching features'
       }
     }
 
@@ -86,12 +76,10 @@ serve(async (req) => {
       throw new Error(`Invalid plan type: ${planType}`)
     }
 
-    // Handle enterprise plan differently
-    if (planType === 'enterprise') {
-      throw new Error('Enterprise plans require custom quote. Please contact sales.')
-    }
+    // Use totalPrice from frontend if provided, otherwise calculate default
+    const finalPrice = totalPrice || 1800 // Default to $18 if not provided
 
-    console.log('Using plan config:', planConfig)
+    console.log('Using plan config:', { ...planConfig, finalPrice })
 
     // Create a new session record for tracking
     const { data: session, error: sessionError } = await supabaseService
@@ -100,7 +88,7 @@ serve(async (req) => {
         user_id: userId,
         plan_type: planType,
         duration_minutes: planConfig.duration,
-        price_cents: planConfig.price,
+        price_cents: finalPrice,
         device_mode: deviceMode,
         status: 'pending_payment',
         created_at: new Date().toISOString(),
@@ -139,7 +127,7 @@ serve(async (req) => {
               name: `InterviewAce ${planConfig.name}${deviceModeText}`,
               description: `${planConfig.description}${deviceModeText}`,
             },
-            unit_amount: planConfig.price,
+            unit_amount: finalPrice,
             ...(isSubscription && {
               recurring: { interval: 'month' }
             })

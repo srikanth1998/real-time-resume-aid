@@ -29,52 +29,56 @@ const Payment = () => {
       price: 18.00,
       duration: '60 minutes',
       billing: 'one-time',
-      description: "One-off interview prep",
+      dbPlanType: 'standard', // Map to database enum
+      description: "Single session clarity coaching",
       features: [
-        "60-min live audio capture",
-        "Stealth overlay & phone dashboard", 
-        "Real-time AI whisper suggestions",
-        "Transcript + AI summary download",
-        "7-day storage included"
+        "60-min private coaching overlay",
+        "Real-time insight reminders", 
+        "Zero data retention",
+        "Works on all video platforms",
+        "Instant session activation"
       ],
     },
     'pro': {
       price: 29.00,
       duration: '4 sessions',
       billing: 'monthly',
+      dbPlanType: 'pro',
       description: "Active job seekers",
       features: [
-        "4 sessions per month (rollover 1 mo)",
-        "24-hour transcript storage",
-        "Priority Whisper queue (≤5s latency)",
-        "Extra sessions at $15 each",
-        "Advanced performance analytics"
+        "4 coaching sessions per month",
+        "Priority processing (≤3s)",
+        "Session rollover (1 month)",
+        "Extended storage (24h)",
+        "Performance insights"
       ],
     },
     'coach': {
       price: 99.00,
       duration: '20 credits',
       billing: 'monthly',
-      description: "Career & placement coaches",
+      dbPlanType: 'elite',
+      description: "Career coaches & consultants",
       features: [
         "20 session credits (shareable)",
-        "Client management dashboard",
-        "White-label PDF reports",
-        "Logo upload & branding", 
-        "Overages at $12 each"
+        "Client management portal",
+        "Branded session reports",
+        "Custom coaching prompts", 
+        "White-label options"
       ],
     },
     'enterprise': {
       price: 0,
       duration: '500+ credits',
       billing: 'custom',
-      description: "Job platforms, bootcamps",
+      dbPlanType: 'elite',
+      description: "Organizations & platforms",
       features: [
-        "500+ credits per year",
-        "SSO (SAML/OIDC)",
-        "Usage analytics export",
-        "Dedicated Slack support",
-        "24-hour SLA guarantee"
+        "Unlimited sessions",
+        "SSO integration",
+        "API access",
+        "Dedicated support",
+        "Custom deployment"
       ],
     }
   };
@@ -85,6 +89,11 @@ const Payment = () => {
     navigate('/');
     return null;
   }
+
+  // Calculate total price with cross-device surcharge
+  const basePrice = planConfig.price;
+  const crossDeviceSurcharge = deviceMode === 'cross' ? 5.00 : 0;
+  const totalPrice = basePrice + crossDeviceSurcharge;
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,9 +124,10 @@ const Payment = () => {
       
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
-          planType,
+          planType: planConfig.dbPlanType, // Use mapped database enum value
           userEmail: email,
-          deviceMode
+          deviceMode,
+          totalPrice: Math.round(totalPrice * 100) // Convert to cents
         }
       });
 
@@ -164,7 +174,7 @@ const Payment = () => {
                 <span className="capitalize">{planType.replace('-', ' ')} Plan</span>
                 <Badge variant="secondary" className="flex items-center space-x-1">
                   <DollarSign className="h-4 w-4" />
-                  <span>{planConfig.price === 0 ? 'Custom quote' : `$${planConfig.price}`}</span>
+                  <span>{totalPrice === 0 ? 'Custom quote' : `$${totalPrice.toFixed(2)}`}</span>
                 </Badge>
               </CardTitle>
               <CardDescription>
@@ -184,10 +194,37 @@ const Payment = () => {
           </Card>
 
           {/* Device Mode Selection */}
-          <DeviceModeSelector 
-            value={deviceMode} 
-            onChange={setDeviceMode}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Session Configuration</CardTitle>
+              <CardDescription>
+                Choose how you'll access your coaching session
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DeviceModeSelector 
+                value={deviceMode} 
+                onChange={setDeviceMode}
+              />
+              {deviceMode === 'cross' && (
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        Cross-Device Mode
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        Mobile companion app included
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-blue-700 border-blue-300">
+                      +$5.00
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Email Input */}
           <Card>
@@ -240,7 +277,7 @@ const Payment = () => {
               'Contact Sales Team'
             ) : (
               <>
-                Complete Payment • ${planConfig.price}
+                Complete Payment • ${totalPrice.toFixed(2)}
               </>
             )}
           </Button>
