@@ -7,11 +7,14 @@
   "scripts": {
     "start": "electron dist/main.js",
     "dev": "npm run build && npm start",
-    "build": "tsc && webpack",
+    "build": "tsc && npm run build:native && webpack",
+    "build:native": "node-gyp rebuild",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "install:deps": "npm run install:opus",
+    "install:opus": "node scripts/install-opus.js"
   },
   "build": {
     "appId": "com.interviewace.helper",
@@ -21,7 +24,8 @@
     },
     "files": [
       "dist/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "build/Release/*.node"
     ],
     "win": {
       "target": "nsis",
@@ -43,11 +47,12 @@
     "electron-builder": "^24.0.0",
     "typescript": "^5.0.0",
     "webpack": "^5.0.0",
-    "webpack-cli": "^5.0.0"
+    "webpack-cli": "^5.0.0",
+    "node-gyp": "^10.0.0",
+    "nan": "^2.18.0"
   },
   "dependencies": {
     "ws": "^8.14.0",
-    "@types/ws": "^8.5.0",
-    "opus-media-recorder": "^0.8.0"
+    "@types/ws": "^8.5.0"
   }
 }
