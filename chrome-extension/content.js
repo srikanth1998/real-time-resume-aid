@@ -1,3 +1,4 @@
+
 /* global chrome */
 let extensionStatus = 'disconnected';
 let floatingTrigger = null;

@@ -1,4 +1,3 @@
-
 /* global chrome */
 
 import { SessionManager } from './utils/sessionManager.js';
@@ -260,23 +259,9 @@ if (isChromeExtensionContext() && chrome.action) {
           sessionManager.grantPermission();
         }
         
-        // Find the best tab to capture
-        let targetTab = tab;
-        
-        // If we have a known meeting tab, use that instead
-        if (meetingTabId && meetingTabId !== tab.id) {
-          try {
-            const meetingTab = await chrome.tabs.get(meetingTabId);
-            if (meetingTab && PlatformDetector.canCaptureTab(meetingTab.url)) {
-              console.log('🎯 Using detected meeting tab instead of current tab');
-              targetTab = meetingTab;
-            }
-          } catch (error) {
-            console.warn('Could not get meeting tab, using current tab');
-          }
-        }
-        
-        await safeStartTranscription(targetTab, sessionManager);
+        // Use the current active tab for transcription
+        await safeStartTranscription(tab, sessionManager);
+        meetingTabId = tab.id;
       } else {
         console.log('🛑 Stopping transcription via icon click');
         await transcriptionManager.stopTranscription(tab);
