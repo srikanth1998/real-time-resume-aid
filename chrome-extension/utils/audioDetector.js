@@ -44,6 +44,12 @@ export class AudioDetector {
           continue;
         }
         
+        // Additional safety check - ensure tab has proper URL and is not a Chrome page
+        if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+          console.log('⚠️ Skipping Chrome internal tab:', tab.url);
+          continue;
+        }
+        
         const hasAudio = await this.hasAudioActivity(tab.id);
         const isKnownAudioSource = PlatformDetector.isAudioSourceTab(tab.url);
         
@@ -62,16 +68,15 @@ export class AudioDetector {
           }
           
           console.log('🚀 AUTO-STARTING TRANSCRIPTION FOR DISCOVERED AUDIO TAB');
-          setTimeout(async () => {
-            try {
-              await startTranscriptionCallback(tab);
-              console.log('✅ AUTO-STARTED transcription for discovered audio tab:', tab.id);
-            } catch (error) {
-              console.error('❌ Error auto-starting transcription for discovered tab:', error);
-            }
-          }, 1000);
-          
-          return tab.id; // Return the meeting tab ID
+          try {
+            await startTranscriptionCallback(tab);
+            console.log('✅ AUTO-STARTED transcription for discovered audio tab:', tab.id);
+            return tab.id; // Return the meeting tab ID on success
+          } catch (error) {
+            console.error('❌ Error auto-starting transcription for discovered tab:', error);
+            // Continue checking other tabs if this one failed
+            continue;
+          }
         }
       }
       

@@ -24,8 +24,8 @@ export class PlatformDetector {
     'youtu.be',
     'soundcloud.com',
     'spotify.com',
-    'podcasts.google.com',
     'open.spotify.com',
+    'podcasts.google.com',
     'music.apple.com',
     'tidal.com',
     'deezer.com',
@@ -52,7 +52,14 @@ export class PlatformDetector {
         url.startsWith('chrome-extension://') ||
         url.startsWith('edge://') ||
         url.startsWith('about:') ||
-        url.startsWith('moz-extension://')) {
+        url.startsWith('moz-extension://') ||
+        url.startsWith('chrome-search://') ||
+        url.startsWith('chrome-devtools://')) {
+      return false;
+    }
+    
+    // Only allow http and https protocols
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
       return false;
     }
     

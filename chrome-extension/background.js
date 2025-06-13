@@ -39,6 +39,41 @@ if (isChromeExtensionContext()) {
   });
 }
 
+// Helper function to safely start transcription with error handling
+async function safeStartTranscription(tab, sessionManager) {
+  try {
+    // Additional safety checks before attempting transcription
+    if (!tab || !tab.url) {
+      console.warn('⚠️ Invalid tab provided for transcription');
+      return false;
+    }
+    
+    if (!PlatformDetector.canCaptureTab(tab.url)) {
+      console.warn('⚠️ Cannot capture tab:', tab.url);
+      return false;
+    }
+    
+    if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+      console.warn('⚠️ Cannot capture Chrome internal page:', tab.url);
+      return false;
+    }
+    
+    await transcriptionManager.startTranscription(tab, sessionManager);
+    console.log('✅ Successfully started transcription for tab:', tab.id);
+    return true;
+  } catch (error) {
+    console.error('❌ Error in safeStartTranscription:', error);
+    
+    // Handle specific permission errors
+    if (error.message.includes('activeTab permission') || 
+        error.message.includes('Chrome pages cannot be captured')) {
+      console.warn('⚠️ Permission or Chrome page error - this is expected for some tabs');
+    }
+    
+    return false;
+  }
+}
+
 // Auto-start when visiting interview pages or detecting audio activity
 if (isChromeExtensionContext() && chrome.tabs) {
   chrome.tabs.onUpdated?.addListener(async (tabId, changeInfo, tab) => {
@@ -72,7 +107,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
                 AudioDetector.checkAllTabsForAudio(
                   sessionManager, 
                   BadgeManager, 
-                  (tab) => transcriptionManager.startTranscription(tab, sessionManager)
+                  (tab) => safeStartTranscription(tab, sessionManager)
                 ).then(foundTabId => {
                   if (foundTabId) meetingTabId = foundTabId;
                 }).catch(error => {
@@ -114,12 +149,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
             
             console.log('🚀 AUTO-STARTING TRANSCRIPTION IMMEDIATELY');
             setTimeout(async () => {
-              try {
-                await transcriptionManager.startTranscription(tab, sessionManager);
-                console.log('✅ AUTO-STARTED transcription for audio tab:', tabId);
-              } catch (error) {
-                console.error('❌ Error auto-starting transcription:', error);
-              }
+              await safeStartTranscription(tab, sessionManager);
             }, 1000);
           }
         }
@@ -141,12 +171,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
           }
           
           setTimeout(async () => {
-            try {
-              await transcriptionManager.startTranscription(tab, sessionManager);
-              console.log('✅ AUTO-STARTED transcription for audible tab:', tabId);
-            } catch (error) {
-              console.error('❌ Error auto-starting transcription on audio change:', error);
-            }
+            await safeStartTranscription(tab, sessionManager);
           }, 1000);
         }
       }
@@ -193,12 +218,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
           
           console.log('🚀 AUTO-STARTING TRANSCRIPTION ON FOCUS');
           setTimeout(async () => {
-            try {
-              await transcriptionManager.startTranscription(tab, sessionManager);
-              console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
-            } catch (error) {
-              console.error('❌ Error auto-starting on focus:', error);
-            }
+            await safeStartTranscription(tab, sessionManager);
           }, 1000);
         }
       }
@@ -245,7 +265,7 @@ if (isChromeExtensionContext() && chrome.action) {
           }
         }
         
-        await transcriptionManager.startTranscription(targetTab, sessionManager);
+        await safeStartTranscription(targetTab, sessionManager);
       } else {
         console.log('🛑 Stopping transcription via icon click');
         await transcriptionManager.stopTranscription(tab);
@@ -274,7 +294,7 @@ if (isChromeExtensionContext()) {
             } else {
               // Grant permission when manually toggled
               sessionManager.grantPermission();
-              await transcriptionManager.startTranscription(tab, sessionManager);
+              await safeStartTranscription(tab, sessionManager);
             }
             const newTranscriptionState = transcriptionManager.getState();
             const sessionState = sessionManager.getState();
@@ -301,7 +321,7 @@ if (isChromeExtensionContext()) {
           AudioDetector.checkAllTabsForAudio(
             sessionManager, 
             BadgeManager, 
-            (tab) => transcriptionManager.startTranscription(tab, sessionManager)
+            (tab) => safeStartTranscription(tab, sessionManager)
           ).then(foundTabId => {
             if (foundTabId) meetingTabId = foundTabId;
           }).catch(error => {
