@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Brain, AlertTriangle } from "lucide-react";
@@ -31,7 +32,7 @@ const Interview = () => {
   const [isGeneratingAnswer, setIsGeneratingAnswer] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{question: string, answer: string, timestamp: string}>>([]);
   const [showHistory, setShowHistory] = useState(!isMobile);
-  const [inputMode, setInputMode<'voice' | 'text' | 'extension' | 'native'>('native');
+  const [inputMode, setInputMode] = useState<'voice' | 'text' | 'extension' | 'native'>('native');
   const [manualQuestion, setManualQuestion] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
 
