@@ -1,4 +1,3 @@
-
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'path';
 import { WebSocketServer } from 'ws';
@@ -105,6 +104,90 @@ class NativeHelper {
     ipcMain.handle('open-driver-download', async () => {
       await shell.openExternal(DriverDetector.getDriverDownloadUrl());
     });
+
+    // Overlay management handlers
+    ipcMain.handle('create-stealth-overlay', async (event, sessionId: string, position?: any) => {
+      if (this.overlayManager) {
+        return this.overlayManager.createStealthOverlay(sessionId, position);
+      }
+      return null;
+    });
+
+    ipcMain.handle('show-overlay', async () => {
+      if (this.overlayManager) {
+        this.overlayManager.showOverlay();
+      }
+    });
+
+    ipcMain.handle('hide-overlay', async () => {
+      if (this.overlayManager) {
+        this.overlayManager.hideOverlay();
+      }
+    });
+
+    ipcMain.handle('toggle-overlay', async () => {
+      if (this.overlayManager) {
+        this.overlayManager.toggleOverlay();
+      }
+    });
+
+    ipcMain.handle('set-overlay-position', async (event, position: any) => {
+      if (this.overlayManager) {
+        this.overlayManager.setPosition(position);
+      }
+    });
+
+    ipcMain.handle('update-overlay-content', async (event, question: string, answer: string) => {
+      if (this.overlayManager) {
+        this.overlayManager.updateOverlayContent(question, answer);
+      }
+    });
+
+    ipcMain.handle('destroy-overlay', async () => {
+      if (this.overlayManager) {
+        this.overlayManager.destroyOverlay();
+      }
+    });
+
+    // Audio capture handlers
+    ipcMain.handle('get-capabilities', async () => {
+      return this.audioCaptureManager?.getStatus() || { available: false };
+    });
+
+    ipcMain.handle('start-capture', async (event, sessionId: string, jwt: string, config: any) => {
+      if (this.audioCaptureManager) {
+        await this.audioCaptureManager.startCapture(sessionId, jwt, config);
+        
+        // Show overlay when capture starts
+        if (this.overlayManager) {
+          this.overlayManager.showOverlay();
+        }
+      }
+    });
+
+    ipcMain.handle('stop-capture', async () => {
+      if (this.audioCaptureManager) {
+        await this.audioCaptureManager.stopCapture();
+        
+        // Hide overlay when capture stops
+        if (this.overlayManager) {
+          this.overlayManager.hideOverlay();
+        }
+      }
+    });
+
+    // Window management
+    ipcMain.handle('minimize-window', async () => {
+      if (this.mainWindow) {
+        this.mainWindow.minimize();
+      }
+    });
+
+    ipcMain.handle('close-window', async () => {
+      if (this.mainWindow) {
+        this.mainWindow.close();
+      }
+    });
   }
 
   private startWebSocketServer() {
@@ -160,6 +243,13 @@ class NativeHelper {
             message.jwt,
             message.supabaseConfig
           );
+          
+          // Create and show stealth overlay
+          if (this.overlayManager) {
+            this.overlayManager.createStealthOverlay(message.sessionId);
+            this.overlayManager.showOverlay();
+          }
+          
           ws.send(JSON.stringify({ type: 'captureStatus', status: 'active' }));
         }
         break;
@@ -167,7 +257,34 @@ class NativeHelper {
       case 'stopCapture':
         if (this.audioCaptureManager) {
           await this.audioCaptureManager.stopCapture();
+          
+          // Hide overlay
+          if (this.overlayManager) {
+            this.overlayManager.hideOverlay();
+          }
+          
           ws.send(JSON.stringify({ type: 'captureStatus', status: 'idle' }));
+        }
+        break;
+
+      case 'showOverlay':
+        if (this.overlayManager) {
+          this.overlayManager.showOverlay();
+          ws.send(JSON.stringify({ type: 'overlayStatus', visible: true }));
+        }
+        break;
+
+      case 'hideOverlay':
+        if (this.overlayManager) {
+          this.overlayManager.hideOverlay();
+          ws.send(JSON.stringify({ type: 'overlayStatus', visible: false }));
+        }
+        break;
+
+      case 'updateOverlay':
+        if (this.overlayManager && message.question && message.answer) {
+          this.overlayManager.updateOverlayContent(message.question, message.answer);
+          ws.send(JSON.stringify({ type: 'overlayUpdated', success: true }));
         }
         break;
 
