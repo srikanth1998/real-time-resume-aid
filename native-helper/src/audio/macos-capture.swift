@@ -1,6 +1,6 @@
 
-// BlackHole Audio Capture for macOS
-// Captures loopback audio from BlackHole virtual driver
+// CoreAudio Process-Tap for macOS 14.4+
+// Native system audio capture without virtual drivers
 
 import AVFoundation
 import AudioToolbox
@@ -8,7 +8,7 @@ import OpusKit
 
 class MacOSAudioCapture {
     private var audioEngine: AVAudioEngine?
-    private var inputNode: AVAudioInputNode?
+    private var processTap: AVAudioProcessTap?
     private var opusEncoder: OpusEncoder?
     private var isCapturing = false
     
@@ -26,64 +26,96 @@ class MacOSAudioCapture {
     }
     
     func initialize() -> Bool {
-        audioEngine = AVAudioEngine()
-        guard let engine = audioEngine else { return false }
-        
-        inputNode = engine.inputNode
-        guard let input = inputNode else { return false }
-        
-        // Find BlackHole device
-        if !setBlackHoleAsInput() {
-            print("Warning: BlackHole not found, using default input")
-        }
-        
-        // Configure audio format
-        let format = AVAudioFormat(
-            standardFormatWithSampleRate: sampleRate,
-            channels: channels
-        )
-        
-        guard let audioFormat = format else { return false }
-        
-        // Install tap on input node
-        input.installTap(
-            onBus: 0,
-            bufferSize: frameSize,
-            format: audioFormat
-        ) { [weak self] buffer, time in
-            self?.processAudioBuffer(buffer)
-        }
-        
-        return true
-    }
-    
-    func startCapture() -> Bool {
-        guard let engine = audioEngine else { return false }
-        
-        if !initialize() { return false }
-        
-        do {
-            try engine.start()
-            isCapturing = true
-            print("Started macOS audio capture")
-            return true
-        } catch {
-            print("Failed to start audio engine: \(error)")
+        // Check if process-tap is available (macOS 14.4+)
+        if #available(macOS 14.4, *) {
+            return initializeProcessTap()
+        } else {
+            print("Process-tap not available, requires macOS 14.4+")
             return false
         }
     }
     
+    @available(macOS 14.4, *)
+    private func initializeProcessTap() -> Bool {
+        do {
+            // Create process-tap for system audio capture
+            let tapDescription = AudioComponentDescription(
+                componentType: kAudioUnitType_Effect,
+                componentSubType: kAudioUnitSubType_Tap,
+                componentManufacturer: kAudioUnitManufacturer_Apple,
+                componentFlags: 0,
+                componentFlagsMask: 0
+            )
+            
+            // Configure audio format for capture
+            let format = AVAudioFormat(
+                standardFormatWithSampleRate: sampleRate,
+                channels: channels
+            )
+            
+            guard let audioFormat = format else { return false }
+            
+            // Create process tap with callback
+            var callbacks = MTAudioProcessingTapCallbacks(
+                version: kMTAudioProcessingTapCallbacksVersion_0,
+                clientInfo: Unmanaged.passUnretained(self).toOpaque(),
+                init: { tap, clientInfo, tapStorageOut in
+                    tapStorageOut?.pointee = clientInfo
+                    return noErr
+                },
+                finalize: { tap in },
+                prepare: { tap, maxFrames, processingFormat in
+                    return noErr
+                },
+                unprepare: { tap in },
+                process: { tap, numberFrames, flags, bufferListInOut, numberFramesOut, flagsOut in
+                    let selfPtr = MTAudioProcessingTapGetStorage(tap)
+                    let capture = Unmanaged<MacOSAudioCapture>.fromOpaque(selfPtr).takeUnretainedValue()
+                    capture.processAudioTap(bufferListInOut, frameCount: numberFrames)
+                    return noErr
+                }
+            )
+            
+            var tap: Unmanaged<MTAudioProcessingTap>?
+            let status = MTAudioProcessingTapCreate(
+                kCFAllocatorDefault,
+                &callbacks,
+                kMTAudioProcessingTapCreationFlag_PostEffects,
+                &tap
+            )
+            
+            if status == noErr, let processTap = tap?.takeRetainedValue() {
+                self.processTap = processTap
+                print("✅ CoreAudio process-tap initialized")
+                return true
+            } else {
+                print("❌ Failed to create process-tap: \(status)")
+                return false
+            }
+            
+        } catch {
+            print("❌ Error initializing process-tap: \(error)")
+            return false
+        }
+    }
+    
+    func startCapture() -> Bool {
+        if !initialize() { return false }
+        
+        isCapturing = true
+        print("✅ Started macOS CoreAudio process-tap capture")
+        return true
+    }
+    
     func stopCapture() {
-        guard let engine = audioEngine else { return }
-        
         isCapturing = false
-        engine.stop()
-        inputNode?.removeTap(onBus: 0)
         
-        audioEngine = nil
-        inputNode = nil
+        if let tap = processTap {
+            // Clean up process-tap
+            processTap = nil
+        }
         
-        print("Stopped macOS audio capture")
+        print("✅ Stopped macOS CoreAudio process-tap capture")
     }
     
     private func setupOpusEncoder() {
@@ -104,35 +136,22 @@ class MacOSAudioCapture {
         }
     }
     
-    private func setBlackHoleAsInput() -> Bool {
-        let devices = AVCaptureDevice.devices()
+    // Process audio from CoreAudio process-tap
+    private func processAudioTap(_ bufferList: UnsafeMutablePointer<AudioBufferList>, frameCount: UInt32) {
+        guard let opusEncoder = opusEncoder, isCapturing else { return }
         
-        for device in devices {
-            if device.localizedName.contains("BlackHole") {
-                do {
-                    try AVAudioSession.sharedInstance().setPreferredInput(device as? AVAudioSessionPortDescription)
-                    return true
-                } catch {
-                    print("Failed to set BlackHole as input: \(error)")
-                }
-            }
-        }
+        let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
+        guard let audioBuffer = buffers.first else { return }
         
-        return false
-    }
-    
-    private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
-        guard let opusEncoder = opusEncoder,
-              let floatChannelData = buffer.floatChannelData else { return }
-        
-        let frameCount = Int(buffer.frameLength)
-        let audioData = floatChannelData[0]
+        // Convert raw audio data to Float32 array
+        let audioData = audioBuffer.mData?.bindMemory(to: Float32.self, capacity: Int(frameCount))
+        guard let audioPtr = audioData else { return }
         
         do {
             // Encode audio with Opus
             let encodedData = try opusEncoder.encode(
-                pcm: audioData,
-                frameCount: frameCount
+                pcm: audioPtr,
+                frameCount: Int(frameCount)
             )
             
             // Send to callback

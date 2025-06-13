@@ -127,18 +127,18 @@ export const Downloads = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-gray-300 text-sm space-y-2">
-                  <p>• Native system audio capture via Core Audio</p>
+                  <p>• Native CoreAudio process-tap (macOS 14.4+)</p>
+                  <p>• No virtual drivers required</p>
                   <p>• Stealth overlay with window exclusion</p>
-                  <p>• No browser permissions required</p>
                   <p>• Works with any meeting platform</p>
                 </div>
 
                 <div className="space-y-2">
                   <h4 className="font-semibold text-white">Requirements:</h4>
                   <div className="text-sm text-gray-300">
-                    <p>• macOS 10.15+</p>
-                    <p>• BlackHole virtual audio driver</p>
+                    <p>• macOS 14.4 or later</p>
                     <p>• Security permissions for audio access</p>
+                    <p>• No additional drivers needed</p>
                   </div>
                 </div>
 
@@ -152,14 +152,12 @@ export const Downloads = () => {
                     Coming Soon - macOS Helper
                   </Button>
                   
-                  <Button 
-                    onClick={() => openDriverLink('macos')}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Get BlackHole Driver
-                  </Button>
+                  <Alert className="bg-green-900/20 border-green-700 text-green-200 text-sm">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>No drivers needed!</strong> Uses native CoreAudio process-tap API.
+                    </AlertDescription>
+                  </Alert>
                 </div>
               </CardContent>
             </Card>
@@ -203,11 +201,11 @@ export const Downloads = () => {
                     macOS Setup
                   </h3>
                   <ol className="text-sm text-gray-300 space-y-2 list-decimal list-inside">
-                    <li>Install BlackHole: <code>brew install blackhole-2ch</code></li>
-                    <li>Grant audio permissions in System Preferences</li>
                     <li>Download and install InterviewAce Helper DMG</li>
+                    <li>Grant audio permissions in System Preferences</li>
                     <li>Allow the app in Security & Privacy settings</li>
                     <li>The helper will appear in menu bar</li>
+                    <li>No additional drivers required!</li>
                   </ol>
                 </div>
               </div>
