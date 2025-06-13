@@ -42,12 +42,20 @@
         "https://*.lovable.app/*",
         "http://localhost:*/*"
       ],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "type": "module"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["audio-worklet.js", "audio-processor-worklet.js"],
+      "resources": [
+        "audio-worklet.js", 
+        "audio-processor-worklet.js",
+        "ui/floatingUI.js",
+        "handlers/transcriptionHandler.js",
+        "handlers/messageHandler.js",
+        "utils/appInitializer.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]
