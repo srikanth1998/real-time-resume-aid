@@ -10,14 +10,12 @@ interface ConversationEntry {
 
 interface ConversationHistoryProps {
   conversationHistory: ConversationEntry[];
-  extensionConnected: boolean;
   isMobile: boolean;
   onClose?: () => void;
 }
 
 export const ConversationHistory = ({ 
   conversationHistory, 
-  extensionConnected, 
   isMobile, 
   onClose 
 }: ConversationHistoryProps) => {
@@ -46,20 +44,11 @@ export const ConversationHistory = ({
                 Your conversation history will appear here as you ask questions.
               </p>
               <div className="text-xs md:text-sm text-blue-400 bg-blue-900/20 p-3 md:p-4 rounded-lg">
-                <p className="font-medium mb-2">🚀 Enhanced AI Interview Assistant</p>
-                {extensionConnected ? (
-                  <>
-                    <p>• Extension capturing meeting audio automatically ✅</p>
-                    <p>• Real-time AI answer streaming ✅</p>
-                    <p>• Questions processed instantly ✅</p>
-                  </>
-                ) : (
-                  <>
-                    <p>• Choose your input method above</p>
-                    <p>• Get streaming AI responses</p>
-                    <p>• Install Chrome extension for automatic capture</p>
-                  </>
-                )}
+                <p className="font-medium mb-2">🚀 AI Interview Assistant</p>
+                <p>• Choose your input method above</p>
+                <p>• Voice recognition or manual text input</p>
+                <p>• Native audio capture with stealth overlay</p>
+                <p>• Real-time AI answer streaming ✅</p>
               </div>
             </div>
           ) : (

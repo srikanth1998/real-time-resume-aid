@@ -3,9 +3,7 @@ import { Brain, Clock, AlertTriangle, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface InterviewHeaderProps {
-  extensionConnected: boolean;
   isStreaming: boolean;
-  processingRef: React.RefObject<boolean>;
   timeRemaining: number;
   isMobile: boolean;
   showHistory: boolean;
@@ -13,9 +11,7 @@ interface InterviewHeaderProps {
 }
 
 export const InterviewHeader = ({
-  extensionConnected,
   isStreaming,
-  processingRef,
   timeRemaining,
   isMobile,
   showHistory,
@@ -35,19 +31,9 @@ export const InterviewHeader = ({
         <div className="flex items-center space-x-2">
           <Brain className="h-5 w-5 md:h-6 md:w-6 text-blue-400" />
           <span className="font-semibold text-sm md:text-base">InterviewAce</span>
-          {extensionConnected && (
-            <span className="bg-green-800 text-green-200 text-xs px-2 py-1 rounded">
-              🎤 Extension Active
-            </span>
-          )}
           {isStreaming && (
             <span className="bg-blue-800 text-blue-200 text-xs px-2 py-1 rounded animate-pulse">
               🧠 AI Responding
-            </span>
-          )}
-          {processingRef.current && (
-            <span className="bg-yellow-800 text-yellow-200 text-xs px-2 py-1 rounded animate-pulse">
-              🔄 Processing Question
             </span>
           )}
         </div>

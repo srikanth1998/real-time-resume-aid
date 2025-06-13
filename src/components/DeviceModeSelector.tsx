@@ -19,7 +19,7 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Single Device Mode */}
+        {/* Voice & Text Mode */}
         <Card 
           className={`cursor-pointer transition-all hover:shadow-md ${
             value === 'single' ? 'ring-2 ring-blue-500 bg-blue-50' : ''
@@ -30,7 +30,7 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
             <CardTitle className="flex items-center justify-between text-base">
               <div className="flex items-center space-x-2">
                 <Monitor className="h-5 w-5 text-blue-600" />
-                <span>Single Device</span>
+                <span>Voice & Text</span>
               </div>
               {value === 'single' && <Check className="h-5 w-5 text-blue-600" />}
             </CardTitle>
@@ -38,20 +38,20 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
           <CardContent className="space-y-3">
             <Badge variant="secondary">Recommended</Badge>
             <p className="text-sm text-gray-600">
-              Use Chrome extension on your computer. AI answers appear directly in the browser during your interview.
+              Use voice recognition or manual text input. AI answers appear directly in your browser during the interview.
             </p>
             <div className="space-y-2">
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>Easy setup</span>
+                <span>Voice recognition</span>
               </div>
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>Real-time answers</span>
+                <span>Manual text input</span>
               </div>
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>No additional devices needed</span>
+                <span>Real-time AI responses</span>
               </div>
             </div>
           </CardContent>
@@ -76,20 +76,20 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
           <CardContent className="space-y-3">
             <Badge variant="outline">Advanced</Badge>
             <p className="text-sm text-gray-600">
-              Chrome extension on computer + mobile device for viewing AI answers discreetly.
+              Native audio capture with mobile device for viewing AI answers discreetly during interviews.
             </p>
             <div className="space-y-2">
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span>Discrete mobile viewing</span>
+                <span>Native audio capture</span>
               </div>
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span>Real-time sync</span>
+                <span>Stealth overlay mode</span>
               </div>
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span>Requires mobile device</span>
+                <span>Mobile companion app</span>
               </div>
             </div>
           </CardContent>
@@ -103,7 +103,7 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
             <div>
               <p className="font-medium text-purple-800">Cross-Device Setup</p>
               <p className="text-sm text-purple-700 mt-1">
-                You'll need a mobile device to view AI answers. After payment, we'll send you a mobile link to connect your devices.
+                Install the native helper for advanced audio capture and use a mobile device to view AI answers discreetly.
               </p>
             </div>
           </div>

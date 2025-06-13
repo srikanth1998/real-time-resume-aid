@@ -150,10 +150,10 @@ const Index = () => {
         <div className="text-center mt-12">
           <p className="text-gray-600 mb-4">✨ All plans include:</p>
           <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-700">
-            <span>• Chrome Extension</span>
+            <span>• Voice Recognition</span>
             <span>• Real-time AI Assistance</span>
+            <span>• Native Audio Capture</span>
             <span>• Secure & Private</span>
-            <span>• Instant Setup</span>
           </div>
         </div>
       </div>
