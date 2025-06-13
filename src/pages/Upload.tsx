@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Upload as UploadIcon, FileText, Briefcase, CheckCircle, AlertCircle, Loader2, Clock, Download, Chrome, Zap } from "lucide-react";
+import { Brain, Upload as UploadIcon, FileText, Briefcase, CheckCircle, AlertCircle, Loader2, Clock, Download, Monitor, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,7 +24,17 @@ const Upload = () => {
   const [uploading, setUploading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState("");
-  const [extensionDownloaded, setExtensionDownloaded] = useState(false);
+  const [helperDownloaded, setHelperDownloaded] = useState(false);
+  const [platform, setPlatform] = useState<'windows' | 'macos' | 'unknown'>('unknown');
+
+  useEffect(() => {
+    // Detect platform
+    if (navigator.platform.includes('Win')) {
+      setPlatform('windows');
+    } else if (navigator.platform.includes('Mac')) {
+      setPlatform('macos');
+    }
+  }, []);
 
   useEffect(() => {
     const verifySession = async () => {
@@ -119,29 +129,35 @@ const Upload = () => {
     }
   };
 
-  const handleDownloadExtension = () => {
-    // Create a download link for the extension
-    const link = document.createElement('a');
-    link.href = '/chrome-extension.zip'; // You'll need to provide this file
-    link.download = 'InterviewAce-Extension.zip';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadHelper = () => {
+    if (platform === 'unknown') {
+      toast({
+        title: "Platform not supported",
+        description: "Native helper is only available for Windows and macOS.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const downloadUrl = platform === 'windows' 
+      ? 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe'
+      : 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-macOS.dmg';
     
-    setExtensionDownloaded(true);
+    window.open(downloadUrl, '_blank');
+    setHelperDownloaded(true);
     toast({
-      title: "Extension Downloaded!",
-      description: "Please extract and install the extension in Chrome before continuing.",
+      title: "Helper Downloaded!",
+      description: "Please install the helper application before continuing.",
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!extensionDownloaded) {
+    if (!helperDownloaded && platform !== 'unknown') {
       toast({
-        title: "Extension Required",
-        description: "Please download and install the Chrome extension first.",
+        title: "Helper Required",
+        description: "Please download and install the native helper first.",
         variant: "destructive"
       });
       return;
@@ -244,7 +260,7 @@ const Upload = () => {
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Setup Your Interview Session</h1>
-        <p className="text-gray-600">Download the Chrome extension and upload your documents</p>
+        <p className="text-gray-600">Download the native helper and upload your documents</p>
       </div>
 
       <div className="max-w-2xl mx-auto space-y-6">
@@ -267,57 +283,78 @@ const Upload = () => {
           </CardHeader>
         </Card>
 
-        {/* Step 1: Chrome Extension Download */}
-        <Card className={`border-2 ${extensionDownloaded ? 'border-green-500 bg-green-50' : 'border-blue-500 bg-blue-50'}`}>
+        {/* Step 1: Native Helper Download */}
+        <Card className={`border-2 ${helperDownloaded ? 'border-green-500 bg-green-50' : platform === 'unknown' ? 'border-yellow-500 bg-yellow-50' : 'border-blue-500 bg-blue-50'}`}>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${extensionDownloaded ? 'bg-green-500' : 'bg-blue-500'} text-white font-bold`}>
-                {extensionDownloaded ? <CheckCircle className="h-5 w-5" /> : '1'}
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${helperDownloaded ? 'bg-green-500' : platform === 'unknown' ? 'bg-yellow-500' : 'bg-blue-500'} text-white font-bold`}>
+                {helperDownloaded ? <CheckCircle className="h-5 w-5" /> : '1'}
               </div>
-              <Chrome className="h-6 w-6 text-gray-700" />
-              <span>Download Chrome Extension</span>
-              {extensionDownloaded && <Badge variant="secondary" className="bg-green-100 text-green-800">Completed</Badge>}
+              <Monitor className="h-6 w-6 text-gray-700" />
+              <span>Download Native Helper</span>
+              {helperDownloaded && <Badge variant="secondary" className="bg-green-100 text-green-800">Completed</Badge>}
+              {platform !== 'unknown' && (
+                <Badge variant="outline">{platform === 'windows' ? 'Windows' : 'macOS'}</Badge>
+              )}
             </CardTitle>
             <CardDescription>
-              {extensionDownloaded 
-                ? "Extension downloaded! Make sure to install it in Chrome before proceeding."
-                : "Required: Download and install our Chrome extension for real-time AI assistance"
+              {platform === 'unknown' 
+                ? "Native helper is only available for Windows and macOS. You can still use browser-based features."
+                : helperDownloaded 
+                  ? "Helper downloaded! Make sure to install it before proceeding."
+                  : "Advanced audio capture and stealth overlay features"
               }
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {!extensionDownloaded ? (
+            {platform === 'unknown' ? (
+              <div className="bg-yellow-100 p-4 rounded-lg">
+                <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Platform Not Supported</h4>
+                <p className="text-sm text-yellow-700">
+                  Native helper is only available for Windows and macOS. You can still proceed with browser-based audio or text input modes.
+                </p>
+              </div>
+            ) : !helperDownloaded ? (
               <div className="space-y-4">
                 <div className="bg-blue-100 p-4 rounded-lg">
-                  <h4 className="font-semibold text-blue-800 mb-2">🎯 What does the extension do?</h4>
+                  <h4 className="font-semibold text-blue-800 mb-2">🎯 What does the helper do?</h4>
                   <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• Captures interview questions in real-time</li>
-                    <li>• Sends them to AI for instant answer generation</li>
-                    <li>• Works seamlessly with any video call platform</li>
-                    <li>• Completely private and secure</li>
+                    <li>• Native system audio capture (no browser limits)</li>
+                    <li>• Stealth overlay hidden from screen sharing</li>
+                    <li>• Works with any meeting platform</li>
+                    <li>• Enhanced performance and reliability</li>
                   </ul>
                 </div>
                 <Button 
-                  onClick={handleDownloadExtension}
+                  onClick={handleDownloadHelper}
                   className="w-full py-6 text-lg bg-blue-600 hover:bg-blue-700"
                   size="lg"
                 >
                   <Download className="h-5 w-5 mr-2" />
-                  Download Chrome Extension
+                  Download {platform === 'windows' ? 'Windows' : 'macOS'} Helper
                 </Button>
               </div>
             ) : (
               <div className="bg-green-100 p-4 rounded-lg">
-                <h4 className="font-semibold text-green-800 mb-2">✅ Extension Downloaded!</h4>
+                <h4 className="font-semibold text-green-800 mb-2">✅ Helper Downloaded!</h4>
                 <div className="text-sm text-green-700 space-y-2">
                   <p><strong>Next steps:</strong></p>
-                  <ol className="list-decimal list-inside space-y-1">
-                    <li>Extract the downloaded ZIP file</li>
-                    <li>Open Chrome → Menu → Extensions → Manage Extensions</li>
-                    <li>Enable "Developer mode" (top right)</li>
-                    <li>Click "Load unpacked" and select the extracted folder</li>
-                    <li>Extension icon should appear in Chrome toolbar</li>
-                  </ol>
+                  {platform === 'windows' ? (
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Run the downloaded .exe file as Administrator</li>
+                      <li>Allow Windows Defender if prompted</li>
+                      <li>Install VB-Cable driver if not already installed</li>
+                      <li>Helper will run in system tray</li>
+                    </ol>
+                  ) : (
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Open the downloaded .dmg file</li>
+                      <li>Drag app to Applications folder</li>
+                      <li>Allow in Security & Privacy settings</li>
+                      <li>Install BlackHole driver if needed</li>
+                      <li>Helper will appear in menu bar</li>
+                    </ol>
+                  )}
                 </div>
               </div>
             )}
@@ -325,10 +362,10 @@ const Upload = () => {
         </Card>
 
         {/* Step 2: Document Upload */}
-        <Card className={`border-2 ${extensionDownloaded ? 'border-blue-500' : 'border-gray-300'}`}>
+        <Card className={`border-2 ${helperDownloaded || platform === 'unknown' ? 'border-blue-500' : 'border-gray-300'}`}>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${extensionDownloaded ? 'bg-blue-500' : 'bg-gray-400'} text-white font-bold`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${helperDownloaded || platform === 'unknown' ? 'bg-blue-500' : 'bg-gray-400'} text-white font-bold`}>
                 2
               </div>
               <FileText className="h-6 w-6 text-gray-700" />
@@ -352,9 +389,9 @@ const Upload = () => {
                     accept=".pdf"
                     onChange={handleFileChange}
                     className="hidden"
-                    disabled={uploading || !extensionDownloaded}
+                    disabled={uploading || (!helperDownloaded && platform !== 'unknown')}
                   />
-                  <label htmlFor="resume" className={`cursor-pointer ${!extensionDownloaded ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <label htmlFor="resume" className={`cursor-pointer ${!helperDownloaded && platform !== 'unknown' ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <div className="flex flex-col items-center space-y-2">
                       {resumeFile ? (
                         <>
@@ -385,7 +422,7 @@ const Upload = () => {
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
                   className="min-h-[200px] text-sm"
-                  disabled={uploading || !extensionDownloaded}
+                  disabled={uploading || (!helperDownloaded && platform !== 'unknown')}
                 />
                 <p className="text-xs text-gray-500">
                   Provide as much detail as possible for better AI assistance
@@ -396,7 +433,7 @@ const Upload = () => {
               <Button
                 type="submit"
                 className="w-full py-6 text-lg"
-                disabled={!resumeFile || !jobDescription.trim() || uploading || !extensionDownloaded}
+                disabled={!resumeFile || !jobDescription.trim() || uploading || (!helperDownloaded && platform !== 'unknown')}
                 size="lg"
               >
                 {uploading ? (
@@ -426,12 +463,12 @@ const Upload = () => {
           <CardContent>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <h4 className="font-semibold mb-2">📱 Extension Installation:</h4>
+                <h4 className="font-semibold mb-2">💻 Helper Installation:</h4>
                 <ul className="space-y-1 text-sm text-gray-600">
-                  <li>• Download and extract the ZIP file</li>
-                  <li>• Enable Chrome Developer mode</li>
-                  <li>• Load unpacked extension</li>
-                  <li>• Pin to toolbar for easy access</li>
+                  <li>• Download platform-specific helper</li>
+                  <li>• Install required audio drivers</li>
+                  <li>• Allow security permissions</li>
+                  <li>• Helper runs in background</li>
                 </ul>
               </div>
               <div>
