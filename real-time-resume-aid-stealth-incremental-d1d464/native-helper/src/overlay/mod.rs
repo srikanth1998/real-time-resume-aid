@@ -8,4 +8,8 @@ pub fn run() -> Result<()> {
     #[cfg(target_os="macos")] crate::overlay::mac::run()?;
     Ok(())
 }
-pub fn stop() {}
+
+pub fn stop() {
+    #[cfg(target_os="windows")] crate::overlay::win::stop();
+    #[cfg(target_os="macos")] crate::overlay::mac::stop();
+}

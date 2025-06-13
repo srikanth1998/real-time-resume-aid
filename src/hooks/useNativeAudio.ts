@@ -31,81 +31,58 @@ export const useNativeAudio = (sessionId: string | null) => {
   // Check if native helper is available
   const checkNativeHelper = useCallback(async () => {
     try {
-      // Check if Electron preload API is available
+      // Check Rust native helper via HTTP ping
+      const response = await fetch('http://localhost:4580/ping', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        console.log('✅ Rust native helper detected');
+        setCapabilities({
+          available: true,
+          version: '1.0.0-rust',
+          drivers: {
+            windows: navigator.platform.includes('Win'),
+            macos: navigator.platform.includes('Mac')
+          }
+        });
+        return true;
+      }
+      
+      // Fallback: Check if Electron preload API is available
       if (typeof window !== 'undefined' && (window as any).nativeAudio) {
         const caps = await (window as any).nativeAudio.getCapabilities();
         setCapabilities(caps);
         return caps.available;
       }
       
-      // Fallback: try to connect to local helper via WebSocket
-      return new Promise<boolean>((resolve) => {
-        const testWs = new WebSocket('ws://localhost:8765');
-        const timeout = setTimeout(() => {
-          testWs.close();
-          resolve(false);
-        }, 2000);
-
-        testWs.onopen = () => {
-          clearTimeout(timeout);
-          testWs.close();
-          setCapabilities({
-            available: true,
-            drivers: {
-              windows: navigator.platform.includes('Win'),
-              macos: navigator.platform.includes('Mac')
-            }
-          });
-          resolve(true);
-        };
-
-        testWs.onerror = () => {
-          clearTimeout(timeout);
-          resolve(false);
-        };
-      });
+      console.warn('❌ No native helper detected');
+      return false;
     } catch (error) {
       console.error('Native helper check failed:', error);
       return false;
     }
   }, []);
 
-  // Connect to native helper
-  const connectToHelper = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+  // Connect to native helper (Rust version uses HTTP, not WebSocket)
+  const connectToHelper = useCallback(async () => {
+    if (isConnected) return;
 
     try {
-      const ws = new WebSocket('ws://localhost:8765');
-      
-      ws.onopen = () => {
-        console.log('Connected to native helper');
+      // Test connection to Rust helper
+      const response = await fetch('http://localhost:4580/ping');
+      if (response.ok) {
+        console.log('✅ Connected to Rust native helper');
         setIsConnected(true);
-        wsRef.current = ws;
-      };
-
-      ws.onclose = () => {
-        console.log('Disconnected from native helper');
-        setIsConnected(false);
-        wsRef.current = null;
-      };
-
-      ws.onerror = (error) => {
-        console.error('Native helper connection error:', error);
-        setIsConnected(false);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          handleHelperMessage(data);
-        } catch (error) {
-          console.error('Failed to parse helper message:', error);
-        }
-      };
+      } else {
+        throw new Error('Helper not responding');
+      }
     } catch (error) {
       console.error('Failed to connect to native helper:', error);
+      setIsConnected(false);
     }
-  }, []);
+  }, [isConnected]);
 
   // Handle messages from native helper
   const handleHelperMessage = useCallback((data: any) => {
@@ -129,7 +106,7 @@ export const useNativeAudio = (sessionId: string | null) => {
 
   // Start audio capture
   const startCapture = useCallback(async (jwt: string) => {
-    if (!sessionId || !isConnected || !wsRef.current) {
+    if (!sessionId || !isConnected) {
       throw new Error('Native helper not available');
     }
 
@@ -139,42 +116,65 @@ export const useNativeAudio = (sessionId: string | null) => {
       status: 'starting'
     });
 
-    wsRef.current.send(JSON.stringify({
-      action: 'startCapture',
-      sessionId,
-      jwt,
-      supabaseConfig: {
-        url: 'https://jafylkqbmvdptrqwwyed.supabase.co',
-        key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY'
+    try {
+      // Call Rust helper's /start endpoint
+      const response = await fetch('http://localhost:4580/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          jwt
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ Started audio capture');
+        setSession(prev => prev ? { ...prev, status: 'active' } : null);
+      } else {
+        throw new Error('Failed to start capture');
       }
-    }));
+    } catch (error) {
+      console.error('❌ Failed to start capture:', error);
+      setSession(prev => prev ? { ...prev, status: 'error', error: error.message } : null);
+      throw error;
+    }
   }, [sessionId, isConnected]);
 
   // Stop audio capture
-  const stopCapture = useCallback(() => {
-    if (!wsRef.current || !session) return;
+  const stopCapture = useCallback(async () => {
+    if (!session) return;
 
     setSession(prev => prev ? { ...prev, status: 'stopping' } : null);
     
-    wsRef.current.send(JSON.stringify({
-      action: 'stopCapture',
-      sessionId: session.sessionId
-    }));
+    try {
+      // Call Rust helper's /stop endpoint
+      const response = await fetch('http://localhost:4580/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        console.log('✅ Stopped audio capture');
+        setSession(null);
+      } else {
+        throw new Error('Failed to stop capture');
+      }
+    } catch (error) {
+      console.error('❌ Failed to stop capture:', error);
+      setSession(prev => prev ? { ...prev, status: 'error', error: error.message } : null);
+    }
   }, [session]);
 
   // Initialize on mount
   useEffect(() => {
-    checkNativeHelper().then(available => {
+    const initialize = async () => {
+      const available = await checkNativeHelper();
       if (available) {
-        connectToHelper();
-      }
-    });
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+        await connectToHelper();
       }
     };
+    
+    initialize();
   }, [checkNativeHelper, connectToHelper]);
 
   return {

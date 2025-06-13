@@ -13,6 +13,10 @@ anyhow = "1"
 tungstenite = "0.21"
 cfg-if = "1"
 opus = "0.3"
+reqwest = { version = "0.11", features = ["json"] }
+base64 = "0.21"
+chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
 
 [features]
 default = []
