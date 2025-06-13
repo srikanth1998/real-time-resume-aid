@@ -1,7 +1,61 @@
-
 /* global chrome */
 let extensionStatus = 'disconnected';
 let floatingTrigger = null;
+let manualTriggerButton = null;
+
+// Create a manual trigger button for starting transcription
+function createManualTriggerButton() {
+  if (manualTriggerButton) return manualTriggerButton;
+  
+  manualTriggerButton = document.createElement('div');
+  manualTriggerButton.style.cssText = `
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 120px;
+    height: 40px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2147483647;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+    font-size: 12px;
+    color: white;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+    opacity: 0.9;
+    border: 1px solid rgba(255,255,255,0.2);
+  `;
+  
+  manualTriggerButton.innerHTML = '🎤 Start Recording';
+  manualTriggerButton.title = 'Click to start audio transcription';
+  
+  // Hover effects
+  manualTriggerButton.addEventListener('mouseenter', () => {
+    manualTriggerButton.style.opacity = '1';
+    manualTriggerButton.style.transform = 'scale(1.05) translateY(-2px)';
+    manualTriggerButton.style.boxShadow = '0 6px 20px rgba(0,0,0,0.4)';
+  });
+  
+  manualTriggerButton.addEventListener('mouseleave', () => {
+    manualTriggerButton.style.opacity = '0.9';
+    manualTriggerButton.style.transform = 'scale(1) translateY(0px)';
+    manualTriggerButton.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+  });
+  
+  // Click handler for manual transcription start
+  manualTriggerButton.addEventListener('click', () => {
+    console.log('🖱️ Manual trigger button clicked');
+    handleManualTranscriptionStart();
+  });
+  
+  document.documentElement.appendChild(manualTriggerButton);
+  return manualTriggerButton;
+}
 
 // Create a subtle floating trigger element
 function createFloatingTrigger() {
@@ -52,6 +106,35 @@ function createFloatingTrigger() {
   return floatingTrigger;
 }
 
+function handleManualTranscriptionStart() {
+  console.log('🚀 Manual transcription start requested via button');
+  
+  // Update button state to show it's starting
+  if (manualTriggerButton) {
+    manualTriggerButton.innerHTML = '⏳ Starting...';
+    manualTriggerButton.style.background = 'linear-gradient(135deg, #ffa726 0%, #ff9800 100%)';
+  }
+  
+  // Send message to background script to start transcription with current tab
+  chrome.runtime.sendMessage({
+    action: 'manual-start-transcription',
+    timestamp: Date.now(),
+    forceStart: true // Force start even if auto-detection failed
+  }).then(response => {
+    if (response?.success) {
+      console.log('✅ Manual transcription started successfully');
+      updateButtonState('active');
+      updateTriggerState('active');
+    } else {
+      console.error('❌ Failed to start manual transcription:', response?.error);
+      updateButtonState('error');
+    }
+  }).catch(error => {
+    console.error('❌ Error starting manual transcription:', error);
+    updateButtonState('error');
+  });
+}
+
 function handleManualStart() {
   console.log('🚀 Manual transcription start requested');
   
@@ -75,6 +158,37 @@ function handleManualStart() {
 function getCurrentTabId() {
   // Helper to get current tab ID (will be provided by background script)
   return new URLSearchParams(window.location.search).get('tabId') || 'unknown';
+}
+
+function updateButtonState(state) {
+  if (!manualTriggerButton) return;
+  
+  switch (state) {
+    case 'active':
+      manualTriggerButton.style.background = 'linear-gradient(135deg, #4caf50 0%, #2e7d32 100%)';
+      manualTriggerButton.innerHTML = '🔴 Recording';
+      manualTriggerButton.title = 'Transcription Active - Click to stop';
+      break;
+    case 'processing':
+      manualTriggerButton.style.background = 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
+      manualTriggerButton.innerHTML = '🟡 Processing';
+      manualTriggerButton.title = 'Processing Audio...';
+      break;
+    case 'stopped':
+      manualTriggerButton.style.background = 'linear-gradient(135deg, #757575 0%, #424242 100%)';
+      manualTriggerButton.innerHTML = '⚪ Stopped';
+      manualTriggerButton.title = 'Transcription Stopped';
+      break;
+    case 'error':
+      manualTriggerButton.style.background = 'linear-gradient(135deg, #f44336 0%, #c62828 100%)';
+      manualTriggerButton.innerHTML = '❌ Error';
+      manualTriggerButton.title = 'Error - Click to retry';
+      break;
+    default:
+      manualTriggerButton.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      manualTriggerButton.innerHTML = '🎤 Start Recording';
+      manualTriggerButton.title = 'Click to start audio transcription';
+  }
 }
 
 function updateTriggerState(state) {
@@ -117,6 +231,20 @@ function showTrigger() {
   }
 }
 
+function hideButton() {
+  if (manualTriggerButton) {
+    manualTriggerButton.style.display = 'none';
+  }
+}
+
+function showButton() {
+  if (manualTriggerButton) {
+    manualTriggerButton.style.display = 'flex';
+  } else {
+    createManualTriggerButton();
+  }
+}
+
 // No banner creation - extension operates invisibly in auto-mode with manual trigger
 function updateBannerStatus(status, sessionId = null) {
   extensionStatus = status;
@@ -125,6 +253,7 @@ function updateBannerStatus(status, sessionId = null) {
   
   // Update trigger state based on status
   updateTriggerState(status === 'transcribing' ? 'active' : status);
+  updateButtonState(status === 'transcribing' ? 'active' : status);
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -143,6 +272,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('🎯 Session ID set for auto operation:', sessionId);
     updateBannerStatus('session-ready', sessionId);
     showTrigger(); // Show manual trigger when session is ready
+    showButton(); // Show manual button when session is ready
     sendResponse({ success: true });
   }
   
@@ -156,6 +286,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('🛑 Stopping auto-transcription (session remains active)');
     updateBannerStatus('stopped');
     showTrigger(); // Show trigger again when stopped
+    showButton(); // Show button again when stopped
     sendResponse({ success: true });
   }
   
@@ -282,9 +413,10 @@ const notifyAppReady = () => {
   
   console.log('✅ Extension ready state established');
   
-  // Show manual trigger after initialization
+  // Show manual triggers after initialization
   setTimeout(() => {
     showTrigger();
+    showButton();
   }, 2000);
 };
 
@@ -298,17 +430,23 @@ if (document.readyState === 'loading') {
 // Also notify when page is fully loaded
 window.addEventListener('load', notifyAppReady);
 
-// Hide trigger when user scrolls (to avoid interference)
+// Hide triggers when user scrolls (to avoid interference)
 let scrollTimeout;
 window.addEventListener('scroll', () => {
   if (floatingTrigger) {
     floatingTrigger.style.opacity = '0.3';
+  }
+  if (manualTriggerButton) {
+    manualTriggerButton.style.opacity = '0.6';
   }
   
   clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(() => {
     if (floatingTrigger) {
       floatingTrigger.style.opacity = '0.7';
+    }
+    if (manualTriggerButton) {
+      manualTriggerButton.style.opacity = '0.9';
     }
   }, 1000);
 });

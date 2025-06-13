@@ -74,6 +74,17 @@ async function safeStartTranscription(tab, sessionManager) {
   }
 }
 
+// Helper function to get current active tab
+async function getCurrentActiveTab() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab;
+  } catch (error) {
+    console.error('Error getting current active tab:', error);
+    return null;
+  }
+}
+
 // Auto-start when visiting interview pages or detecting audio activity
 if (isChromeExtensionContext() && chrome.tabs) {
   chrome.tabs.onUpdated?.addListener(async (tabId, changeInfo, tab) => {
@@ -282,6 +293,61 @@ if (isChromeExtensionContext()) {
   chrome.runtime.onMessage?.addListener(async (message, sender, sendResponse) => {
     try {
       console.log('🔔 Background received message (fully-auto-mode):', message);
+      
+      // Handle manual transcription start from content script button
+      if (message.action === 'manual-start-transcription') {
+        console.log('🚀 MANUAL START TRANSCRIPTION REQUEST FROM CONTENT SCRIPT');
+        
+        const sessionState = sessionManager.getState();
+        const transcriptionState = transcriptionManager.getState();
+        
+        if (!sessionState.currentSessionId) {
+          console.error('❌ No session ID available for manual start');
+          sendResponse({ success: false, error: 'No session ID available. Please visit an interview page first.' });
+          return true;
+        }
+        
+        try {
+          if (transcriptionState.isCapturing) {
+            // Stop if already capturing
+            console.log('🛑 Already capturing, stopping transcription');
+            const currentTab = await getCurrentActiveTab();
+            if (currentTab) {
+              await transcriptionManager.stopTranscription(currentTab);
+            }
+            sendResponse({ success: true, action: 'stopped' });
+          } else {
+            // Start transcription on current active tab
+            console.log('🎯 Starting manual transcription on current tab');
+            
+            // Auto-grant permission for manual start
+            if (!sessionState.permissionGranted) {
+              sessionManager.grantPermission();
+              console.log('🔓 AUTO-GRANTED PERMISSION for manual start');
+            }
+            
+            const currentTab = await getCurrentActiveTab();
+            if (!currentTab) {
+              throw new Error('Could not get current active tab');
+            }
+            
+            console.log('🎯 Manual transcription target tab:', currentTab.id, currentTab.url);
+            
+            const success = await safeStartTranscription(currentTab, sessionManager);
+            if (success) {
+              meetingTabId = currentTab.id;
+              sendResponse({ success: true, action: 'started', tabId: currentTab.id });
+            } else {
+              sendResponse({ success: false, error: 'Failed to start transcription on current tab' });
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error handling manual start:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+        
+        return true;
+      }
       
       // Handle popup messages
       if (message.action === 'toggle') {
