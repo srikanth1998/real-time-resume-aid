@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Brain, AlertTriangle } from "lucide-react";
@@ -18,6 +17,7 @@ import { TextModeUI } from "@/components/interview/TextModeUI";
 import { NativeAudioMode } from "@/components/interview/NativeAudioMode";
 import { AnswerDisplay } from "@/components/interview/AnswerDisplay";
 import { ConversationHistory } from "@/components/interview/ConversationHistory";
+import { StealthOverlayPanel } from "@/components/interview/StealthOverlayPanel";
 
 const Interview = () => {
   const [searchParams] = useSearchParams();
@@ -188,6 +188,16 @@ const Interview = () => {
     });
   };
 
+  // Handle answer generation for stealth overlay
+  const handleAnswerGenerated = (question: string, answer: string) => {
+    const newEntry = {
+      question,
+      answer,
+      timestamp: new Date().toISOString()
+    };
+    setConversationHistory(prev => [...prev, newEntry]);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -235,6 +245,13 @@ const Interview = () => {
             extensionConnected={extensionConnected}
             nativeAudioAvailable={nativeCapabilities.available}
             onModeChange={setInputMode}
+          />
+
+          {/* Stealth Overlay Panel */}
+          <StealthOverlayPanel
+            sessionId={sessionId || ''}
+            onAnswerGenerated={handleAnswerGenerated}
+            className="bg-gray-800 border-gray-700"
           />
 
           {inputMode === 'native' && (
