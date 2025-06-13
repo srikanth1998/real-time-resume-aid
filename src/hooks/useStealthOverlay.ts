@@ -28,10 +28,15 @@ export const useStealthOverlay = (sessionId: string) => {
   useEffect(() => {
     const checkAvailability = async () => {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1000);
+        
         const response = await fetch('http://localhost:8765', {
           method: 'GET',
-          timeout: 1000
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         setState(prev => ({ ...prev, isAvailable: true }));
       } catch (error) {
         setState(prev => ({ ...prev, isAvailable: false }));
