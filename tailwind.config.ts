@@ -25,7 +25,7 @@ export default {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {
-					DEFAULT: 'hsl(var(--primary))',
+					DEFAULT: '#4f46e5',
 					foreground: 'hsl(var(--primary-foreground))'
 				},
 				secondary: {
@@ -41,7 +41,7 @@ export default {
 					foreground: 'hsl(var(--muted-foreground))'
 				},
 				accent: {
-					DEFAULT: 'hsl(var(--accent))',
+					DEFAULT: '#2dd4bf',
 					foreground: 'hsl(var(--accent-foreground))'
 				},
 				popover: {
@@ -61,7 +61,19 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				// Glassmorphism design tokens
+				'glass': 'rgba(255, 255, 255, 0.1)',
+				'glass-border': 'rgba(255, 255, 255, 0.2)',
+				'glass-dark': 'rgba(15, 23, 42, 0.8)',
+				'neutral': '#1e293b'
+			},
+			fontFamily: {
+				'inter': ['Inter', 'sans-serif'],
+				'poppins': ['Poppins', 'sans-serif'],
+			},
+			backdropBlur: {
+				'glass': '12px',
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
