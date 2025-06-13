@@ -2,36 +2,22 @@
 /* global chrome */
 
 /**
- * Manages extension badge states and UI feedback
+ * Manages extension badge states and UI feedback (informational only)
  */
 export class BadgeManager {
   static isChromeExtensionContext() {
     return typeof chrome !== 'undefined' && 
            chrome.runtime && 
-           chrome.runtime.id && 
-           chrome.action &&
-           typeof chrome.action.setBadgeText === 'function';
+           chrome.runtime.id;
   }
 
   static setBadgeForPermissionRequest() {
-    if (!this.isChromeExtensionContext()) {
-      console.warn('Chrome action API not available - cannot set badge');
-      return;
-    }
-    
-    try {
-      console.log('🔔 SETTING BADGE - REQUESTING PERMISSION');
-      chrome.action.setBadgeText({ text: 'CLICK' });
-      chrome.action.setBadgeBackgroundColor({ color: '#ff9500' }); // Orange for attention
-      chrome.action.setTitle({ title: 'Click to enable audio capture for your interview' });
-      console.log('🔔 Badge set to request permission - user should click extension icon');
-    } catch (error) {
-      console.error('Error setting badge for permission request:', error);
-    }
+    // NO LONGER USED - PERMISSION IS AUTO-GRANTED
+    console.log('🔔 Badge permission request skipped - auto-granting permission instead');
   }
 
   static setBadgeForActiveCapture() {
-    if (!this.isChromeExtensionContext()) {
+    if (!this.isChromeExtensionContext() || !chrome.action) {
       console.warn('Chrome action API not available - cannot set badge');
       return;
     }
@@ -40,7 +26,7 @@ export class BadgeManager {
       console.log('✅ SETTING BADGE - ACTIVE CAPTURE');
       chrome.action.setBadgeText({ text: 'ON' });
       chrome.action.setBadgeBackgroundColor({ color: '#34a853' }); // Green for active
-      chrome.action.setTitle({ title: 'Audio capture is active - click to stop' });
+      chrome.action.setTitle({ title: 'Audio capture is active - transcription running automatically' });
       console.log('✅ Badge set to show active capture');
     } catch (error) {
       console.error('Error setting badge for active capture:', error);
@@ -48,7 +34,7 @@ export class BadgeManager {
   }
 
   static clearBadge() {
-    if (!this.isChromeExtensionContext()) {
+    if (!this.isChromeExtensionContext() || !chrome.action) {
       console.warn('Chrome action API not available - cannot clear badge');
       return;
     }
@@ -56,7 +42,7 @@ export class BadgeManager {
     try {
       console.log('🧹 CLEARING BADGE');
       chrome.action.setBadgeText({ text: '' });
-      chrome.action.setTitle({ title: 'InterviewAce Audio Transcription' });
+      chrome.action.setTitle({ title: 'InterviewAce Audio Transcription - Fully Automatic' });
       console.log('🧹 Badge cleared');
     } catch (error) {
       console.error('Error clearing badge:', error);

@@ -1,3 +1,4 @@
+
 /* global chrome */
 
 import { SessionManager } from './utils/sessionManager.js';
@@ -47,14 +48,16 @@ if (isChromeExtensionContext() && chrome.tabs) {
         
         // Handle interview session pages first
         if (PlatformDetector.isInterviewTab(tab.url)) {
-          console.log('🎯 DETECTED INTERVIEW PAGE (AUTO-MODE)');
+          console.log('🎯 DETECTED INTERVIEW PAGE (FULLY-AUTO-MODE)');
           
           const urlSessionId = sessionManager.extractSessionId(tab.url);
           console.log('🔍 URL SESSION ID:', urlSessionId);
           
           if (urlSessionId) {
             await sessionManager.setSessionId(urlSessionId);
-            console.log('✅ SESSION ID AUTO-PERSISTED:', urlSessionId);
+            // AUTOMATICALLY GRANT PERMISSION - NO USER INTERACTION NEEDED
+            sessionManager.grantPermission();
+            console.log('✅ SESSION ID AUTO-PERSISTED AND PERMISSION AUTO-GRANTED:', urlSessionId);
             
             try {
               await transcriptionManager.ensureContentScript(tabId);
@@ -64,7 +67,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
               });
               console.log('📡 Session context auto-established');
               
-              // Now check all tabs for existing audio activity
+              // Now check all tabs for existing audio activity and auto-start
               setTimeout(() => {
                 AudioDetector.checkAllTabsForAudio(
                   sessionManager, 
@@ -84,7 +87,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
           return; // Don't process as audio tab
         }
         
-        // Handle any tab with audio activity if we have a session
+        // Handle any tab with audio activity if we have a session - AUTO-START IMMEDIATELY
         const sessionState = sessionManager.getState();
         const transcriptionState = transcriptionManager.getState();
         
@@ -93,7 +96,7 @@ if (isChromeExtensionContext() && chrome.tabs) {
           const isKnownAudioSource = PlatformDetector.isAudioSourceTab(tab.url);
           
           if (hasAudio || isKnownAudioSource) {
-            console.log('🔊 DETECTED AUDIO ACTIVITY:', { 
+            console.log('🔊 DETECTED AUDIO ACTIVITY - AUTO-STARTING IMMEDIATELY:', { 
               tabId, 
               url: tab.url, 
               audible: hasAudio, 
@@ -103,47 +106,48 @@ if (isChromeExtensionContext() && chrome.tabs) {
             
             meetingTabId = tabId;
             
-            // Check permission before starting
-            if (sessionState.permissionGranted) {
-              console.log('🚀 Permission already granted - AUTO-STARTING TRANSCRIPTION');
-              setTimeout(async () => {
-                try {
-                  await transcriptionManager.startTranscription(tab, sessionManager);
-                  console.log('✅ AUTO-STARTED transcription for audio tab:', tabId);
-                } catch (error) {
-                  console.error('❌ Error auto-starting transcription:', error);
-                }
-              }, 2000);
-            } else {
-              console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
-              BadgeManager.setBadgeForPermissionRequest();
+            // AUTO-GRANT PERMISSION AND START IMMEDIATELY
+            if (!sessionState.permissionGranted) {
+              sessionManager.grantPermission();
+              console.log('🔓 AUTO-GRANTED PERMISSION');
             }
+            
+            console.log('🚀 AUTO-STARTING TRANSCRIPTION IMMEDIATELY');
+            setTimeout(async () => {
+              try {
+                await transcriptionManager.startTranscription(tab, sessionManager);
+                console.log('✅ AUTO-STARTED transcription for audio tab:', tabId);
+              } catch (error) {
+                console.error('❌ Error auto-starting transcription:', error);
+              }
+            }, 1000);
           }
         }
       }
       
-      // Also check for audio state changes
+      // Also check for audio state changes - AUTO-START IMMEDIATELY
       const sessionState = sessionManager.getState();
       const transcriptionState = transcriptionManager.getState();
       
       if (changeInfo.audible !== undefined && sessionState.currentSessionId && !transcriptionState.isCapturing && PlatformDetector.canCaptureTab(tab.url)) {
         if (changeInfo.audible) {
-          console.log('🔊 AUDIO STARTED on tab:', tabId, 'URL:', tab.url);
+          console.log('🔊 AUDIO STARTED on tab - AUTO-STARTING:', tabId, 'URL:', tab.url);
           meetingTabId = tabId;
           
-          if (sessionState.permissionGranted) {
-            setTimeout(async () => {
-              try {
-                await transcriptionManager.startTranscription(tab, sessionManager);
-                console.log('✅ AUTO-STARTED transcription for audible tab:', tabId);
-              } catch (error) {
-                console.error('❌ Error auto-starting transcription on audio change:', error);
-              }
-            }, 1000);
-          } else {
-            console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
-            BadgeManager.setBadgeForPermissionRequest();
+          // AUTO-GRANT PERMISSION AND START IMMEDIATELY
+          if (!sessionState.permissionGranted) {
+            sessionManager.grantPermission();
+            console.log('🔓 AUTO-GRANTED PERMISSION');
           }
+          
+          setTimeout(async () => {
+            try {
+              await transcriptionManager.startTranscription(tab, sessionManager);
+              console.log('✅ AUTO-STARTED transcription for audible tab:', tabId);
+            } catch (error) {
+              console.error('❌ Error auto-starting transcription on audio change:', error);
+            }
+          }, 1000);
         }
       }
     } catch (error) {
@@ -165,36 +169,37 @@ if (isChromeExtensionContext() && chrome.tabs) {
     }
   });
 
-  // Track tab focus changes for active audio detection
+  // Track tab focus changes for active audio detection - AUTO-START IMMEDIATELY
   chrome.tabs.onActivated?.addListener(async (activeInfo) => {
     try {
       const tab = await chrome.tabs.get(activeInfo.tabId);
       const sessionState = sessionManager.getState();
       const transcriptionState = transcriptionManager.getState();
       
-      // If we have a session and user switches to an audio tab, auto-start
+      // If we have a session and user switches to an audio tab, auto-start immediately
       if (sessionState.currentSessionId && !transcriptionState.isCapturing && PlatformDetector.canCaptureTab(tab.url)) {
         const hasAudio = await AudioDetector.hasAudioActivity(activeInfo.tabId);
         const isKnownAudioSource = PlatformDetector.isAudioSourceTab(tab.url);
         
         if (hasAudio || isKnownAudioSource) {
-          console.log('🎯 FOCUSED ON AUDIO TAB');
+          console.log('🎯 FOCUSED ON AUDIO TAB - AUTO-STARTING');
           meetingTabId = activeInfo.tabId;
           
-          if (sessionState.permissionGranted) {
-            console.log('🚀 Permission granted - AUTO-STARTING TRANSCRIPTION');
-            setTimeout(async () => {
-              try {
-                await transcriptionManager.startTranscription(tab, sessionManager);
-                console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
-              } catch (error) {
-                console.error('❌ Error auto-starting on focus:', error);
-              }
-            }, 1000);
-          } else {
-            console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
-            BadgeManager.setBadgeForPermissionRequest();
+          // AUTO-GRANT PERMISSION AND START IMMEDIATELY
+          if (!sessionState.permissionGranted) {
+            sessionManager.grantPermission();
+            console.log('🔓 AUTO-GRANTED PERMISSION');
           }
+          
+          console.log('🚀 AUTO-STARTING TRANSCRIPTION ON FOCUS');
+          setTimeout(async () => {
+            try {
+              await transcriptionManager.startTranscription(tab, sessionManager);
+              console.log('✅ AUTO-STARTED transcription on focus:', activeInfo.tabId);
+            } catch (error) {
+              console.error('❌ Error auto-starting on focus:', error);
+            }
+          }, 1000);
         }
       }
     } catch (error) {
@@ -203,10 +208,10 @@ if (isChromeExtensionContext() && chrome.tabs) {
   });
 }
 
-// Handle extension icon click (MAIN PERMISSION MECHANISM)
+// Handle extension icon click (OPTIONAL MANUAL CONTROL)
 if (isChromeExtensionContext() && chrome.action) {
   chrome.action.onClicked?.addListener(async (tab) => {
-    console.log('=== EXTENSION ICON CLICKED ===');
+    console.log('=== EXTENSION ICON CLICKED (MANUAL OVERRIDE) ===');
     console.log('Tab ID:', tab.id, 'URL:', tab.url);
     
     const sessionState = sessionManager.getState();
@@ -218,9 +223,9 @@ if (isChromeExtensionContext() && chrome.action) {
     
     try {
       if (!transcriptionState.isCapturing) {
-        // Grant permission when icon is clicked
+        // Grant permission when icon is clicked (manual override)
         if (!sessionState.permissionGranted) {
-          console.log('🔓 GRANTING PERMISSION via icon click');
+          console.log('🔓 MANUAL PERMISSION GRANT via icon click');
           sessionManager.grantPermission();
         }
         
@@ -256,7 +261,7 @@ if (isChromeExtensionContext() && chrome.action) {
 if (isChromeExtensionContext()) {
   chrome.runtime.onMessage?.addListener(async (message, sender, sendResponse) => {
     try {
-      console.log('🔔 Background received message (auto-mode):', message);
+      console.log('🔔 Background received message (fully-auto-mode):', message);
       
       // Handle popup messages
       if (message.action === 'toggle') {
@@ -287,7 +292,9 @@ if (isChromeExtensionContext()) {
       
       if (message.action === 'setSessionId') {
         await sessionManager.setSessionId(message.sessionId);
-        console.log('🎯 Session ID set from popup for auto operation:', message.sessionId);
+        // AUTO-GRANT PERMISSION WHEN SESSION IS SET
+        sessionManager.grantPermission();
+        console.log('🎯 Session ID set and permission auto-granted:', message.sessionId);
         
         // Check for existing audio activity when session is manually set
         setTimeout(() => {
@@ -308,7 +315,7 @@ if (isChromeExtensionContext()) {
       
       if (message.action === 'clearSession') {
         await sessionManager.clearSession();
-        console.log('🧹 Session cleared (auto mode)');
+        console.log('🧹 Session cleared (fully-auto mode)');
         BadgeManager.clearBadge();
         sendResponse({ success: true });
         return true;
@@ -329,14 +336,14 @@ if (isChromeExtensionContext()) {
       }
       
       if (message.type === 'offscreen-ready') {
-        console.log('✅ Offscreen document reported ready (auto mode)');
+        console.log('✅ Offscreen document reported ready (fully-auto mode)');
         sendResponse({ success: true });
         return true;
       }
       
       // Handle transcription results from offscreen
       if (message.type === 'transcription-result' && message.text && message.text.trim()) {
-        console.log('📢 PROCESSING AUTO-TRANSCRIPTION RESULT FROM OFFSCREEN');
+        console.log('📢 PROCESSING FULLY-AUTO TRANSCRIPTION RESULT FROM OFFSCREEN');
         console.log('📝 Transcription text:', message.text);
         
         const sessionState = sessionManager.getState();
@@ -364,7 +371,7 @@ if (isChromeExtensionContext()) {
               action: 'transcriptionResult',
               ...transcriptionData
             });
-            console.log('✅ Auto-transcription forwarded to local content script');
+            console.log('✅ Fully-auto transcription forwarded to local content script');
           } catch (error) {
             console.warn('❌ Error forwarding to local content script (this is OK for auto operation):', error);
           }
@@ -373,11 +380,11 @@ if (isChromeExtensionContext()) {
         // Send to Supabase for cross-device sync and answer generation (MAIN FUNCTION)
         if (sessionId) {
           try {
-            console.log('📡 Sending auto-transcription to Supabase for cross-device sync and AI answer...');
+            console.log('📡 Sending fully-auto transcription to Supabase for cross-device sync and AI answer...');
             await SupabaseApi.sendTranscriptionToSupabase(transcriptionData);
-            console.log('✅ Auto-transcription sent to Supabase successfully - all devices will receive updates');
+            console.log('✅ Fully-auto transcription sent to Supabase successfully - all devices will receive updates');
           } catch (error) {
-            console.error('❌ Error sending auto-transcription to Supabase:', error);
+            console.error('❌ Error sending fully-auto transcription to Supabase:', error);
           }
         } else {
           console.warn('⚠️ No session ID available, skipping cross-device sync and AI answers');

@@ -48,28 +48,28 @@ export class AudioDetector {
         const isKnownAudioSource = PlatformDetector.isAudioSourceTab(tab.url);
         
         if (hasAudio || (isKnownAudioSource && tab.audible)) {
-          console.log('🔊 FOUND AUDIO TAB:', { 
+          console.log('🔊 FOUND AUDIO TAB - AUTO-STARTING IMMEDIATELY:', { 
             tabId: tab.id, 
             url: tab.url, 
             audible: hasAudio, 
             knownSource: isKnownAudioSource 
           });
           
-          // Check if permission is already granted
-          if (sessionState.permissionGranted) {
-            console.log('🚀 Permission already granted - AUTO-STARTING TRANSCRIPTION');
-            setTimeout(async () => {
-              try {
-                await startTranscriptionCallback(tab);
-                console.log('✅ AUTO-STARTED transcription for discovered audio tab:', tab.id);
-              } catch (error) {
-                console.error('❌ Error auto-starting transcription for discovered tab:', error);
-              }
-            }, 1000);
-          } else {
-            console.log('🔔 REQUESTING PERMISSION VIA BADGE...');
-            badgeManager.setBadgeForPermissionRequest();
+          // AUTO-GRANT PERMISSION AND START IMMEDIATELY - NO USER INTERACTION
+          if (!sessionState.permissionGranted) {
+            sessionManager.grantPermission();
+            console.log('🔓 AUTO-GRANTED PERMISSION FOR DISCOVERED AUDIO TAB');
           }
+          
+          console.log('🚀 AUTO-STARTING TRANSCRIPTION FOR DISCOVERED AUDIO TAB');
+          setTimeout(async () => {
+            try {
+              await startTranscriptionCallback(tab);
+              console.log('✅ AUTO-STARTED transcription for discovered audio tab:', tab.id);
+            } catch (error) {
+              console.error('❌ Error auto-starting transcription for discovered tab:', error);
+            }
+          }, 1000);
           
           return tab.id; // Return the meeting tab ID
         }
