@@ -1,0 +1,93 @@
+
+name: Build Native Helper
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'native-helper/**' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ 'native-helper/**' ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        working-directory: native-helper
+        run: npm install
+        
+      - name: Build application
+        working-directory: native-helper
+        run: npm run build
+        
+      - name: Build Windows executable
+        working-directory: native-helper
+        run: npm run dist:win
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-helper
+          path: native-helper/releases/*.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        working-directory: native-helper
+        run: npm install
+        
+      - name: Build application
+        working-directory: native-helper
+        run: npm run build
+        
+      - name: Import Code-Signing Certificates
+        uses: Apple-Actions/import-codesign-certs@v1
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          
+      - name: Build and notarize macOS app
+        working-directory: native-helper
+        run: npm run dist:mac
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-helper
+          path: native-helper/releases/*.dmg
+
+  deploy:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        
+      - name: Deploy to release storage
+        run: |
+          # Upload to your CDN/storage service
+          echo "Deploying native helpers to download server..."

@@ -8,11 +8,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useInterviewSession } from "@/hooks/useInterviewSession";
 import { useExtensionConnector } from "@/hooks/useExtensionConnector";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useNativeAudio } from "@/hooks/useNativeAudio";
 import { InterviewHeader } from "@/components/interview/InterviewHeader";
 import { InputModeSelector } from "@/components/interview/InputModeSelector";
 import { ExtensionModeUI } from "@/components/interview/ExtensionModeUI";
 import { VoiceModeUI } from "@/components/interview/VoiceModeUI";
 import { TextModeUI } from "@/components/interview/TextModeUI";
+import { NativeAudioMode } from "@/components/interview/NativeAudioMode";
 import { AnswerDisplay } from "@/components/interview/AnswerDisplay";
 import { ConversationHistory } from "@/components/interview/ConversationHistory";
 
@@ -29,11 +31,16 @@ const Interview = () => {
   const [isGeneratingAnswer, setIsGeneratingAnswer] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{question: string, answer: string, timestamp: string}>>([]);
   const [showHistory, setShowHistory] = useState(!isMobile);
-  const [inputMode, setInputMode] = useState<'voice' | 'text' | 'extension'>('extension');
+  const [inputMode, setInputMode<'voice' | 'text' | 'extension' | 'native'>('native');
   const [manualQuestion, setManualQuestion] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
 
   const streamingAnswerRef = useRef("");
+
+  // Initialize hooks
+  const { extensionConnected, extensionStatus, processingRef } = useExtensionConnector(handleExtensionTranscription);
+  const speechRecognition = useSpeechRecognition(handleSpeechTranscription);
+  const { capabilities: nativeCapabilities } = useNativeAudio(sessionId);
 
   // Supabase configuration constants
   const SUPABASE_URL = "https://jafylkqbmvdptrqwwyed.supabase.co";
@@ -146,20 +153,23 @@ const Interview = () => {
   };
 
   // Handle transcription from extension
-  const handleExtensionTranscription = (text: string, timestamp?: number) => {
+  function handleExtensionTranscription(text: string, timestamp?: number) {
     console.log('🎯 [INTERVIEW] Received transcription from extension:', text);
     speechRecognition.setCurrentTranscript(text);
     generateStreamingAnswer(text);
-  };
+  }
 
   // Handle transcription from speech recognition
-  const handleSpeechTranscription = (text: string) => {
+  function handleSpeechTranscription(text: string) {
+    generateStreamingAnswer(text);
+  }
+
+  // Handle transcription from native audio
+  const handleNativeTranscription = (text: string) => {
+    console.log('🎯 [INTERVIEW] Received transcription from native helper:', text);
+    speechRecognition.setCurrentTranscript(text);
     generateStreamingAnswer(text);
   };
-
-  // Initialize hooks
-  const { extensionConnected, extensionStatus, processingRef } = useExtensionConnector(handleExtensionTranscription);
-  const speechRecognition = useSpeechRecognition(handleSpeechTranscription);
 
   const handleManualSubmit = () => {
     if (!manualQuestion.trim()) return;
@@ -222,8 +232,16 @@ const Interview = () => {
           <InputModeSelector
             inputMode={inputMode}
             extensionConnected={extensionConnected}
+            nativeAudioAvailable={nativeCapabilities.available}
             onModeChange={setInputMode}
           />
+
+          {inputMode === 'native' && (
+            <NativeAudioMode
+              sessionId={sessionId}
+              onTranscriptionReceived={handleNativeTranscription}
+            />
+          )}
 
           {inputMode === 'extension' && (
             <ExtensionModeUI
