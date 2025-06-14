@@ -9,14 +9,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('start-capture', sessionId, jwt, config),
   stopCapture: () => ipcRenderer.invoke('stop-capture'),
   
-  // Driver management methods
-  checkDriverStatus: () => ipcRenderer.invoke('check-driver-status'),
-  getInstallationSteps: () => ipcRenderer.invoke('get-installation-steps'),
-  executeInstallationStep: (stepId: string) => ipcRenderer.invoke('execute-installation-step', stepId),
-  verifyDriverInstallation: () => ipcRenderer.invoke('verify-driver-installation'),
-  refreshDriverStatus: () => ipcRenderer.invoke('refresh-driver-status'),
-  getDriverInstructions: () => ipcRenderer.invoke('get-driver-instructions'),
-  openDriverDownload: () => ipcRenderer.invoke('open-driver-download'),
+  // System audio management methods
+  checkSystemAudio: () => ipcRenderer.invoke('check-system-audio'),
   
   // Overlay management methods
   createStealthOverlay: (sessionId: string, position?: any) => 
@@ -49,13 +43,7 @@ declare global {
       getCapabilities: () => Promise<any>;
       startCapture: (sessionId: string, jwt: string, config: any) => Promise<void>;
       stopCapture: () => Promise<void>;
-      checkDriverStatus: () => Promise<any>;
-      getInstallationSteps: () => Promise<any[]>;
-      executeInstallationStep: (stepId: string) => Promise<any[]>;
-      verifyDriverInstallation: () => Promise<any>;
-      refreshDriverStatus: () => Promise<any[]>;
-      getDriverInstructions: () => Promise<string[]>;
-      openDriverDownload: () => Promise<void>;
+      checkSystemAudio: () => Promise<any>;
       minimizeWindow: () => Promise<void>;
       closeWindow: () => Promise<void>;
       onDriverStatusChange: (callback: (status: any) => void) => void;

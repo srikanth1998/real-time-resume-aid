@@ -27,12 +27,6 @@ export class AudioCaptureManager {
       throw new Error('Capture already in progress');
     }
 
-    // Verify driver is installed before starting capture
-    const driverStatus = await this.checkDriverStatus();
-    if (!driverStatus.installed) {
-      throw new Error(`Virtual audio driver not installed. Please install ${DriverDetector.getDriverName()} first.`);
-    }
-
     this.sessionId = sessionId;
 
     try {
@@ -103,7 +97,7 @@ export class AudioCaptureManager {
       sessionId: this.sessionId,
       hasNativeSupport: this.nativeCapture !== null,
       platform: process.platform,
-      driverStatus: this.driverStatus
+      systemAudioAvailable: true // Direct system audio capture available
     };
   }
 

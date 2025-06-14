@@ -69,40 +69,13 @@ class NativeHelper {
   }
 
   private setupIpcHandlers() {
-    // Driver detection and installation handlers
-    ipcMain.handle('check-driver-status', async () => {
-      return await DriverDetector.getCurrentPlatformDriver();
-    });
-
-    ipcMain.handle('get-installation-steps', async () => {
-      const installer = DriverInstaller.getInstance();
-      return await installer.initializeInstallationFlow();
-    });
-
-    ipcMain.handle('execute-installation-step', async (event, stepId: string) => {
-      const installer = DriverInstaller.getInstance();
-      await installer.executeStep(stepId);
-      return installer.getInstallationSteps();
-    });
-
-    ipcMain.handle('verify-driver-installation', async () => {
-      const installer = DriverInstaller.getInstance();
-      return await installer.verifyInstallation();
-    });
-
-    ipcMain.handle('refresh-driver-status', async () => {
-      const installer = DriverInstaller.getInstance();
-      await installer.refreshStepStatus();
-      return installer.getInstallationSteps();
-    });
-
-    ipcMain.handle('get-driver-instructions', async () => {
-      const installer = DriverInstaller.getInstance();
-      return installer.getDetailedInstructions();
-    });
-
-    ipcMain.handle('open-driver-download', async () => {
-      await shell.openExternal(DriverDetector.getDriverDownloadUrl());
+    // System audio capabilities check
+    ipcMain.handle('check-system-audio', async () => {
+      return {
+        available: true,
+        platform: process.platform,
+        method: process.platform === 'win32' ? 'WASAPI' : 'CoreAudio'
+      };
     });
 
     // Overlay management handlers
@@ -218,18 +191,16 @@ class NativeHelper {
   }
 
   private async sendCapabilitiesAndDriverStatus(ws: any) {
-    const driverStatus = await DriverDetector.getCurrentPlatformDriver();
-    
     ws.send(JSON.stringify({
       type: 'capabilities',
       data: {
         available: true,
         version: '1.0.0',
-        drivers: {
-          windows: process.platform === 'win32',
-          macos: process.platform === 'darwin'
-        },
-        driverStatus: driverStatus
+        platform: process.platform,
+        systemAudio: {
+          available: true,
+          method: process.platform === 'win32' ? 'WASAPI' : 'CoreAudio'
+        }
       }
     }));
   }
@@ -288,11 +259,14 @@ class NativeHelper {
         }
         break;
 
-      case 'checkDriverStatus':
-        const driverStatus = await DriverDetector.getCurrentPlatformDriver();
+      case 'checkSystemAudio':
         ws.send(JSON.stringify({ 
-          type: 'driverStatus', 
-          status: driverStatus 
+          type: 'systemAudioStatus', 
+          status: {
+            available: true,
+            platform: process.platform,
+            method: process.platform === 'win32' ? 'WASAPI' : 'CoreAudio'
+          }
         }));
         break;
 
