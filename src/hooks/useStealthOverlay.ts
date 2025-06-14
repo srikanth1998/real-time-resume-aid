@@ -24,64 +24,35 @@ export const useStealthOverlay = (sessionId: string) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  // Check if native helper is available
-  useEffect(() => {
-    const checkAvailability = async () => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1000);
-        
-        const response = await fetch('http://localhost:8765', {
-          method: 'GET',
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        setState(prev => ({ ...prev, isAvailable: true }));
-      } catch (error) {
-        setState(prev => ({ ...prev, isAvailable: false }));
-      }
-    };
+  // Check if native helper is available by using the native audio hook
+  const { capabilities, isConnected, showOverlay, hideOverlay, updateOverlay } = require('@/hooks/useNativeAudio')(sessionId);
 
-    checkAvailability();
-    const interval = setInterval(checkAvailability, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => {
+    setState(prev => ({ ...prev, isAvailable: capabilities.available && isConnected }));
+  }, [capabilities.available, isConnected]);
 
   const createOverlay = useCallback(async (position?: OverlayPosition) => {
     if (!state.isAvailable || !sessionId) return;
 
     setLoading(true);
     try {
-      const ws = new WebSocket('ws://localhost:8765');
+      await showOverlay();
       
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          action: 'createOverlay',
-          sessionId,
-          position
-        }));
-      };
-
-      ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        if (message.type === 'overlayCreated') {
-          setState(prev => ({ 
-            ...prev, 
-            isVisible: true,
-            position: message.position 
-          }));
-          
-          toast({
-            title: "Stealth Overlay Active",
-            description: "Discrete overlay window is now ready for cross-device viewing.",
-          });
+      setState(prev => ({ 
+        ...prev, 
+        isVisible: true,
+        position: position || {
+          x: window.screen.width - 350,
+          y: 20,
+          width: 320,
+          height: 450
         }
-      };
-
-      ws.onerror = () => {
-        throw new Error('Failed to communicate with native helper');
-      };
+      }));
+      
+      toast({
+        title: "Stealth Overlay Active",
+        description: "Discrete overlay window is now ready for cross-device viewing.",
+      });
 
     } catch (error: any) {
       console.error('Failed to create stealth overlay:', error);
@@ -93,67 +64,45 @@ export const useStealthOverlay = (sessionId: string) => {
     } finally {
       setLoading(false);
     }
-  }, [state.isAvailable, sessionId, toast]);
+  }, [state.isAvailable, sessionId, toast, showOverlay]);
 
-  const showOverlay = useCallback(async () => {
+  const show = useCallback(async () => {
     if (!state.isAvailable) return;
 
     try {
-      const ws = new WebSocket('ws://localhost:8765');
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ action: 'showOverlay' }));
-      };
-      
+      await showOverlay();
       setState(prev => ({ ...prev, isVisible: true }));
     } catch (error) {
       console.error('Failed to show overlay:', error);
     }
-  }, [state.isAvailable]);
+  }, [state.isAvailable, showOverlay]);
 
-  const hideOverlay = useCallback(async () => {
+  const hide = useCallback(async () => {
     if (!state.isAvailable) return;
 
     try {
-      const ws = new WebSocket('ws://localhost:8765');
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ action: 'hideOverlay' }));
-      };
-      
+      await hideOverlay();
       setState(prev => ({ ...prev, isVisible: false }));
     } catch (error) {
       console.error('Failed to hide overlay:', error);
     }
-  }, [state.isAvailable]);
+  }, [state.isAvailable, hideOverlay]);
 
   const updateOverlayContent = useCallback(async (question: string, answer: string) => {
     if (!state.isAvailable || !state.isVisible) return;
 
     try {
-      const ws = new WebSocket('ws://localhost:8765');
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          action: 'updateOverlay',
-          question,
-          answer
-        }));
-      };
+      await updateOverlay(question, answer);
     } catch (error) {
       console.error('Failed to update overlay content:', error);
     }
-  }, [state.isAvailable, state.isVisible]);
+  }, [state.isAvailable, state.isVisible, updateOverlay]);
 
   const setPosition = useCallback(async (position: OverlayPosition) => {
     if (!state.isAvailable) return;
 
     try {
-      const ws = new WebSocket('ws://localhost:8765');
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          action: 'setOverlayPosition',
-          position
-        }));
-      };
-      
+      // Position setting would be handled by the native helper
       setState(prev => ({ ...prev, position }));
     } catch (error) {
       console.error('Failed to set overlay position:', error);
@@ -162,18 +111,22 @@ export const useStealthOverlay = (sessionId: string) => {
 
   const toggleOverlay = useCallback(async () => {
     if (state.isVisible) {
-      await hideOverlay();
+      await hide();
     } else {
-      await showOverlay();
+      if (!state.position) {
+        await createOverlay();
+      } else {
+        await show();
+      }
     }
-  }, [state.isVisible, showOverlay, hideOverlay]);
+  }, [state.isVisible, state.position, hide, show, createOverlay]);
 
   return {
     ...state,
     loading,
     createOverlay,
-    showOverlay,
-    hideOverlay,
+    showOverlay: show,
+    hideOverlay: hide,
     toggleOverlay,
     updateOverlayContent,
     setPosition
