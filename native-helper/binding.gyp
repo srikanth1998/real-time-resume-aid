@@ -10,7 +10,7 @@
             "src/bindings/wasapi-binding.cpp"
           ],
           "include_dirs": [
-            "<!(node -p \"require('nan')\")",
+            "node_modules/nan",
             "deps/opus/include"
           ],
           "libraries": [
@@ -41,7 +41,7 @@
             "src/bindings/macos-binding.mm"
           ],
           "include_dirs": [
-            "<!(node -p \"require('nan')\")",
+            "node_modules/nan", 
             "deps/opus/include"
           ],
           "libraries": [
