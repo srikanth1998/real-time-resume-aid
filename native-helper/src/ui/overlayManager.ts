@@ -384,8 +384,8 @@ export class OverlayManager {
             content.innerHTML = answers.map(item => \`
               <div class="answer-card">
                 <div class="question">"$\{item.question.length > 100 ? item.question.substring(0, 100) + '...' : item.question}"</div>
-                <div class="answer">${isCompact ? \`$\{item.answer.substring(0, 150)}$\{item.answer.length > 150 ? '...' : ''}\` : '$\{item.answer}'}</div>
-                <div class="timestamp">${'$\{item.timestamp}'}</div>
+                <div class="answer">$\{isCompact ? (item.answer.substring(0, 150) + (item.answer.length > 150 ? '...' : '')) : item.answer}</div>
+                <div class="timestamp">$\{item.timestamp}</div>
               </div>
             \`).join('');
           }
