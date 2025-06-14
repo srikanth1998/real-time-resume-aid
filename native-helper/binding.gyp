@@ -10,14 +10,14 @@
             "src/bindings/wasapi-binding.cpp"
           ],
           "include_dirs": [
-            "node_modules/nan",
+            "<!(node -p \"require('nan')\")",
             "deps/opus/include"
           ],
           "libraries": [
-            "-lole32",
-            "-loleaut32", 
-            "-lwinmm",
-            "-lksuser"
+            "ole32.lib",
+            "oleaut32.lib", 
+            "winmm.lib",
+            "ksuser.lib"
           ],
           "defines": [
             "WIN32_LEAN_AND_MEAN",
@@ -41,7 +41,7 @@
             "src/bindings/macos-binding.mm"
           ],
           "include_dirs": [
-            "node_modules/nan", 
+            "<!(node -p \"require('nan')\")", 
             "deps/opus/include"
           ],
           "libraries": [
