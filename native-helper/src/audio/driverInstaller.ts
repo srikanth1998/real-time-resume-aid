@@ -1,6 +1,6 @@
 
 import { shell } from 'electron';
-import { DriverDetector, DriverStatus } from './driverDetection';
+import { DriverDetector, DriverStatus } from './driverStub';
 
 export interface InstallationStep {
   id: string;
