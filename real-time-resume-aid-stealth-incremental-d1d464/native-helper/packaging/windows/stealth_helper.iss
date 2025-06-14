@@ -1,1 +1,0 @@
-; placeholder Inno Setup script

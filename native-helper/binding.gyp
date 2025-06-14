@@ -11,14 +11,15 @@
           ],
           "include_dirs": [
             "<!(node -e \"require('nan')\")",
-            "deps/opus/include"
+            "deps/opus/include",
+            "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'include')\")"
           ],
           "libraries": [
             "-lole32",
             "-loleaut32",
             "-lwinmm",
             "-lksuser",
-            "../deps/opus/lib/opus.lib"
+            "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'lib', 'opus.lib')\")"
           ],
           "defines": [
             "WIN32_LEAN_AND_MEAN",
@@ -43,13 +44,14 @@
           ],
           "include_dirs": [
             "<!(node -e \"require('nan')\")",
-            "deps/opus/include"
+            "deps/opus/include",
+            "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'include')\")"
           ],
           "libraries": [
             "-framework AVFoundation",
             "-framework AudioToolbox",
             "-framework CoreAudio",
-            "../deps/opus/lib/libopus.a"
+            "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'lib', 'libopus.a')\")"
           ],
           "xcode_settings": {
             "SWIFT_VERSION": "5.0",

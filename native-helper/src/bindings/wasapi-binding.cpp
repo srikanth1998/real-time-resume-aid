@@ -1,105 +1,100 @@
 
-// Node.js N-API binding for WASAPI capture
-#include <napi.h>
-#include "../audio/wasapi-capture.cpp"
-#include <functional>
+// Node.js NAN binding for WASAPI capture
+#include <nan.h>
+#include "../audio/wasapi-capture.h"
 
-class WASAPIBinding {
-private:
-    static Napi::FunctionReference audioCallback;
-    static WASAPICapture* capture;
+static Nan::Persistent<v8::Function> audioCallback;
 
-public:
-    static Napi::Object Init(Napi::Env env, Napi::Object exports) {
-        exports.Set("createCapture", Napi::Function::New(env, CreateCapture));
-        exports.Set("startCapture", Napi::Function::New(env, StartCapture));
-        exports.Set("stopCapture", Napi::Function::New(env, StopCapture));
-        exports.Set("destroyCapture", Napi::Function::New(env, DestroyCapture));
-        exports.Set("setAudioCallback", Napi::Function::New(env, SetAudioCallback));
-        return exports;
+// Create WASAPI capture instance
+NAN_METHOD(CreateCapture) {
+    WASAPICapture* capture = createCapture();
+    if (!capture) {
+        Nan::ThrowError("Failed to create WASAPI capture");
+        return;
     }
-
-    static Napi::Value CreateCapture(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        capture = createCapture();
-        if (!capture) {
-            Napi::TypeError::New(env, "Failed to create WASAPI capture").ThrowAsJavaScriptException();
-            return env.Null();
-        }
-        
-        return Napi::External<WASAPICapture>::New(env, capture);
-    }
-
-    static Napi::Value StartCapture(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1 || !info[0].IsExternal()) {
-            Napi::TypeError::New(env, "Expected external capture object").ThrowAsJavaScriptException();
-            return env.Undefined();
-        }
-        
-        WASAPICapture* capture = info[0].As<Napi::External<WASAPICapture>>().Data();
-        bool result = startCapture(capture);
-        
-        return Napi::Boolean::New(env, result);
-    }
-
-    static Napi::Value StopCapture(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1 || !info[0].IsExternal()) {
-            Napi::TypeError::New(env, "Expected external capture object").ThrowAsJavaScriptException();
-            return env.Undefined();
-        }
-        
-        WASAPICapture* capture = info[0].As<Napi::External<WASAPICapture>>().Data();
-        stopCapture(capture);
-        
-        return env.Undefined();
-    }
-
-    static Napi::Value DestroyCapture(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1 || !info[0].IsExternal()) {
-            Napi::TypeError::New(env, "Expected external capture object").ThrowAsJavaScriptException();
-            return env.Undefined();
-        }
-        
-        WASAPICapture* capture = info[0].As<Napi::External<WASAPICapture>>().Data();
-        destroyCapture(capture);
-        
-        return env.Undefined();
-    }
-
-    static Napi::Value SetAudioCallback(const Napi::CallbackInfo& info) {
-        Napi::Env env = info.Env();
-        
-        if (info.Length() < 1 || !info[0].IsFunction()) {
-            Napi::TypeError::New(env, "Expected callback function").ThrowAsJavaScriptException();
-            return env.Undefined();
-        }
-        
-        audioCallback = Napi::Persistent(info[0].As<Napi::Function>());
-        return env.Undefined();
-    }
-
-    // Called from C++ audio capture thread
-    static void OnAudioData(unsigned char* data, int size) {
-        if (!audioCallback.IsEmpty()) {
-            Napi::Env env = audioCallback.Env();
-            Napi::Buffer<unsigned char> buffer = Napi::Buffer<unsigned char>::Copy(env, data, size);
-            audioCallback.Call({buffer});
-        }
-    }
-};
-
-Napi::FunctionReference WASAPIBinding::audioCallback;
-WASAPICapture* WASAPIBinding::capture = nullptr;
-
-Napi::Object InitModule(Napi::Env env, Napi::Object exports) {
-    return WASAPIBinding::Init(env, exports);
+    
+    info.GetReturnValue().Set(Nan::New<v8::External>(capture));
 }
 
-NODE_API_MODULE(wasapi_capture, InitModule)
+// Start audio capture
+NAN_METHOD(StartCapture) {
+    if (info.Length() < 1 || !info[0]->IsExternal()) {
+        Nan::ThrowTypeError("Expected external capture object");
+        return;
+    }
+    
+    WASAPICapture* capture = static_cast<WASAPICapture*>(
+        v8::Local<v8::External>::Cast(info[0])->Value()
+    );
+    
+    bool result = startCapture(capture);
+    info.GetReturnValue().Set(Nan::New(result));
+}
+
+// Stop audio capture
+NAN_METHOD(StopCapture) {
+    if (info.Length() < 1 || !info[0]->IsExternal()) {
+        Nan::ThrowTypeError("Expected external capture object");
+        return;
+    }
+    
+    WASAPICapture* capture = static_cast<WASAPICapture*>(
+        v8::Local<v8::External>::Cast(info[0])->Value()
+    );
+    
+    stopCapture(capture);
+}
+
+// Destroy capture instance
+NAN_METHOD(DestroyCapture) {
+    if (info.Length() < 1 || !info[0]->IsExternal()) {
+        Nan::ThrowTypeError("Expected external capture object");
+        return;
+    }
+    
+    WASAPICapture* capture = static_cast<WASAPICapture*>(
+        v8::Local<v8::External>::Cast(info[0])->Value()
+    );
+    
+    destroyCapture(capture);
+}
+
+// Set audio data callback
+NAN_METHOD(SetAudioCallback) {
+    if (info.Length() < 1 || !info[0]->IsFunction()) {
+        Nan::ThrowTypeError("Expected callback function");
+        return;
+    }
+    
+    audioCallback.Reset(info[0].As<v8::Function>());
+}
+
+// Called from C++ audio capture thread
+static void OnAudioData(unsigned char* data, int size) {
+    if (!audioCallback.IsEmpty()) {
+        Nan::HandleScope scope;
+        v8::Local<v8::Value> argv[] = {
+            Nan::CopyBuffer(reinterpret_cast<char*>(data), size).ToLocalChecked()
+        };
+        
+        v8::Local<v8::Function> callback = Nan::New(audioCallback);
+        Nan::AsyncResource resource("wasapi:audio_data");
+        resource.runInAsyncScope(Nan::GetCurrentContext()->Global(), callback, 1, argv);
+    }
+}
+
+// Initialize the module
+NAN_MODULE_INIT(InitModule) {
+    Nan::Set(target, Nan::New("createCapture").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(CreateCapture)).ToLocalChecked());
+    Nan::Set(target, Nan::New("startCapture").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(StartCapture)).ToLocalChecked());
+    Nan::Set(target, Nan::New("stopCapture").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(StopCapture)).ToLocalChecked());
+    Nan::Set(target, Nan::New("destroyCapture").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(DestroyCapture)).ToLocalChecked());
+    Nan::Set(target, Nan::New("setAudioCallback").ToLocalChecked(),
+        Nan::GetFunction(Nan::New<v8::FunctionTemplate>(SetAudioCallback)).ToLocalChecked());
+}
+
+NODE_MODULE(wasapi_capture, InitModule)
