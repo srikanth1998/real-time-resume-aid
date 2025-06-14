@@ -25,18 +25,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }
 });
 
-// Type definitions for TypeScript
-declare global {
-  interface Window {
-    electronAPI: {
-      hideOverlay: () => Promise<void>;
-      showOverlay: () => Promise<void>;
-      toggleOverlay: () => Promise<void>;
-      setOverlayPosition: (position: any) => Promise<void>;
-      onAnswerReceived: (callback: (data: any) => void) => void;
-      onCaptureStatusChange: (callback: (status: any) => void) => void;
-      onSessionUpdate: (callback: (session: any) => void) => void;
-      removeAllListeners: () => void;
-    };
-  }
-}
+// Note: Type definitions for electronAPI are in preload.ts to avoid conflicts

@@ -1,9 +1,8 @@
 
 // Node.js bridge for native audio capture modules
-import { createRequire } from 'module';
 import { EventEmitter } from 'events';
 
-const require = createRequire(import.meta.url);
+declare var require: NodeRequire;
 
 interface NativeAudioCapture extends EventEmitter {
   initialize(): boolean;

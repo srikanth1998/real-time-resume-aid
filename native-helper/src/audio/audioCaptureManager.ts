@@ -153,7 +153,8 @@ export class AudioCaptureManager {
 
       this.supabaseWs.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data);
+          const data = typeof event.data === 'string' ? event.data : Buffer.from(event.data).toString();
+          const message = JSON.parse(data);
           console.log('Received message from Supabase:', message);
         } catch (error) {
           console.error('Failed to parse Supabase message:', error);

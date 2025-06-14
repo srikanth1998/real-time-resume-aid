@@ -202,7 +202,7 @@ class NativeHelper {
           await this.handleClientMessage(ws, message);
         } catch (error) {
           console.error('Error handling client message:', error);
-          ws.send(JSON.stringify({ type: 'error', message: error.message }));
+          ws.send(JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : String(error) }));
         }
       });
 

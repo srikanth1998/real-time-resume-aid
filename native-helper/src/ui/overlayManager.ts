@@ -120,7 +120,7 @@ export class OverlayManager {
         [Win32]::SetWindowPos(${hwnd}, [Win32]::HWND_TOPMOST, 0, 0, 0, 0, 0x0003);
       "`;
       
-      exec(command, (error) => {
+      exec(command, (error: any) => {
         if (error) {
           console.warn('Failed to apply Windows stealth measures:', error);
         } else {
@@ -137,7 +137,7 @@ export class OverlayManager {
       const windowId = this.overlayWindow.id;
       
       // Use osascript to hide window from Mission Control and Exposé
-      exec(`osascript -e 'tell application "System Events" to set visible of process "InterviewAce Helper" to false'`, (error) => {
+      exec(`osascript -e 'tell application "System Events" to set visible of process "InterviewAce Helper" to false'`, (error: any) => {
         if (error) {
           console.warn('Failed to hide from Mission Control:', error);
         }
