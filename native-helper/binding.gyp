@@ -10,7 +10,7 @@
             "src/bindings/wasapi-binding.cpp"
           ],
           "include_dirs": [
-            "<!(node -e \"require('nan')\")",
+            "<!(node -e \"console.log(require('nan'))\")",
             "deps/opus/include",
             "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'include')\")"
           ],
@@ -43,7 +43,7 @@
             "src/bindings/macos-binding.mm"
           ],
           "include_dirs": [
-            "<!(node -e \"require('nan')\")",
+            "<!(node -e \"console.log(require('nan'))\")",
             "deps/opus/include",
             "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'include')\")"
           ],
