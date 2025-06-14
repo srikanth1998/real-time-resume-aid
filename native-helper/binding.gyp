@@ -10,16 +10,14 @@
             "src/bindings/wasapi-binding.cpp"
           ],
           "include_dirs": [
-            "<!(node -e \"console.log(require('nan'))\")",
-            "deps/opus/include",
-            "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'include')\")"
+            "<!(node -p \"require('nan')\")",
+            "deps/opus/include"
           ],
           "libraries": [
             "-lole32",
-            "-loleaut32",
+            "-loleaut32", 
             "-lwinmm",
-            "-lksuser",
-            "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'lib', 'opus.lib')\")"
+            "-lksuser"
           ],
           "defines": [
             "WIN32_LEAN_AND_MEAN",
@@ -35,7 +33,7 @@
       ]
     },
     {
-      "target_name": "macos_capture",
+      "target_name": "macos_capture", 
       "conditions": [
         ["OS=='mac'", {
           "sources": [
@@ -43,15 +41,13 @@
             "src/bindings/macos-binding.mm"
           ],
           "include_dirs": [
-            "<!(node -e \"console.log(require('nan'))\")",
-            "deps/opus/include",
-            "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'include')\")"
+            "<!(node -p \"require('nan')\")",
+            "deps/opus/include"
           ],
           "libraries": [
             "-framework AVFoundation",
-            "-framework AudioToolbox",
-            "-framework CoreAudio",
-            "<!(node -p \"require('path').join(process.cwd(), 'deps', 'opus', 'lib', 'libopus.a')\")"
+            "-framework AudioToolbox", 
+            "-framework CoreAudio"
           ],
           "xcode_settings": {
             "SWIFT_VERSION": "5.0",
