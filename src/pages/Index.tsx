@@ -36,37 +36,19 @@ const Index = () => {
   const plans = [
     {
       id: 'pay-as-you-go',
-      name: 'Pay-As-You-Go',
-      price: '$18',
-      priceUnit: '/ session',
+      name: 'Hourly Sessions',
+      price: '$9.99',
+      priceUnit: '/ hour',
       billing: 'one-time',
-      duration: '60 minutes',
-      description: 'One-off interview prep',
-      bestFor: 'Single interview preparation',
+      duration: 'Select hours needed',
+      description: 'Quick interview prep - no account needed',
+      bestFor: 'Immediate interview preparation',
       features: [
-        '60-min live audio capture',
-        'Stealth overlay & phone dashboard',
-        'Real-time AI whisper suggestions',
-        'Transcript + AI summary download',
-        '7-day storage included'
-      ],
-      popular: false,
-    },
-    {
-      id: 'pro',
-      name: 'Pro Subscription',
-      price: '$29',
-      priceUnit: '/ month',
-      billing: 'monthly',
-      duration: '4 sessions',
-      description: 'Active job seekers',
-      bestFor: 'Doing ≥3 interviews / month',
-      features: [
-        '4 sessions per month (rollover 1 mo)',
-        '24-hour transcript storage',
-        'Priority Whisper queue (≤5s latency)',
-        'Extra sessions at $15 each',
-        'Advanced performance analytics'
+        'Unlimited AI tokens per session',
+        'Priority LLM processing',
+        'Job-specific trained AI models',
+        'Real-time coaching overlay',
+        'Invisible to screen shares'
       ],
       popular: true,
     },
@@ -193,7 +175,7 @@ const Index = () => {
                   className="bg-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-primary/25 border border-primary/50 hover:border-primary transition-all"
                 >
                   <Zap className="inline h-5 w-5 mr-2" />
-                  Start Session ($18)
+                  Start Session ($9.99/hr)
                 </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -336,7 +318,7 @@ const Index = () => {
           <p className="text-white/70 text-lg">Select the perfect plan for your interview preparation needs</p>
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {plans.map((plan, index) => (
             <motion.div
               key={plan.id}

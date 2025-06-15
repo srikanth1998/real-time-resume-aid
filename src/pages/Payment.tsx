@@ -16,7 +16,7 @@ const Payment = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const planType = (searchParams.get('plan') as 'pay-as-you-go' | 'pro' | 'coach' | 'enterprise') || 'pay-as-you-go';
+  const planType = (searchParams.get('plan') as 'pay-as-you-go' | 'coach' | 'enterprise') || 'pay-as-you-go';
   const verifiedEmail = searchParams.get('email') || '';
   const initialDeviceMode = (searchParams.get('device') as 'single' | 'cross') || 'single';
   
@@ -26,31 +26,17 @@ const Payment = () => {
 
   const planConfigs = {
     'pay-as-you-go': {
-      price: 18.00,
-      duration: '60 minutes',
+      price: 9.99,
+      duration: 'Per hour',
       billing: 'one-time',
       dbPlanType: 'standard', // Map to database enum
-      description: "Single session clarity coaching",
+      description: "Quick interview prep - no account needed",
       features: [
-        "60-min private coaching overlay",
-        "Real-time insight reminders", 
-        "Zero data retention",
-        "Works on all video platforms",
-        "Instant session activation"
-      ],
-    },
-    'pro': {
-      price: 29.00,
-      duration: '4 sessions',
-      billing: 'monthly',
-      dbPlanType: 'pro',
-      description: "Active job seekers",
-      features: [
-        "4 coaching sessions per month",
-        "Priority processing (≤3s)",
-        "Session rollover (1 month)",
-        "Extended storage (24h)",
-        "Performance insights"
+        "Unlimited AI tokens per session",
+        "Priority LLM processing",
+        "Job-specific trained AI models",
+        "Real-time coaching overlay",
+        "Invisible to screen shares"
       ],
     },
     'coach': {
