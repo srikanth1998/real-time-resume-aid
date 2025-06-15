@@ -144,6 +144,7 @@ const Index = () => {
           </div>
           <div className="hidden md:flex items-center space-x-6 text-white/80">
             <button onClick={() => navigate("/how-it-works")} className="hover:text-white transition-colors">How It Works</button>
+            <button onClick={() => navigate("/downloads")} className="hover:text-white transition-colors">Downloads</button>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <button onClick={() => navigate("/faq")} className="hover:text-white transition-colors">FAQ</button>
           </div>
