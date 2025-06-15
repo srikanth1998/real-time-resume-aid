@@ -86,6 +86,268 @@ export type Database = {
         }
         Relationships: []
       }
+      interview_sessions: {
+        Row: {
+          ai_suggestions_count: number | null
+          company_name: string | null
+          completed_at: string | null
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          interview_type: string | null
+          job_description: string | null
+          position_title: string | null
+          questions_count: number | null
+          resume_id: string | null
+          session_type: string
+          started_at: string | null
+          status: string
+          title: string | null
+          updated_at: string
+          user_id: string | null
+          user_satisfaction_rating: number | null
+        }
+        Insert: {
+          ai_suggestions_count?: number | null
+          company_name?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          interview_type?: string | null
+          job_description?: string | null
+          position_title?: string | null
+          questions_count?: number | null
+          resume_id?: string | null
+          session_type?: string
+          started_at?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string | null
+          user_satisfaction_rating?: number | null
+        }
+        Update: {
+          ai_suggestions_count?: number | null
+          company_name?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          interview_type?: string | null
+          job_description?: string | null
+          position_title?: string | null
+          questions_count?: number | null
+          resume_id?: string | null
+          session_type?: string
+          started_at?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string | null
+          user_satisfaction_rating?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_sessions_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_transcripts: {
+        Row: {
+          ai_suggestion: string
+          confidence_score: number | null
+          created_at: string
+          id: string
+          question_text: string
+          session_id: string
+          timestamp_in_session: number
+          user_feedback: string | null
+          user_response: string | null
+        }
+        Insert: {
+          ai_suggestion: string
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          question_text: string
+          session_id: string
+          timestamp_in_session: number
+          user_feedback?: string | null
+          user_response?: string | null
+        }
+        Update: {
+          ai_suggestion?: string
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          question_text?: string
+          session_id?: string
+          timestamp_in_session?: number
+          user_feedback?: string | null
+          user_response?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_transcripts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "interview_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          ai_learning_enabled: boolean | null
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string
+          id: string
+          notification_preferences: Json | null
+          preferred_interview_duration: number | null
+          updated_at: string
+        }
+        Insert: {
+          ai_learning_enabled?: boolean | null
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email: string
+          id: string
+          notification_preferences?: Json | null
+          preferred_interview_duration?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ai_learning_enabled?: boolean | null
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          id?: string
+          notification_preferences?: Json | null
+          preferred_interview_duration?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      resumes: {
+        Row: {
+          content: string | null
+          created_at: string
+          file_url: string | null
+          filename: string
+          id: string
+          is_default: boolean | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          file_url?: string | null
+          filename: string
+          id?: string
+          is_default?: boolean | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          file_url?: string | null
+          filename?: string
+          id?: string
+          is_default?: boolean | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resumes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_analytics: {
+        Row: {
+          ai_usage_rate: number | null
+          avg_response_time: number | null
+          behavioral_questions: number | null
+          company_questions: number | null
+          created_at: string
+          helpful_suggestions: number | null
+          id: string
+          session_id: string
+          technical_questions: number | null
+          total_questions: number
+          total_suggestions: number | null
+          user_id: string
+        }
+        Insert: {
+          ai_usage_rate?: number | null
+          avg_response_time?: number | null
+          behavioral_questions?: number | null
+          company_questions?: number | null
+          created_at?: string
+          helpful_suggestions?: number | null
+          id?: string
+          session_id: string
+          technical_questions?: number | null
+          total_questions?: number
+          total_suggestions?: number | null
+          user_id: string
+        }
+        Update: {
+          ai_usage_rate?: number | null
+          avg_response_time?: number | null
+          behavioral_questions?: number | null
+          company_questions?: number | null
+          created_at?: string
+          helpful_suggestions?: number | null
+          id?: string
+          session_id?: string
+          technical_questions?: number | null
+          total_questions?: number
+          total_suggestions?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_analytics_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "interview_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_analytics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_connections: {
         Row: {
           connection_id: string
