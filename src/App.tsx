@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,6 +19,10 @@ import FAQ from "./pages/FAQ";
 import Integrity from "./pages/Integrity";
 import SessionReady from "./pages/SessionReady";
 import PostInterview from "./pages/PostInterview";
+import Dashboard from "./pages/Dashboard";
+import Resumes from "./pages/Resumes";
+import Analytics from "./pages/Analytics";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +39,10 @@ function App() {
             <Route path="/faq" element={<FAQ />} />
             <Route path="/integrity" element={<Integrity />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/resumes" element={<Resumes />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/payment" element={<Payment />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/upload" element={<Upload />} />

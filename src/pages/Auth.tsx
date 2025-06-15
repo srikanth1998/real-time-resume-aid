@@ -2,121 +2,91 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Brain, Mail, ArrowLeft, CheckCircle, AlertCircle, Timer } from "lucide-react";
+import { Brain, Mail, ArrowLeft, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AuthModeSelector } from "@/components/auth/AuthModeSelector";
+import { useHybridAuth } from "@/hooks/useHybridAuth";
 
-type AuthStep = 'email' | 'otp' | 'success';
-
-// Constants for Supabase configuration
-const SUPABASE_URL = "https://jafylkqbmvdptrqwwyed.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY";
+type AuthStep = 'mode-select' | 'login' | 'signup' | 'success';
+type AuthAction = 'signin' | 'signup';
 
 const Auth = () => {
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [currentStep, setCurrentStep] = useState<AuthStep>('email');
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [currentStep, setCurrentStep] = useState<AuthStep>('mode-select');
+  const [authAction, setAuthAction] = useState<AuthAction>('signin');
   const [loading, setLoading] = useState(false);
-  const [otpExpiry, setOtpExpiry] = useState<number>(0);
-  const [canResend, setCanResend] = useState(false);
-  const [otpError, setOtpError] = useState<string>("");
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   
+  const {
+    mode,
+    user,
+    session,
+    isLoading,
+    startSessionMode,
+    upgradeToAccount,
+    signInToAccount,
+    signOut
+  } = useHybridAuth();
+  
   // Get plan and device mode from URL params
   const searchParams = new URLSearchParams(location.search);
-  const selectedPlan = searchParams.get('plan') || 'basic';
+  const selectedPlan = searchParams.get('plan');
   const deviceMode = searchParams.get('device') || 'single';
+  const returnUrl = searchParams.get('return') || '/dashboard';
 
-  // Countdown timer for OTP expiry
+  // Check if user is already authenticated
   useEffect(() => {
-    if (otpExpiry > 0) {
-      const timer = setInterval(() => {
-        setOtpExpiry(prev => {
-          if (prev <= 1) {
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [otpExpiry]);
-
-  useEffect(() => {
-    // Check for auth errors in URL hash
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const error = hashParams.get('error');
-    const errorDescription = hashParams.get('error_description');
-
-    if (error) {
-      console.log('Auth error detected:', error, errorDescription);
-      
-      // Clear the hash from URL
-      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-      
-      if (error === 'access_denied' && errorDescription?.includes('expired')) {
-        toast({
-          title: "Session expired",
-          description: "Please try logging in again.",
-          variant: "destructive"
-        });
+    if (!isLoading && user && session) {
+      // User is already logged in, redirect appropriately
+      if (selectedPlan) {
+        navigate(`/payment?plan=${selectedPlan}&device=${deviceMode}`);
       } else {
-        toast({
-          title: "Authentication error",
-          description: errorDescription || "There was an error with authentication. Please try again.",
-          variant: "destructive"
-        });
+        navigate(returnUrl);
       }
-      setCurrentStep('email');
-      return;
     }
+  }, [user, session, isLoading, navigate, selectedPlan, deviceMode, returnUrl]);
 
-    // If no plan is selected, redirect to homepage
-    if (!selectedPlan) {
-      navigate('/');
+  const handleModeSelect = (selectedMode: 'session' | 'account') => {
+    if (selectedMode === 'session') {
+      startSessionMode();
+      if (selectedPlan) {
+        navigate(`/payment?plan=${selectedPlan}&device=${deviceMode}&session=true`);
+      } else {
+        navigate('/dashboard?session=true');
+      }
+    } else {
+      setCurrentStep('login');
     }
-  }, [navigate, selectedPlan, toast]);
+  };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setOtpError("");
 
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-otp-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ email }),
+      await signInToAccount(email, password);
+      
+      toast({
+        title: "Welcome back!",
+        description: "Successfully signed in to your account.",
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send OTP');
+      if (selectedPlan) {
+        navigate(`/payment?plan=${selectedPlan}&device=${deviceMode}`);
+      } else {
+        navigate(returnUrl);
       }
-
-      setCurrentStep('otp');
-      setOtpExpiry(300); // 5 minutes
-      setCanResend(false);
-      setOtp(""); // Clear any previous OTP
-      toast({
-        title: "OTP sent!",
-        description: "Check your email for the 6-digit code. It will expire in 5 minutes.",
-      });
-
     } catch (error: any) {
-      console.error('Send OTP error:', error);
+      console.error('Sign in error:', error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to send OTP. Please try again.",
+        title: "Sign in failed",
+        description: error.message || "Invalid credentials. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -124,110 +94,63 @@ const Auth = () => {
     }
   };
 
-  const handleVerifyOtp = async (otpValue: string) => {
-    if (otpValue.length !== 6) return;
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
     
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
-    setOtpError("");
 
     try {
-      // Validate OTP format on client side
-      if (!/^\d{6}$/.test(otpValue)) {
-        throw new Error('OTP must be a 6-digit number');
-      }
-
-      console.log('Verifying OTP:', { email, otpLength: otpValue.length });
-
-      // Verify the OTP
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ email, otp: otpValue }),
-      });
-
-      const data = await response.json();
-      console.log('OTP verification response:', { status: response.status, data });
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Invalid OTP');
-      }
-
-      console.log('OTP verified successfully, redirecting to payment...');
-
+      await upgradeToAccount(email, password);
+      
       toast({
-        title: "Email verified!",
-        description: "Redirecting to payment...",
+        title: "Account created!",
+        description: "Please check your email to verify your account.",
       });
 
       setCurrentStep('success');
-
-      // Redirect to payment with verified email and plan data
-      setTimeout(() => {
-        navigate(`/payment?plan=${selectedPlan}&device=${deviceMode}&email=${encodeURIComponent(email)}`);
-      }, 1500);
-
     } catch (error: any) {
-      console.error('Verify OTP error:', error);
-      const errorMessage = error.message || "Invalid or expired OTP. Please try again.";
-      setOtpError(errorMessage);
-      
-      // Show specific error messages
-      if (errorMessage.includes("expired")) {
-        toast({
-          title: "OTP Expired",
-          description: "Your verification code has expired. Please request a new one.",
-          variant: "destructive"
-        });
-        setCanResend(true);
-        setOtpExpiry(0);
-      } else if (errorMessage.includes("attempts")) {
-        toast({
-          title: "Too Many Attempts",
-          description: "Please request a new verification code.",
-          variant: "destructive"
-        });
-        setCanResend(true);
-        setOtpExpiry(0);
-      } else {
-        toast({
-          title: "Verification Failed",
-          description: errorMessage,
-          variant: "destructive"
-        });
-      }
-      
-      setOtp("");
+      console.error('Sign up error:', error);
+      toast({
+        title: "Sign up failed",
+        description: error.message || "Failed to create account. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendOtp = async () => {
-    if (!canResend) return;
-    setOtpError("");
-    await handleSendOtp(new Event('submit') as any);
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="flex items-center space-x-2 text-white">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (currentStep === 'success') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md bg-gray-800 border-gray-700">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <CheckCircle className="h-16 w-16 text-green-500" />
             </div>
-            <CardTitle className="text-2xl">Email Verified!</CardTitle>
-            <CardDescription>
-              Redirecting to payment...
+            <CardTitle className="text-2xl text-white">Account Created!</CardTitle>
+            <CardDescription className="text-gray-300">
+              Please check your email to verify your account.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -235,103 +158,163 @@ const Auth = () => {
     );
   }
 
-  if (currentStep === 'otp') {
+  if (currentStep === 'mode-select') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-4xl">
+          <div className="text-center mb-8">
+            <Button
+              variant="ghost"
+              className="mb-4 text-white hover:text-gray-300"
+              onClick={() => navigate('/')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to home
+            </Button>
+            
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              <Brain className="h-8 w-8 text-blue-400" />
+              <span className="text-2xl font-bold text-white">InterviewAce</span>
+            </div>
+          </div>
+
+          <AuthModeSelector onModeSelect={handleModeSelect} />
+        </div>
+      </div>
+    );
+  }
+
+  if (currentStep === 'login') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <Button
               variant="ghost"
-              className="mb-4"
-              onClick={() => setCurrentStep('email')}
+              className="mb-4 text-white hover:text-gray-300"
+              onClick={() => setCurrentStep('mode-select')}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to email
+              Back to mode selection
             </Button>
             
             <div className="flex items-center justify-center space-x-2 mb-4">
-              <Brain className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
+              <Brain className="h-8 w-8 text-blue-400" />
+              <span className="text-2xl font-bold text-white">InterviewAce</span>
             </div>
           </div>
 
-          <Card>
+          <Card className="bg-gray-800 border-gray-700">
             <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Enter Verification Code</CardTitle>
-              <CardDescription>
-                We've sent a 6-digit code to <strong>{email}</strong>
+              <CardTitle className="text-2xl text-white">
+                {authAction === 'signin' ? 'Sign In' : 'Create Account'}
+              </CardTitle>
+              <CardDescription className="text-gray-300">
+                {authAction === 'signin' 
+                  ? 'Welcome back to your InterviewAce account'
+                  : 'Join InterviewAce for enhanced features'
+                }
               </CardDescription>
             </CardHeader>
             
             <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <Label htmlFor="otp" className="text-center block">Verification Code</Label>
-                <div className="flex justify-center">
-                  <InputOTP
-                    value={otp}
-                    onChange={(value) => {
-                      setOtp(value);
-                      setOtpError(""); // Clear error when user types
-                      if (value.length === 6) {
-                        handleVerifyOtp(value);
-                      }
-                    }}
-                    maxLength={6}
-                    disabled={loading}
-                  >
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                      <InputOTPSlot index={2} />
-                      <InputOTPSlot index={3} />
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                    </InputOTPGroup>
-                  </InputOTP>
-                </div>
-                {otpError && (
-                  <p className="text-sm text-red-600 text-center">{otpError}</p>
-                )}
+              <div className="flex bg-gray-700 rounded-lg p-1">
+                <button
+                  type="button"
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                    authAction === 'signin'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-300 hover:text-white'
+                  }`}
+                  onClick={() => setAuthAction('signin')}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                    authAction === 'signup'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-300 hover:text-white'
+                  }`}
+                  onClick={() => setAuthAction('signup')}
+                >
+                  Sign Up
+                </button>
               </div>
 
-              {otpExpiry > 0 && (
-                <div className="text-center">
-                  <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
-                    <Timer className="h-4 w-4" />
-                    <span>Code expires in {formatTime(otpExpiry)}</span>
-                  </div>
+              <form onSubmit={authAction === 'signin' ? handleSignIn : handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-white">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                  />
                 </div>
-              )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-white">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                  />
+                </div>
+
+                {authAction === 'signup' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-white">Confirm Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      placeholder="Confirm your password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                    />
+                  </div>
+                )}
+
+                <Button 
+                  type="submit" 
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {authAction === 'signin' ? 'Signing in...' : 'Creating account...'}
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="h-4 w-4 mr-2" />
+                      {authAction === 'signin' ? 'Sign In' : 'Create Account'}
+                    </>
+                  )}
+                </Button>
+              </form>
 
               <div className="text-center">
-                {canResend || otpExpiry === 0 ? (
-                  <Button 
-                    variant="ghost" 
-                    onClick={handleResendOtp}
-                    disabled={loading}
+                <p className="text-sm text-gray-400">
+                  {authAction === 'signin' ? "Don't have an account? " : "Already have an account? "}
+                  <button
+                    type="button"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                    onClick={() => setAuthAction(authAction === 'signin' ? 'signup' : 'signin')}
                   >
-                    Resend code
-                  </Button>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    Didn't receive the code? You can resend in {formatTime(otpExpiry)}
-                  </p>
-                )}
-              </div>
-
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-start space-x-2">
-                  <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-                  <div className="text-sm text-blue-800">
-                    <p className="font-medium">Tips:</p>
-                    <ul className="mt-1 space-y-1">
-                      <li>• Check your spam folder if you don't see the email</li>
-                      <li>• The code is valid for 5 minutes</li>
-                      <li>• Enter all 6 digits to automatically verify</li>
-                      <li>• Make sure to use the most recent code if you requested multiple</li>
-                    </ul>
-                  </div>
-                </div>
+                    {authAction === 'signin' ? 'Create one' : 'Sign in'}
+                  </button>
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -340,92 +323,13 @@ const Auth = () => {
     );
   }
 
+  // This should never be reached, but just in case
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <Button
-            variant="ghost"
-            className="mb-4"
-            onClick={() => navigate('/')}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to pricing
-          </Button>
-          
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Brain className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
-          </div>
-        </div>
-
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Verify Your Email</CardTitle>
-            <CardDescription>
-              Complete email verification for your {selectedPlan} plan ({deviceMode} device)
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent>
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium text-blue-900">{selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)} Plan</p>
-                  <p className="text-sm text-blue-700">{deviceMode === 'single' ? 'Single Device' : 'Cross-Device'}</p>
-                </div>
-              </div>
-            </div>
-
-            <form onSubmit={handleSendOtp} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="h-12"
-                />
-              </div>
-
-              <Button 
-                type="submit" 
-                className="w-full h-12 text-lg"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Mail className="h-4 w-4 mr-2 animate-pulse" />
-                    Sending code...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="h-4 w-4 mr-2" />
-                    Send verification code
-                  </>
-                )}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                We'll send you a 6-digit code to verify your email address before payment.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <p>By continuing, you agree to our</p>
-          <p>
-            <span className="underline cursor-pointer hover:text-gray-700">Terms of Service</span> and{' '}
-            <span className="underline cursor-pointer hover:text-gray-700">Privacy Policy</span>
-          </p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+      <div className="text-center text-white">
+        <Brain className="h-16 w-16 mx-auto mb-4 text-blue-400" />
+        <h1 className="text-2xl font-bold mb-2">InterviewAce</h1>
+        <p className="text-gray-300">Loading authentication...</p>
       </div>
     </div>
   );
