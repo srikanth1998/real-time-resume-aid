@@ -91,8 +91,8 @@ export const Downloads = () => {
               <CardContent className="space-y-4">
                 <div className="text-gray-300 text-sm space-y-2">
                   <p>• Native system audio capture via WASAPI</p>
-                  <p>• Stealth overlay that's hidden from screen sharing</p>
-                  <p>• No browser permissions required</p>
+                  <p>• Direct system audio loopback - no drivers needed</p>
+                  <p>• Stealth overlay hidden from screen sharing</p>
                   <p>• Works with any meeting platform</p>
                 </div>
 
@@ -100,8 +100,8 @@ export const Downloads = () => {
                   <h4 className="font-semibold text-white">Requirements:</h4>
                   <div className="text-sm text-gray-300">
                     <p>• Windows 10/11</p>
-                    <p>• VB-Cable virtual audio driver</p>
                     <p>• Administrator privileges for installation</p>
+                    <p>• No additional drivers required!</p>
                   </div>
                 </div>
 
@@ -114,14 +114,10 @@ export const Downloads = () => {
                     Download Windows Helper
                   </Button>
                   
-                  <Button 
-                    onClick={() => openDriverLink('windows')}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Get VB-Cable Driver
-                  </Button>
+                  <div className="bg-green-900/20 border border-green-700 rounded-lg p-3">
+                    <div className="text-green-200 text-xs font-medium mb-1">✅ No Drivers Required!</div>
+                    <div className="text-green-300 text-xs">Uses native WASAPI loopback capture</div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -198,11 +194,10 @@ export const Downloads = () => {
                     Windows Setup
                   </h3>
                   <ol className="text-sm text-gray-300 space-y-2 list-decimal list-inside">
-                    <li>Download and install VB-Cable driver first</li>
-                    <li>Restart your computer after driver installation</li>
                     <li>Download and run InterviewAce Helper as Administrator</li>
                     <li>Allow Windows Defender/Antivirus if prompted</li>
                     <li>The helper will run in system tray</li>
+                    <li>Direct system audio capture - no drivers needed!</li>
                   </ol>
                 </div>
 
