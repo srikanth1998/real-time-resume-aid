@@ -16,41 +16,28 @@ const Payment = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const planType = (searchParams.get('plan') as 'pay-as-you-go' | 'pro' | 'coach' | 'enterprise') || 'pay-as-you-go';
+  const planType = (searchParams.get('plan') as 'pay-as-you-go' | 'coach' | 'enterprise') || 'pay-as-you-go';
   const verifiedEmail = searchParams.get('email') || '';
   const initialDeviceMode = (searchParams.get('device') as 'single' | 'cross') || 'single';
   
   const [email, setEmail] = useState(verifiedEmail);
   const [deviceMode, setDeviceMode] = useState<'single' | 'cross'>(initialDeviceMode);
+  const [hours, setHours] = useState(1);
   const [loading, setLoading] = useState(false);
 
   const planConfigs = {
     'pay-as-you-go': {
-      price: 18.00,
-      duration: '60 minutes',
+      price: 9.99,
+      duration: 'Per hour',
       billing: 'one-time',
       dbPlanType: 'standard', // Map to database enum
-      description: "Single session clarity coaching",
+      description: "Quick interview prep - no account needed",
       features: [
-        "60-min private coaching overlay",
-        "Real-time insight reminders", 
-        "Zero data retention",
-        "Works on all video platforms",
-        "Instant session activation"
-      ],
-    },
-    'pro': {
-      price: 29.00,
-      duration: '4 sessions',
-      billing: 'monthly',
-      dbPlanType: 'pro',
-      description: "Active job seekers",
-      features: [
-        "4 coaching sessions per month",
-        "Priority processing (≤3s)",
-        "Session rollover (1 month)",
-        "Extended storage (24h)",
-        "Performance insights"
+        "Unlimited AI tokens per session",
+        "Priority LLM processing",
+        "Job-specific trained AI models",
+        "Real-time coaching overlay",
+        "Invisible to screen shares"
       ],
     },
     'coach': {
@@ -90,8 +77,8 @@ const Payment = () => {
     return null;
   }
 
-  // Calculate total price with cross-device surcharge
-  const basePrice = planConfig.price;
+  // Calculate total price with hours and cross-device surcharge
+  const basePrice = planType === 'pay-as-you-go' ? planConfig.price * hours : planConfig.price;
   const crossDeviceSurcharge = deviceMode === 'cross' ? 5.00 : 0;
   const totalPrice = basePrice + crossDeviceSurcharge;
 
@@ -127,6 +114,7 @@ const Payment = () => {
           planType: planConfig.dbPlanType, // Use mapped database enum value
           userEmail: email,
           deviceMode,
+          hours: planType === 'pay-as-you-go' ? hours : null,
           totalPrice: Math.round(totalPrice * 100) // Convert to cents
         }
       });
@@ -225,6 +213,53 @@ const Payment = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Hour Selection for Hourly Plans */}
+          {planType === 'pay-as-you-go' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Clock className="h-5 w-5" />
+                  <span>Session Duration</span>
+                </CardTitle>
+                <CardDescription>
+                  Select how many hours you need for your interview session
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-3">
+                    {[1, 2, 3, 4].map((hour) => (
+                      <button
+                        key={hour}
+                        type="button"
+                        onClick={() => setHours(hour)}
+                        className={`p-3 rounded-lg border-2 transition-all ${
+                          hours === hour
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="text-lg font-semibold">{hour}h</div>
+                        <div className="text-sm text-gray-500">${(planConfig.price * hour).toFixed(2)}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
+                      <p className="text-sm text-gray-600">
+                        ${planConfig.price}/hour × {hours} = ${(planConfig.price * hours).toFixed(2)}
+                      </p>
+                    </div>
+                    <Badge variant="outline">
+                      ${(planConfig.price * hours).toFixed(2)}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Email Input */}
           <Card>

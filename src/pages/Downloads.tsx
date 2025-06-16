@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Monitor, ExternalLink, CheckCircle, AlertTriangle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export const Downloads = () => {
   const [platform, setPlatform] = useState<'windows' | 'macos' | 'linux' | 'unknown'>('unknown');
@@ -20,9 +21,21 @@ export const Downloads = () => {
     }
   }, []);
 
-  const downloadHelper = (targetPlatform: 'windows' | 'macos') => {
-    // Show coming soon alert instead of broken download
-    alert(`${targetPlatform === 'windows' ? 'Windows' : 'macOS'} helper is currently being built. For now, you can use the web app's voice recognition or text input modes. The native helper will be available soon!`);
+  const downloadHelper = async (targetPlatform: 'windows' | 'macos') => {
+    // Get the Supabase URL from environment
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://jafylkqbmvdptrqwwyed.supabase.co';
+    
+    const downloadUrl = targetPlatform === 'windows' 
+      ? `${supabaseUrl}/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe`
+      : `${supabaseUrl}/storage/v1/object/public/native-helpers/InterviewAce-Helper-macOS.dmg`;
+    
+    // Create temporary link to trigger download
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = targetPlatform === 'windows' ? 'InterviewAce-Helper-Windows.exe' : 'InterviewAce-Helper-macOS.dmg';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const openDriverLink = (targetPlatform: 'windows' | 'macos') => {
@@ -45,11 +58,11 @@ export const Downloads = () => {
               Advanced audio capture and stealth overlay features for InterviewAce
             </p>
             
-            <Alert className="bg-yellow-900/20 border-yellow-700 text-yellow-200 max-w-2xl mx-auto mb-4">
-              <AlertTriangle className="h-4 w-4" />
+            <Alert className="bg-green-900/20 border-green-700 text-green-200 max-w-2xl mx-auto mb-4">
+              <CheckCircle className="h-4 w-4" />
               <AlertDescription>
-                <strong>Development Notice:</strong> Native helpers are currently being built. 
-                In the meantime, you can use the web app with voice recognition or text input modes.
+                <strong>Ready to Download:</strong> Native helpers are available for Windows and macOS. 
+                Download your platform-specific helper below for advanced audio capture and stealth features.
               </AlertDescription>
             </Alert>
             
@@ -78,8 +91,8 @@ export const Downloads = () => {
               <CardContent className="space-y-4">
                 <div className="text-gray-300 text-sm space-y-2">
                   <p>• Native system audio capture via WASAPI</p>
-                  <p>• Stealth overlay that's hidden from screen sharing</p>
-                  <p>• No browser permissions required</p>
+                  <p>• Direct system audio loopback - no drivers needed</p>
+                  <p>• Stealth overlay hidden from screen sharing</p>
                   <p>• Works with any meeting platform</p>
                 </div>
 
@@ -87,29 +100,24 @@ export const Downloads = () => {
                   <h4 className="font-semibold text-white">Requirements:</h4>
                   <div className="text-sm text-gray-300">
                     <p>• Windows 10/11</p>
-                    <p>• VB-Cable virtual audio driver</p>
                     <p>• Administrator privileges for installation</p>
+                    <p>• No additional drivers required!</p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Button 
                     onClick={() => downloadHelper('windows')}
-                    className="w-full bg-gray-600 hover:bg-gray-700"
-                    disabled
+                    className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Coming Soon - Windows Helper
+                    Download Windows Helper
                   </Button>
                   
-                  <Button 
-                    onClick={() => openDriverLink('windows')}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Get VB-Cable Driver
-                  </Button>
+                  <div className="bg-green-900/20 border border-green-700 rounded-lg p-3">
+                    <div className="text-green-200 text-xs font-medium mb-1">✅ No Drivers Required!</div>
+                    <div className="text-green-300 text-xs">Uses native WASAPI loopback capture</div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -145,11 +153,10 @@ export const Downloads = () => {
                 <div className="space-y-2">
                   <Button 
                     onClick={() => downloadHelper('macos')}
-                    className="w-full bg-gray-600 hover:bg-gray-700"
-                    disabled
+                    className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Coming Soon - macOS Helper
+                    Download macOS Helper
                   </Button>
                   
                   <Alert className="bg-green-900/20 border-green-700 text-green-200 text-sm">
@@ -187,11 +194,10 @@ export const Downloads = () => {
                     Windows Setup
                   </h3>
                   <ol className="text-sm text-gray-300 space-y-2 list-decimal list-inside">
-                    <li>Download and install VB-Cable driver first</li>
-                    <li>Restart your computer after driver installation</li>
                     <li>Download and run InterviewAce Helper as Administrator</li>
                     <li>Allow Windows Defender/Antivirus if prompted</li>
                     <li>The helper will run in system tray</li>
+                    <li>Direct system audio capture - no drivers needed!</li>
                   </ol>
                 </div>
 
