@@ -5,12 +5,11 @@ import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DeviceModeSelector } from "@/components/DeviceModeSelector";
 import { Brain, Check, Clock, DollarSign, Star, Zap, Users, Shield, Eye, EyeOff, Monitor } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [deviceMode, setDeviceMode] = useState<'single' | 'cross'>('single');
+  const deviceMode = 'cross'; // Always use cross-device mode
   const [isScreenShareOn, setIsScreenShareOn] = useState(false);
   const [currentSubtitle, setCurrentSubtitle] = useState(0);
   const containerRef = useRef(null);
@@ -48,7 +47,7 @@ const Index = () => {
         'Priority LLM processing',
         'Job-specific trained AI models',
         'Real-time coaching overlay',
-        'Invisible to screen shares'
+        'Cross-device companion app'
       ],
       popular: true,
     },
@@ -66,7 +65,7 @@ const Index = () => {
         'Client management dashboard',
         'White-label PDF reports',
         'Logo upload & branding',
-        'Overages at $12 each'
+        'Cross-device capabilities'
       ],
       popular: false,
     },
@@ -84,7 +83,7 @@ const Index = () => {
         'SSO (SAML/OIDC)',
         'Usage analytics export',
         'Dedicated Slack support',
-        '24-hour SLA guarantee'
+        'Cross-device infrastructure'
       ],
       popular: false,
     }
@@ -163,7 +162,7 @@ const Index = () => {
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-400"> AI</span>
               </h1>
               <p className="text-xl text-white/80 font-inter mb-8 leading-relaxed">
-                Get real-time clarity reminders during live interviews with our privacy-first overlay. 
+                Get real-time clarity reminders during live interviews with our cross-device coaching system. 
                 Your personal interview coach that stays completely private—invisible to screen shares.
               </p>
               
@@ -271,7 +270,7 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Stealth Badge */}
+              {/* Cross-Device Badge */}
               <motion.div
                 animate={{ 
                   scale: isScreenShareOn ? 1.1 : 1,
@@ -284,27 +283,12 @@ const Index = () => {
                 ) : (
                   <Eye className="h-4 w-4" />
                 )}
-                <span>Invisible to Screen-Share</span>
+                <span>Cross-Device Stealth Mode</span>
               </motion.div>
             </motion.div>
           </motion.div>
         </div>
       </div>
-
-      {/* Device Mode Selection */}
-      <motion.div
-        initial={{ opacity: 0, y: 50 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative max-w-4xl mx-auto px-4 mb-16"
-      >
-        <div className="backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-8">
-          <DeviceModeSelector 
-            value={deviceMode} 
-            onChange={setDeviceMode}
-          />
-        </div>
-      </motion.div>
 
       {/* Pricing Section */}
       <div id="pricing" className="relative max-w-6xl mx-auto px-4 pb-16">
@@ -398,9 +382,9 @@ const Index = () => {
             <p className="text-white/80 mb-4">✨ All plans include:</p>
             <div className="flex flex-wrap justify-center gap-6 text-sm text-white/70">
               <span>• Live clarity coaching</span>
-              <span>• Private coaching overlay</span>
+              <span>• Cross-device stealth mode</span>
               <span>• Invisible to screen shares</span>
-              <span>• Secure & ethical</span>
+              <span>• Mobile companion app</span>
             </div>
           </div>
         </motion.div>
