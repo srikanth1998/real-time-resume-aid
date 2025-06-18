@@ -107,6 +107,24 @@ const Index = () => {
       isFree: true,
     },
     {
+      id: 'quick-session',
+      name: 'Quick Session',
+      price: '$9.99',
+      priceUnit: '/ hour',
+      billing: 'one-time',
+      duration: 'Pay per hour',
+      description: 'Quick interview prep - no account needed',
+      bestFor: 'Immediate interview preparation',
+      features: [
+        'Instant access - no signup',
+        'Upload resume & job description', 
+        'Get 6-digit session code',
+        'Real-time AI coaching overlay',
+        'Works with native helper'
+      ],
+      popular: true,
+    },
+    {
       id: 'pay-as-you-go',
       name: 'Hourly Sessions',
       price: '$9.99',
@@ -165,6 +183,8 @@ const Index = () => {
   const handleSelectPlan = (planId: string) => {
     if (planId === 'free-trial') {
       navigate(`/auth?plan=${planId}&device=${deviceMode}&trial=true`);
+    } else if (planId === 'quick-session') {
+      navigate(`/payment?plan=quick-session`);
     } else {
       navigate(`/auth?plan=${planId}&device=${deviceMode}`);
     }
@@ -257,11 +277,11 @@ const Index = () => {
               <motion.button
                 whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(79, 70, 229, 0.4)" }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => handleSelectPlan('pay-as-you-go')}
+                onClick={() => handleSelectPlan('quick-session')}
                 className="bg-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-primary/25 border border-primary/50 hover:border-primary transition-all"
               >
                 <Zap className="inline h-5 w-5 mr-2" />
-                Start Session ($9.99/hr)
+                Quick Session ($9.99/hr)
               </motion.button>
             </div>
 
@@ -407,12 +427,77 @@ const Index = () => {
         </motion.div>
 
         <div className="grid lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+          {/* Add Quick Session as first option */}
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0 }}
+            whileHover={{ y: -8, rotateX: 2 }}
+            className="relative backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 shadow-2xl ring-2 ring-orange-500 scale-105"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.5, type: "spring" }}
+              className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-orange-600 text-white px-4 py-1 rounded-full text-sm font-medium"
+            >
+              Quick Start
+            </motion.div>
+            
+            <div className="text-center pb-4">
+              <h3 className="text-xl font-bold text-white font-poppins">Quick Session</h3>
+              <p className="text-sm text-white/60 mb-4">No account needed</p>
+              <div className="flex items-center justify-center space-x-1 mt-4">
+                <span className="text-3xl font-bold text-white">$9.99</span>
+                <span className="text-sm text-white/60">/hour</span>
+              </div>
+              <div className="flex items-center justify-center text-sm text-white/60 mt-2">
+                <Clock className="h-4 w-4 mr-1" />
+                Pay per hour
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="space-y-3">
+                {[
+                  "Instant access - no signup",
+                  "Upload resume & job description", 
+                  "Get 6-digit session code",
+                  "Real-time AI coaching overlay",
+                  "Works with native helper"
+                ].map((feature, featureIndex) => (
+                  <motion.div
+                    key={featureIndex}
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    transition={{ delay: (0 * 0.1) + (featureIndex * 0.05) }}
+                    className="flex items-center space-x-3"
+                  >
+                    <Check className="h-5 w-5 text-accent flex-shrink-0" />
+                    <span className="text-white/80">{feature}</span>
+                  </motion.div>
+                ))}
+              </div>
+              
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleSelectPlan('quick-session')}
+                className="w-full py-4 text-lg font-semibold rounded-xl transition-all bg-orange-600 text-white shadow-lg shadow-orange-600/25 hover:shadow-orange-600/40"
+              >
+                <Zap className="inline h-5 w-5 mr-2" />
+                Start Quick Session
+              </motion.button>
+            </div>
+          </motion.div>
+
+          {/* Keep existing plans but shift their index */}
           {plans.map((plan, index) => (
             <motion.div
               key={plan.id}
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
+              transition={{ duration: 0.6, delay: (index + 1) * 0.1 }}
               whileHover={{ y: -8, rotateX: 2 }}
               className={`relative backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 shadow-2xl ${
                 plan.popular ? 'ring-2 ring-primary scale-105' : ''
@@ -430,7 +515,7 @@ const Index = () => {
                   Most Popular
                 </motion.div>
               )}
-
+              
               {plan.isFree && (
                 <motion.div
                   initial={{ scale: 0 }}

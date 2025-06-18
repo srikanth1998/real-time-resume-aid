@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DeviceModeSelector } from "@/components/DeviceModeSelector";
 import { Brain, Clock, DollarSign, CheckCircle, Loader2, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -16,105 +15,29 @@ const Payment = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const planType = (searchParams.get('plan') as 'pay-as-you-go' | 'coach' | 'enterprise') || 'pay-as-you-go';
-  const verifiedEmail = searchParams.get('email') || '';
-  const initialDeviceMode = (searchParams.get('device') as 'single' | 'cross') || 'single';
+  const planType = searchParams.get('plan') || 'pay-as-you-go';
   
-  const [email, setEmail] = useState(verifiedEmail);
-  const [deviceMode, setDeviceMode] = useState<'single' | 'cross'>(initialDeviceMode);
+  const [email, setEmail] = useState('');
   const [hours, setHours] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const planConfigs = {
-    'pay-as-you-go': {
-      price: 9.99,
-      duration: 'Per hour',
-      billing: 'one-time',
-      dbPlanType: 'standard', // Map to database enum
-      description: "Quick interview prep - no account needed",
-      features: [
-        "Unlimited AI tokens per session",
-        "Priority LLM processing",
-        "Job-specific trained AI models",
-        "Real-time coaching overlay",
-        "Invisible to screen shares"
-      ],
-    },
-    'coach': {
-      price: 99.00,
-      duration: '20 credits',
-      billing: 'monthly',
-      dbPlanType: 'elite',
-      description: "Career coaches & consultants",
-      features: [
-        "20 session credits (shareable)",
-        "Client management portal",
-        "Branded session reports",
-        "Custom coaching prompts", 
-        "White-label options"
-      ],
-    },
-    'enterprise': {
-      price: 0,
-      duration: '500+ credits',
-      billing: 'custom',
-      dbPlanType: 'elite',
-      description: "Organizations & platforms",
-      features: [
-        "Unlimited sessions",
-        "SSO integration",
-        "API access",
-        "Dedicated support",
-        "Custom deployment"
-      ],
-    }
-  };
-
-  const planConfig = planConfigs[planType as keyof typeof planConfigs];
-  
-  if (!planConfig) {
-    navigate('/');
-    return null;
-  }
-
-  // Calculate total price with hours and cross-device surcharge
-  const basePrice = planType === 'pay-as-you-go' ? planConfig.price * hours : planConfig.price;
-  const crossDeviceSurcharge = deviceMode === 'cross' ? 5.00 : 0;
-  const totalPrice = basePrice + crossDeviceSurcharge;
+  const basePrice = 9.99; // $9.99 per hour
+  const totalPrice = basePrice * hours;
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Handle enterprise plan differently
-    if (planType === 'enterprise') {
-      toast({
-        title: "Enterprise Plans",
-        description: "Enterprise plans require custom pricing. Please contact our sales team.",
-        variant: "default"
-      });
-      return;
-    }
-    
-    if (!email || !email.includes('@')) {
-      toast({
-        title: "Invalid email",
-        description: "Please enter a valid email address.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
-      console.log('Creating checkout session with device mode:', deviceMode);
+      console.log('Creating checkout session for quick session');
       
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
-          planType: planConfig.dbPlanType, // Use mapped database enum value
-          userEmail: email,
-          deviceMode,
-          hours: planType === 'pay-as-you-go' ? hours : null,
+          planType: 'pay-as-you-go',
+          userEmail: email || 'guest@interviewace.com', // Default email for guest checkout
+          deviceMode: 'single', // Quick sessions are single device
+          hours: hours,
           totalPrice: Math.round(totalPrice * 100) // Convert to cents
         }
       });
@@ -149,125 +72,68 @@ const Payment = () => {
           <Brain className="h-8 w-8 text-blue-600" />
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Purchase</h1>
-        <p className="text-gray-600">Secure payment for your interview preparation session</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Quick Interview Session</h1>
+        <p className="text-gray-600">Pay per hour - No account required</p>
       </div>
 
       <div className="max-w-2xl mx-auto">
         <form onSubmit={handleCheckout} className="space-y-8">
-          {/* Plan Display */}
+          
+          {/* Hour Selection */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="capitalize">{planType.replace('-', ' ')} Plan</span>
-                <Badge variant="secondary" className="flex items-center space-x-1">
-                  <DollarSign className="h-4 w-4" />
-                  <span>{totalPrice === 0 ? 'Custom quote' : `$${totalPrice.toFixed(2)}`}</span>
-                </Badge>
+              <CardTitle className="flex items-center space-x-2">
+                <Clock className="h-5 w-5" />
+                <span>Session Duration</span>
               </CardTitle>
               <CardDescription>
-                {planConfig.duration} • {planConfig.description}
+                Select how many hours you need for your interview session
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {planConfig.features.map((feature, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">{feature}</span>
+              <div className="space-y-4">
+                <div className="grid grid-cols-4 gap-3">
+                  {[1, 2, 3, 4].map((hour) => (
+                    <button
+                      key={hour}
+                      type="button"
+                      onClick={() => setHours(hour)}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        hours === hour
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-lg font-semibold">{hour}h</div>
+                      <div className="text-sm text-gray-500">${(basePrice * hour).toFixed(2)}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
+                    <p className="text-sm text-gray-600">
+                      ${basePrice}/hour × {hours} = ${totalPrice.toFixed(2)}
+                    </p>
                   </div>
-                ))}
+                  <Badge variant="outline">
+                    ${totalPrice.toFixed(2)}
+                  </Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Device Mode Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Session Configuration</CardTitle>
-              <CardDescription>
-                Choose how you'll access your coaching session
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DeviceModeSelector 
-                value={deviceMode} 
-                onChange={setDeviceMode}
-              />
-              {deviceMode === 'cross' && (
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                        Cross-Device Mode
-                      </p>
-                      <p className="text-xs text-blue-700 dark:text-blue-300">
-                        Mobile companion app included
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="text-blue-700 border-blue-300">
-                      +$5.00
-                    </Badge>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Hour Selection for Hourly Plans */}
-          {planType === 'pay-as-you-go' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5" />
-                  <span>Session Duration</span>
-                </CardTitle>
-                <CardDescription>
-                  Select how many hours you need for your interview session
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-4 gap-3">
-                    {[1, 2, 3, 4].map((hour) => (
-                      <button
-                        key={hour}
-                        type="button"
-                        onClick={() => setHours(hour)}
-                        className={`p-3 rounded-lg border-2 transition-all ${
-                          hours === hour
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="text-lg font-semibold">{hour}h</div>
-                        <div className="text-sm text-gray-500">${(planConfig.price * hour).toFixed(2)}</div>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
-                      <p className="text-sm text-gray-600">
-                        ${planConfig.price}/hour × {hours} = ${(planConfig.price * hours).toFixed(2)}
-                      </p>
-                    </div>
-                    <Badge variant="outline">
-                      ${(planConfig.price * hours).toFixed(2)}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Email Input */}
+          {/* Optional Email Input */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Mail className="h-5 w-5" />
-                <span>Contact Information</span>
+                <span>Email (Optional)</span>
               </CardTitle>
+              <CardDescription>
+                We'll send your interview report and session details to this email
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -275,24 +141,36 @@ const Payment = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your@email.com"
+                  placeholder="your@email.com (optional)"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={!!verifiedEmail}
                 />
-                {verifiedEmail && (
-                  <p className="text-sm text-green-600 flex items-center space-x-1">
-                    <CheckCircle className="h-4 w-4" />
-                    <span>Email verified</span>
-                  </p>
-                )}
                 <p className="text-sm text-gray-600">
-                  {deviceMode === 'cross' 
-                    ? "We'll send you a mobile companion link after payment"
-                    : "We'll send you the upload link after payment"
-                  }
+                  Leave empty for anonymous session. You'll still get a session code to connect.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Features Display */}
+          <Card>
+            <CardHeader>
+              <CardTitle>What's Included</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {[
+                  'Real-time AI coaching overlay',
+                  'Invisible to screen sharing',
+                  'Technical & behavioral question support',
+                  'Session recording & report',
+                  '6-digit code for native helper access'
+                ].map((feature, index) => (
+                  <div key={index} className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm">{feature}</span>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -306,17 +184,20 @@ const Payment = () => {
             {loading ? (
               <>
                 <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Processing...
+                Processing Payment...
               </>
-            ) : planType === 'enterprise' ? (
-              'Contact Sales Team'
             ) : (
               <>
-                Complete Payment • ${totalPrice.toFixed(2)}
+                <DollarSign className="h-5 w-5 mr-2" />
+                Pay ${totalPrice.toFixed(2)} & Continue
               </>
             )}
           </Button>
         </form>
+
+        <div className="text-center mt-6 text-sm text-gray-500">
+          After payment, you'll upload your resume and job details to prepare your AI coach
+        </div>
       </div>
     </div>
   );
