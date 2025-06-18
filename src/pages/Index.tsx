@@ -1,11 +1,10 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Check, Clock, DollarSign, Star, Zap, Users, Shield, Eye, EyeOff } from "lucide-react";
+import { Brain, Check, Clock, DollarSign, Star, Zap, Users, Shield, Eye, EyeOff, Gift } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -89,6 +88,25 @@ const Index = () => {
 
   const plans = [
     {
+      id: 'free-trial',
+      name: 'Free Trial',
+      price: 'Free',
+      priceUnit: '',
+      billing: 'one-time',
+      duration: '10 minutes',
+      description: 'Try InterviewAce risk-free',
+      bestFor: 'New users - experience the magic',
+      features: [
+        '10-minute trial session',
+        'Real-time AI assistance',
+        'Stealth overlay system',
+        'Works with any meeting app',
+        'No payment required'
+      ],
+      popular: false,
+      isFree: true,
+    },
+    {
       id: 'pay-as-you-go',
       name: 'Hourly Sessions',
       price: '$9.99',
@@ -145,7 +163,11 @@ const Index = () => {
   ];
 
   const handleSelectPlan = (planId: string) => {
-    navigate(`/auth?plan=${planId}&device=${deviceMode}`);
+    if (planId === 'free-trial') {
+      navigate(`/auth?plan=${planId}&device=${deviceMode}&trial=true`);
+    } else {
+      navigate(`/auth?plan=${planId}&device=${deviceMode}`);
+    }
   };
 
   return (
@@ -224,6 +246,15 @@ const Index = () => {
             
             <div className="flex flex-col sm:flex-row gap-4">
               <motion.button
+                whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(34, 197, 94, 0.4)" }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleSelectPlan('free-trial')}
+                className="bg-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-green-600/25 border border-green-500/50 hover:border-green-500 transition-all"
+              >
+                <Gift className="inline h-5 w-5 mr-2" />
+                Try Free (10 min)
+              </motion.button>
+              <motion.button
                 whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(79, 70, 229, 0.4)" }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleSelectPlan('pay-as-you-go')}
@@ -231,14 +262,6 @@ const Index = () => {
               >
                 <Zap className="inline h-5 w-5 mr-2" />
                 Start Session ($9.99/hr)
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => navigate("/how-it-works")}
-                className="backdrop-blur-md bg-glass border border-glass-border text-white px-8 py-4 rounded-xl font-medium text-lg hover:bg-white/20 transition-all"
-              >
-                See How It Works
               </motion.button>
             </div>
 
@@ -380,10 +403,10 @@ const Index = () => {
           className="text-center mb-12"
         >
           <h2 className="text-4xl font-bold font-poppins text-white mb-4">Choose Your Plan</h2>
-          <p className="text-white/70 text-lg">Select the perfect plan for your interview preparation needs</p>
+          <p className="text-white/70 text-lg">Start with a free trial, then select the perfect plan for your needs</p>
         </motion.div>
 
-        <div className="grid lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {plans.map((plan, index) => (
             <motion.div
               key={plan.id}
@@ -393,6 +416,8 @@ const Index = () => {
               whileHover={{ y: -8, rotateX: 2 }}
               className={`relative backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 shadow-2xl ${
                 plan.popular ? 'ring-2 ring-primary scale-105' : ''
+              } ${
+                plan.isFree ? 'ring-2 ring-green-500' : ''
               }`}
             >
               {plan.popular && (
@@ -403,6 +428,17 @@ const Index = () => {
                   className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-sm font-medium"
                 >
                   Most Popular
+                </motion.div>
+              )}
+
+              {plan.isFree && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.5, type: "spring" }}
+                  className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-1 rounded-full text-sm font-medium"
+                >
+                  Free Trial
                 </motion.div>
               )}
               
@@ -440,13 +476,24 @@ const Index = () => {
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleSelectPlan(plan.id)}
                   className={`w-full py-4 text-lg font-semibold rounded-xl transition-all ${
-                    plan.popular 
-                      ? 'bg-primary text-white shadow-lg shadow-primary/25 hover:shadow-primary/40' 
-                      : 'backdrop-blur-md bg-glass border border-glass-border text-white hover:bg-white/20'
+                    plan.isFree
+                      ? 'bg-green-600 text-white shadow-lg shadow-green-600/25 hover:shadow-green-600/40'
+                      : plan.popular 
+                        ? 'bg-primary text-white shadow-lg shadow-primary/25 hover:shadow-primary/40' 
+                        : 'backdrop-blur-md bg-glass border border-glass-border text-white hover:bg-white/20'
                   }`}
                 >
-                  <Zap className="inline h-5 w-5 mr-2" />
-                  Get Started with {plan.name}
+                  {plan.isFree ? (
+                    <>
+                      <Gift className="inline h-5 w-5 mr-2" />
+                      Start Free Trial
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="inline h-5 w-5 mr-2" />
+                      Get Started with {plan.name}
+                    </>
+                  )}
                 </motion.button>
               </div>
             </motion.div>
