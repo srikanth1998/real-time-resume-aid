@@ -505,7 +505,7 @@ export type Database = {
       }
     }
     Enums: {
-      plan_type: "standard" | "pro" | "elite"
+      plan_type: "standard" | "pro" | "elite" | "pay-as-you-go"
       session_status:
         | "pending_payment"
         | "pending_assets"
@@ -630,7 +630,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      plan_type: ["standard", "pro", "elite"],
+      plan_type: ["standard", "pro", "elite", "pay-as-you-go"],
       session_status: [
         "pending_payment",
         "pending_assets",
