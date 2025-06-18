@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
@@ -20,10 +21,47 @@ const Index = () => {
   const y2 = useTransform(scrollYProgress, [0, 1], [0, -200]);
   const y3 = useTransform(scrollYProgress, [0, 1], [0, -300]);
 
-  const subtitles = [
-    { question: "Tell me about yourself", answer: "Focus on your leadership experience and recent achievements..." },
-    { question: "Why do you want this role?", answer: "Emphasize the company's mission alignment with your values..." },
-    { question: "What's your biggest weakness?", answer: "Turn this into a growth story with specific examples..." }
+  const technicalQuestions = [
+    { 
+      domain: "Java", 
+      question: "What's the difference between ArrayList and LinkedList?", 
+      answer: "ArrayList uses dynamic arrays for storage, offering O(1) access but O(n) insertion. LinkedList uses doubly-linked nodes, providing O(1) insertion but O(n) access time." 
+    },
+    { 
+      domain: "Python", 
+      question: "Explain the GIL in Python", 
+      answer: "The Global Interpreter Lock prevents multiple threads from executing Python bytecode simultaneously, making Python multithreading less effective for CPU-bound tasks." 
+    },
+    { 
+      domain: "Data Science", 
+      question: "What is overfitting and how do you prevent it?", 
+      answer: "Overfitting occurs when a model learns training data too specifically. Prevent it using cross-validation, regularization, dropout, or early stopping techniques." 
+    },
+    { 
+      domain: "Machine Learning", 
+      question: "Difference between supervised and unsupervised learning?", 
+      answer: "Supervised learning uses labeled data to predict outcomes, while unsupervised learning finds patterns in unlabeled data through clustering or dimensionality reduction." 
+    },
+    { 
+      domain: "AI", 
+      question: "What are transformers in deep learning?", 
+      answer: "Transformers use self-attention mechanisms to process sequential data in parallel, revolutionizing NLP by enabling models like GPT and BERT to understand context better." 
+    },
+    { 
+      domain: ".NET", 
+      question: "What is the difference between .NET Framework and .NET Core?", 
+      answer: ".NET Framework is Windows-only and legacy, while .NET Core is cross-platform, open-source, and the modern unified platform for all .NET development." 
+    },
+    { 
+      domain: "SAP", 
+      question: "What is SAP HANA and its benefits?", 
+      answer: "SAP HANA is an in-memory database platform that processes data in real-time, offering faster analytics, reduced data footprint, and simplified IT landscapes." 
+    },
+    { 
+      domain: "React", 
+      question: "What are React Hooks and why use them?", 
+      answer: "Hooks let you use state and lifecycle features in functional components, promoting code reuse and cleaner component logic without class complexity." 
+    }
   ];
 
   const meetingApps = [
@@ -36,8 +74,8 @@ const Index = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentSubtitle((prev) => (prev + 1) % subtitles.length);
-    }, 3000);
+      setCurrentSubtitle((prev) => (prev + 1) % technicalQuestions.length);
+    }, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -260,7 +298,7 @@ const Index = () => {
                   <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                   <span className="ml-4 text-white text-sm font-medium">
-                    {meetingApps.find(app => app.id === selectedApp)?.name} - Interview Session
+                    {meetingApps.find(app => app.id === selectedApp)?.name} - Technical Interview
                   </span>
                 </div>
                 
@@ -275,23 +313,27 @@ const Index = () => {
                       transition={{ duration: 0.5 }}
                       className="text-white text-lg mb-6"
                     >
-                      {subtitles[currentSubtitle].question}
+                      {technicalQuestions[currentSubtitle].question}
                     </motion.div>
                   </AnimatePresence>
 
-                  {/* AI Suggestion Overlay - Now White and Transparent */}
+                  {/* AI Suggestion Overlay - White and Transparent Background Only */}
                   <motion.div
-                    animate={{ 
-                      opacity: overlayOpacity / 100,
+                    className="rounded-lg p-4 border border-white/50 relative"
+                    style={{ 
+                      backgroundColor: `rgba(255, 255, 255, ${overlayOpacity / 100})`
                     }}
-                    transition={{ duration: 0.3 }}
-                    className="bg-white/90 backdrop-blur-sm text-gray-800 rounded-lg p-4 border border-white/50 relative"
-                    style={{ opacity: overlayOpacity / 100 }}
                   >
-                    <div className="text-xs text-blue-600 mb-1 font-medium">AI Suggestion:</div>
-                    <div className="text-sm">{subtitles[currentSubtitle].answer}</div>
-                    <div className="absolute top-2 right-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="text-xs text-blue-600 font-medium">
+                          {technicalQuestions[currentSubtitle].domain} - AI Suggestion:
+                        </div>
+                      </div>
                       <Eye className="h-3 w-3 text-blue-600" />
+                    </div>
+                    <div className="text-sm text-gray-800 font-medium">
+                      {technicalQuestions[currentSubtitle].answer}
                     </div>
                   </motion.div>
                 </div>
