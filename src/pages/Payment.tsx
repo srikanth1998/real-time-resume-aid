@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Brain, Clock, DollarSign, CheckCircle, Loader2, Mail } from "lucide-react";
+import { Brain, Clock, DollarSign, CheckCircle, Loader2, Mail, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -62,6 +62,19 @@ const Payment = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const downloadHelper = () => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://jafylkqbmvdptrqwwyed.supabase.co';
+    const downloadUrl = `${supabaseUrl}/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe`;
+    
+    // Create temporary link to trigger download
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = 'InterviewAce-Helper-Windows.exe';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -147,6 +160,38 @@ const Payment = () => {
                 />
                 <p className="text-sm text-gray-600">
                   Leave empty for anonymous session. You'll still get a session code to connect.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Download Helper */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Download className="h-5 w-5" />
+                <span>Download Native Helper</span>
+              </CardTitle>
+              <CardDescription>
+                Download the helper app for advanced stealth features
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  The native helper provides stealth overlay and advanced audio capture for Windows.
+                </p>
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  onClick={downloadHelper}
+                  className="w-full"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Windows Helper (.exe)
+                </Button>
+                <p className="text-xs text-gray-500">
+                  Optional: Download now or after payment. The helper enhances your interview experience.
                 </p>
               </div>
             </CardContent>
