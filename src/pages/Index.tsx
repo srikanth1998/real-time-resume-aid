@@ -12,6 +12,7 @@ const Index = () => {
   const deviceMode = 'cross'; // Always use cross-device mode
   const [isScreenShareOn, setIsScreenShareOn] = useState(false);
   const [currentSubtitle, setCurrentSubtitle] = useState(0);
+  const [isScrolled, setIsScrolled] = useState(false);
   const containerRef = useRef(null);
   
   const { scrollYProgress } = useScroll();
@@ -30,6 +31,14 @@ const Index = () => {
       setCurrentSubtitle((prev) => (prev + 1) % subtitles.length);
     }, 3000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const plans = [
@@ -112,51 +121,51 @@ const Index = () => {
         className="fixed bottom-20 left-1/3 w-80 h-80 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-full blur-3xl"
       />
 
-      {/* Floating Navigation */}
+      {/* Static Navigation */}
       <motion.nav
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 backdrop-blur-md bg-glass border border-glass-border rounded-full px-8 py-4"
+        animate={{ 
+          backgroundColor: isScrolled ? 'rgba(15, 23, 42, 0.9)' : 'rgba(15, 23, 42, 0.1)',
+          backdropFilter: isScrolled ? 'blur(20px)' : 'blur(12px)',
+        }}
+        transition={{ duration: 0.3 }}
+        className="fixed top-0 left-0 right-0 z-50 border-b border-glass-border/30"
       >
-        <div className="flex items-center space-x-8">
-          <div className="flex items-center space-x-2">
-            <Brain className="h-6 w-6 text-white" />
-            <span className="text-white font-poppins font-semibold">InterviewAce</span>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Brain className="h-6 w-6 text-white" />
+              <span className="text-white font-poppins font-semibold">InterviewAce</span>
+            </div>
+            <div className="hidden md:flex items-center space-x-8 text-white/80">
+              <button onClick={() => navigate("/how-it-works")} className="hover:text-white transition-colors">How It Works</button>
+              <button onClick={() => navigate("/downloads")} className="hover:text-white transition-colors">Downloads</button>
+              <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+              <button onClick={() => navigate("/faq")} className="hover:text-white transition-colors">FAQ</button>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleSelectPlan('pay-as-you-go')}
+              className="bg-primary text-white px-6 py-2 rounded-full font-medium hover:shadow-lg hover:shadow-primary/25 transition-all"
+            >
+              Try Now
+            </motion.button>
           </div>
-          <div className="hidden md:flex items-center space-x-6 text-white/80">
-            <button onClick={() => navigate("/how-it-works")} className="hover:text-white transition-colors">How It Works</button>
-            <button onClick={() => navigate("/downloads")} className="hover:text-white transition-colors">Downloads</button>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-            <button onClick={() => navigate("/faq")} className="hover:text-white transition-colors">FAQ</button>
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleSelectPlan('pay-as-you-go')}
-            className="bg-primary text-white px-6 py-2 rounded-full font-medium hover:shadow-lg hover:shadow-primary/25 transition-all"
-          >
-            Try Now
-          </motion.button>
         </div>
       </motion.nav>
 
       {/* Hero Section */}
-      <div className="relative min-h-screen flex items-center justify-center px-4 pt-20">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+      <div className="relative min-h-screen flex items-center justify-center px-6 pt-24">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
           
           {/* Left Content */}
           <motion.div
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-center lg:text-left"
+            className="text-left space-y-8"
           >
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-8 mb-8"
-            >
+            <div>
               <h1 className="text-5xl lg:text-6xl font-bold font-poppins text-white mb-6 leading-tight">
                 Ace Your Next Interview with 
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-400"> AI</span>
@@ -165,45 +174,45 @@ const Index = () => {
                 Get real-time clarity reminders during live interviews with our cross-device coaching system. 
                 Your personal interview coach that stays completely private—invisible to screen shares.
               </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                <motion.button
-                  whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(79, 70, 229, 0.4)" }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleSelectPlan('pay-as-you-go')}
-                  className="bg-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-primary/25 border border-primary/50 hover:border-primary transition-all"
-                >
-                  <Zap className="inline h-5 w-5 mr-2" />
-                  Start Session ($9.99/hr)
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => navigate("/how-it-works")}
-                  className="backdrop-blur-md bg-glass border border-glass-border text-white px-8 py-4 rounded-xl font-medium text-lg hover:bg-white/20 transition-all"
-                >
-                  See How It Works
-                </motion.button>
-              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-4">
+              <motion.button
+                whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(79, 70, 229, 0.4)" }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleSelectPlan('pay-as-you-go')}
+                className="bg-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-primary/25 border border-primary/50 hover:border-primary transition-all"
+              >
+                <Zap className="inline h-5 w-5 mr-2" />
+                Start Session ($9.99/hr)
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate("/how-it-works")}
+                className="backdrop-blur-md bg-glass border border-glass-border text-white px-8 py-4 rounded-xl font-medium text-lg hover:bg-white/20 transition-all"
+              >
+                See How It Works
+              </motion.button>
+            </div>
 
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm">
-                <div className="flex items-center space-x-2 text-white/70">
-                  <Star className="h-4 w-4 text-yellow-400" />
-                  <span>4.9/5 Success Rate</span>
-                </div>
-                <div className="flex items-center space-x-2 text-white/70">
-                  <Users className="h-4 w-4 text-blue-400" />
-                  <span>10,000+ Users</span>
-                </div>
-                <div className="flex items-center space-x-2 text-white/70">
-                  <Shield className="h-4 w-4 text-green-400" />
-                  <span>100% Secure</span>
-                </div>
+            <div className="flex flex-wrap items-center gap-8 text-sm">
+              <div className="flex items-center space-x-2 text-white/70">
+                <Star className="h-4 w-4 text-yellow-400" />
+                <span>4.9/5 Success Rate</span>
               </div>
-            </motion.div>
+              <div className="flex items-center space-x-2 text-white/70">
+                <Users className="h-4 w-4 text-blue-400" />
+                <span>10,000+ Users</span>
+              </div>
+              <div className="flex items-center space-x-2 text-white/70">
+                <Shield className="h-4 w-4 text-green-400" />
+                <span>100% Secure</span>
+              </div>
+            </div>
           </motion.div>
 
-          {/* Right Content - 3D Laptop Demo */}
+          {/* Right Content - Demo Interface */}
           <motion.div
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
@@ -211,14 +220,20 @@ const Index = () => {
             className="relative"
           >
             <motion.div
-              whileHover={{ rotateY: 5, rotateX: 2, scale: 1.02 }}
+              whileHover={{ rotateY: 2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300 }}
-              className="backdrop-blur-md bg-glass border border-glass-border rounded-3xl p-8 transform perspective-1000"
+              className="backdrop-blur-md bg-glass border border-glass-border rounded-3xl p-8 shadow-2xl"
             >
-              {/* Laptop Screen */}
-              <div className="bg-gray-900 rounded-2xl p-6 mb-6 relative overflow-hidden">
-                <div className="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-4 relative">
-                  {/* Interview Question */}
+              {/* Interview Screen */}
+              <div className="bg-gray-900 rounded-2xl overflow-hidden mb-6">
+                <div className="bg-gray-800 px-4 py-2 flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                </div>
+                
+                <div className="p-6">
+                  <div className="text-blue-400 text-sm mb-2">Interviewer:</div>
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={currentSubtitle}
@@ -226,51 +241,50 @@ const Index = () => {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ duration: 0.5 }}
-                      className="text-white/90 mb-4"
+                      className="text-white text-lg mb-6"
                     >
-                      <div className="text-sm text-blue-400 mb-2">Interviewer:</div>
-                      <div className="text-lg font-medium">{subtitles[currentSubtitle].question}</div>
+                      {subtitles[currentSubtitle].question}
                     </motion.div>
                   </AnimatePresence>
 
-                  {/* AI Answer Overlay */}
+                  {/* AI Suggestion Overlay */}
                   <motion.div
                     animate={{ 
                       opacity: isScreenShareOn ? 0.1 : 1,
                       scale: isScreenShareOn ? 0.95 : 1
                     }}
                     transition={{ duration: 0.3 }}
-                    className="absolute bottom-4 right-4 backdrop-blur-md bg-primary/90 text-white text-sm rounded-lg p-3 max-w-xs border border-accent/30"
+                    className="bg-primary/90 backdrop-blur-sm text-white rounded-lg p-4 border border-accent/30"
                   >
                     <div className="text-xs text-accent mb-1">AI Suggestion:</div>
-                    <div>{subtitles[currentSubtitle].answer}</div>
+                    <div className="text-sm">{subtitles[currentSubtitle].answer}</div>
                   </motion.div>
-                </div>
 
-                {/* Screen Share Toggle */}
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center space-x-2 text-white/60 text-sm">
-                    <Monitor className="h-4 w-4" />
-                    <span>Screen Share</span>
+                  {/* Screen Share Toggle */}
+                  <div className="mt-6 flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-white/60 text-sm">
+                      <Monitor className="h-4 w-4" />
+                      <span>Screen Share</span>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setIsScreenShareOn(!isScreenShareOn)}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                        isScreenShareOn ? 'bg-green-500' : 'bg-gray-600'
+                      }`}
+                    >
+                      <motion.div
+                        animate={{ x: isScreenShareOn ? 24 : 2 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                      />
+                    </motion.button>
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setIsScreenShareOn(!isScreenShareOn)}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      isScreenShareOn ? 'bg-green-500' : 'bg-gray-600'
-                    }`}
-                  >
-                    <motion.div
-                      animate={{ x: isScreenShareOn ? 24 : 2 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                      className="absolute top-1 w-4 h-4 bg-white rounded-full"
-                    />
-                  </motion.button>
                 </div>
               </div>
 
-              {/* Cross-Device Badge */}
+              {/* Cross-Device Status */}
               <motion.div
                 animate={{ 
                   scale: isScreenShareOn ? 1.1 : 1,
