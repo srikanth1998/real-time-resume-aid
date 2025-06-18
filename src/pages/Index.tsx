@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
@@ -182,7 +183,8 @@ const Index = () => {
 
   const handleSelectPlan = (planId: string) => {
     if (planId === 'free-trial') {
-      navigate(`/auth?plan=${planId}&device=${deviceMode}&trial=true`);
+      // For free trial, go directly to upload page
+      navigate(`/upload?plan=${planId}&device=${deviceMode}&trial=true`);
     } else if (planId === 'quick-session') {
       navigate(`/payment?plan=quick-session`);
     } else {
