@@ -391,8 +391,10 @@ export type Database = {
           duration_minutes: number
           expires_at: string | null
           id: string
+          job_role: string | null
           plan_type: Database["public"]["Enums"]["plan_type"]
           price_cents: number
+          session_code: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["session_status"]
           stripe_payment_intent_id: string | null
@@ -407,8 +409,10 @@ export type Database = {
           duration_minutes: number
           expires_at?: string | null
           id?: string
+          job_role?: string | null
           plan_type: Database["public"]["Enums"]["plan_type"]
           price_cents: number
+          session_code?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["session_status"]
           stripe_payment_intent_id?: string | null
@@ -423,8 +427,10 @@ export type Database = {
           duration_minutes?: number
           expires_at?: string | null
           id?: string
+          job_role?: string | null
           plan_type?: Database["public"]["Enums"]["plan_type"]
           price_cents?: number
+          session_code?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["session_status"]
           stripe_payment_intent_id?: string | null
