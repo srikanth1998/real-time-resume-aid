@@ -5,13 +5,15 @@ import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Check, Clock, DollarSign, Star, Zap, Users, Shield, Eye, EyeOff, Monitor } from "lucide-react";
+import { Brain, Check, Clock, DollarSign, Star, Zap, Users, Shield, Eye, EyeOff, Monitor, Video, Maximize2 } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
   const deviceMode = 'cross'; // Always use cross-device mode
   const [isScreenShareOn, setIsScreenShareOn] = useState(false);
   const [currentSubtitle, setCurrentSubtitle] = useState(0);
+  const [overlayOpacity, setOverlayOpacity] = useState(90);
+  const [selectedApp, setSelectedApp] = useState('zoom');
   const [isScrolled, setIsScrolled] = useState(false);
   const containerRef = useRef(null);
   
@@ -24,6 +26,14 @@ const Index = () => {
     { question: "Tell me about yourself", answer: "Focus on your leadership experience and recent achievements..." },
     { question: "Why do you want this role?", answer: "Emphasize the company's mission alignment with your values..." },
     { question: "What's your biggest weakness?", answer: "Turn this into a growth story with specific examples..." }
+  ];
+
+  const meetingApps = [
+    { id: 'zoom', name: 'Zoom', color: 'bg-blue-500', icon: '🎥' },
+    { id: 'teams', name: 'Teams', color: 'bg-purple-500', icon: '👥' },
+    { id: 'meet', name: 'Google Meet', color: 'bg-green-500', icon: '📹' },
+    { id: 'webex', name: 'Webex', color: 'bg-orange-500', icon: '💼' },
+    { id: 'skype', name: 'Skype', color: 'bg-cyan-500', icon: '☁️' }
   ];
 
   useEffect(() => {
@@ -217,19 +227,47 @@ const Index = () => {
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative"
+            className="relative space-y-6"
           >
+            {/* Meeting App Selector */}
+            <div className="flex justify-center space-x-2 mb-4">
+              {meetingApps.map((app) => (
+                <motion.button
+                  key={app.id}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setSelectedApp(app.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    selectedApp === app.id 
+                      ? `${app.color} text-white` 
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  <span className="mr-2">{app.icon}</span>
+                  {app.name}
+                </motion.button>
+              ))}
+            </div>
+
+            {/* Interview Screen */}
             <motion.div
               whileHover={{ rotateY: 2, scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300 }}
               className="backdrop-blur-md bg-glass border border-glass-border rounded-3xl p-8 shadow-2xl"
             >
-              {/* Interview Screen */}
-              <div className="bg-gray-900 rounded-2xl overflow-hidden mb-6">
-                <div className="bg-gray-800 px-4 py-2 flex items-center space-x-2">
+              <div className="bg-gray-900 rounded-2xl overflow-hidden mb-6 relative">
+                {/* App Header */}
+                <div className={`${meetingApps.find(app => app.id === selectedApp)?.color} px-4 py-2 flex items-center space-x-2`}>
                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                   <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="ml-4 text-white text-sm font-medium">
+                    {meetingApps.find(app => app.id === selectedApp)?.name} - Interview Session
+                  </span>
+                  <div className="ml-auto flex items-center space-x-2">
+                    <Video className="h-4 w-4 text-white" />
+                    <Maximize2 className="h-4 w-4 text-white" />
+                  </div>
                 </div>
                 
                 <div className="p-6">
@@ -250,14 +288,23 @@ const Index = () => {
                   {/* AI Suggestion Overlay */}
                   <motion.div
                     animate={{ 
-                      opacity: isScreenShareOn ? 0.1 : 1,
-                      scale: isScreenShareOn ? 0.95 : 1
+                      opacity: isScreenShareOn ? (overlayOpacity / 100) * 0.3 : (overlayOpacity / 100),
+                      scale: isScreenShareOn ? 0.98 : 1,
+                      backdropFilter: `blur(${isScreenShareOn ? '2px' : '0px'})`
                     }}
                     transition={{ duration: 0.3 }}
-                    className="bg-primary/90 backdrop-blur-sm text-white rounded-lg p-4 border border-accent/30"
+                    className="bg-primary/90 backdrop-blur-sm text-white rounded-lg p-4 border border-accent/30 relative"
+                    style={{ opacity: overlayOpacity / 100 }}
                   >
                     <div className="text-xs text-accent mb-1">AI Suggestion:</div>
                     <div className="text-sm">{subtitles[currentSubtitle].answer}</div>
+                    {isScreenShareOn && (
+                      <div className="absolute inset-0 bg-transparent rounded-lg border-2 border-dashed border-green-400 flex items-center justify-center">
+                        <div className="bg-green-500 text-white text-xs px-2 py-1 rounded">
+                          Hidden from screen share
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
 
                   {/* Screen Share Toggle */}
@@ -284,6 +331,22 @@ const Index = () => {
                 </div>
               </div>
 
+              {/* Opacity Control */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-white text-sm">Overlay Opacity</span>
+                  <span className="text-accent text-sm">{overlayOpacity}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="20"
+                  max="100"
+                  value={overlayOpacity}
+                  onChange={(e) => setOverlayOpacity(Number(e.target.value))}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                />
+              </div>
+
               {/* Cross-Device Status */}
               <motion.div
                 animate={{ 
@@ -297,7 +360,7 @@ const Index = () => {
                 ) : (
                   <Eye className="h-4 w-4" />
                 )}
-                <span>Cross-Device Stealth Mode</span>
+                <span>Cross-Device Stealth Mode Active</span>
               </motion.div>
             </motion.div>
           </motion.div>
