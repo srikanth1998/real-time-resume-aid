@@ -13,8 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail, totalPrice } = await req.json()
-    console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail, totalPrice })
+    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail, totalPrice, hours } = await req.json()
+    console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail, totalPrice, hours })
 
     if (!userEmail) {
       throw new Error('User email is required')
@@ -51,6 +51,12 @@ serve(async (req) => {
 
     // Map plan types to valid enum values and configuration
     const planConfigs = {
+      'pay-as-you-go': {
+        name: 'Quick Session',
+        billing: 'one-time',
+        duration: hours ? hours * 60 : 60, // Convert hours to minutes
+        description: 'Pay-per-hour coaching session'
+      },
       'standard': {
         name: 'Single Session',
         billing: 'one-time',
@@ -136,7 +142,7 @@ serve(async (req) => {
         },
       ],
       mode: isSubscription ? 'subscription' : 'payment',
-      success_url: `${req.headers.get('origin')}/payment-success?session_id=${session.id}`,
+      success_url: `${req.headers.get('origin')}/upload?session_id=${session.id}`,
       cancel_url: `${req.headers.get('origin')}/payment?cancelled=true`,
       metadata: {
         session_id: session.id,
