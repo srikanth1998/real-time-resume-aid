@@ -1,16 +1,14 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Check, Clock, DollarSign, Star, Zap, Users, Shield, Eye, EyeOff, Monitor, Video, Maximize2 } from "lucide-react";
+import { Brain, Check, Clock, DollarSign, Star, Zap, Users, Shield, Eye, EyeOff } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
   const deviceMode = 'cross'; // Always use cross-device mode
-  const [isScreenShareOn, setIsScreenShareOn] = useState(false);
   const [currentSubtitle, setCurrentSubtitle] = useState(0);
   const [overlayOpacity, setOverlayOpacity] = useState(90);
   const [selectedApp, setSelectedApp] = useState('zoom');
@@ -33,7 +31,7 @@ const Index = () => {
     { id: 'teams', name: 'Teams', color: 'bg-purple-500', icon: '👥' },
     { id: 'meet', name: 'Google Meet', color: 'bg-green-500', icon: '📹' },
     { id: 'webex', name: 'Webex', color: 'bg-orange-500', icon: '💼' },
-    { id: 'skype', name: 'Skype', color: 'bg-cyan-500', icon: '☁️' }
+    { id: 'any', name: 'Any App', color: 'bg-gradient-to-r from-blue-400 to-purple-600', icon: '🌐' }
   ];
 
   useEffect(() => {
@@ -181,8 +179,8 @@ const Index = () => {
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-400"> AI</span>
               </h1>
               <p className="text-xl text-white/80 font-inter mb-8 leading-relaxed">
-                Get real-time clarity reminders during live interviews with our cross-device coaching system. 
-                Your personal interview coach that stays completely private—invisible to screen shares.
+                Get real-time clarity reminders during live interviews with our transparent overlay system. 
+                Works with any meeting app—completely invisible to screen sharing.
               </p>
             </div>
             
@@ -264,10 +262,6 @@ const Index = () => {
                   <span className="ml-4 text-white text-sm font-medium">
                     {meetingApps.find(app => app.id === selectedApp)?.name} - Interview Session
                   </span>
-                  <div className="ml-auto flex items-center space-x-2">
-                    <Video className="h-4 w-4 text-white" />
-                    <Maximize2 className="h-4 w-4 text-white" />
-                  </div>
                 </div>
                 
                 <div className="p-6">
@@ -285,56 +279,28 @@ const Index = () => {
                     </motion.div>
                   </AnimatePresence>
 
-                  {/* AI Suggestion Overlay */}
+                  {/* AI Suggestion Overlay - Now White and Transparent */}
                   <motion.div
                     animate={{ 
-                      opacity: isScreenShareOn ? (overlayOpacity / 100) * 0.3 : (overlayOpacity / 100),
-                      scale: isScreenShareOn ? 0.98 : 1,
-                      backdropFilter: `blur(${isScreenShareOn ? '2px' : '0px'})`
+                      opacity: overlayOpacity / 100,
                     }}
                     transition={{ duration: 0.3 }}
-                    className="bg-primary/90 backdrop-blur-sm text-white rounded-lg p-4 border border-accent/30 relative"
+                    className="bg-white/90 backdrop-blur-sm text-gray-800 rounded-lg p-4 border border-white/50 relative"
                     style={{ opacity: overlayOpacity / 100 }}
                   >
-                    <div className="text-xs text-accent mb-1">AI Suggestion:</div>
+                    <div className="text-xs text-blue-600 mb-1 font-medium">AI Suggestion:</div>
                     <div className="text-sm">{subtitles[currentSubtitle].answer}</div>
-                    {isScreenShareOn && (
-                      <div className="absolute inset-0 bg-transparent rounded-lg border-2 border-dashed border-green-400 flex items-center justify-center">
-                        <div className="bg-green-500 text-white text-xs px-2 py-1 rounded">
-                          Hidden from screen share
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-
-                  {/* Screen Share Toggle */}
-                  <div className="mt-6 flex items-center justify-between">
-                    <div className="flex items-center space-x-2 text-white/60 text-sm">
-                      <Monitor className="h-4 w-4" />
-                      <span>Screen Share</span>
+                    <div className="absolute top-2 right-2">
+                      <Eye className="h-3 w-3 text-blue-600" />
                     </div>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setIsScreenShareOn(!isScreenShareOn)}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${
-                        isScreenShareOn ? 'bg-green-500' : 'bg-gray-600'
-                      }`}
-                    >
-                      <motion.div
-                        animate={{ x: isScreenShareOn ? 24 : 2 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        className="absolute top-1 w-4 h-4 bg-white rounded-full"
-                      />
-                    </motion.button>
-                  </div>
+                  </motion.div>
                 </div>
               </div>
 
               {/* Opacity Control */}
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-white text-sm">Overlay Opacity</span>
+                  <span className="text-white text-sm">Overlay Transparency</span>
                   <span className="text-accent text-sm">{overlayOpacity}%</span>
                 </div>
                 <input
@@ -350,17 +316,13 @@ const Index = () => {
               {/* Cross-Device Status */}
               <motion.div
                 animate={{ 
-                  scale: isScreenShareOn ? 1.1 : 1,
-                  boxShadow: isScreenShareOn ? "0 0 20px rgba(45, 212, 191, 0.5)" : "none"
+                  scale: 1,
+                  boxShadow: "0 0 20px rgba(45, 212, 191, 0.3)"
                 }}
                 className="flex items-center justify-center space-x-2 text-accent text-sm font-medium"
               >
-                {isScreenShareOn ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-                <span>Cross-Device Stealth Mode Active</span>
+                <Shield className="h-4 w-4" />
+                <span>Invisible to Screen Sharing - Works with Any Meeting App</span>
               </motion.div>
             </motion.div>
           </motion.div>
@@ -459,9 +421,9 @@ const Index = () => {
             <p className="text-white/80 mb-4">✨ All plans include:</p>
             <div className="flex flex-wrap justify-center gap-6 text-sm text-white/70">
               <span>• Live clarity coaching</span>
-              <span>• Cross-device stealth mode</span>
+              <span>• Transparent overlay system</span>
               <span>• Invisible to screen shares</span>
-              <span>• Mobile companion app</span>
+              <span>• Works with any meeting app</span>
             </div>
           </div>
         </motion.div>
