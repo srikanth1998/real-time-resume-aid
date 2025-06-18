@@ -36,7 +36,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Verify session exists and is in correct status
+    // Verify session exists - allow both pending_payment and pending_assets status
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .select('*')
@@ -48,8 +48,11 @@ serve(async (req) => {
       throw new Error('Session not found')
     }
 
-    if (session.status !== 'pending_assets') {
-      console.error('Session not in pending_assets status:', session.status)
+    console.log('Session status:', session.status)
+
+    // Allow processing for both pending_payment and pending_assets status
+    if (session.status !== 'pending_assets' && session.status !== 'pending_payment') {
+      console.error('Session not in valid status for asset processing:', session.status)
       throw new Error('Session not ready for assets')
     }
 
@@ -96,7 +99,7 @@ serve(async (req) => {
       throw new Error('Failed to store job description')
     }
 
-    // Update session with assets received and session code
+    // Update session with assets received status and session code
     const now = new Date()
     const { data: updatedSession, error: updateError } = await supabaseService
       .from('sessions')
