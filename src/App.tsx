@@ -23,7 +23,6 @@ import Dashboard from "./pages/Dashboard";
 import Resumes from "./pages/Resumes";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
-import Overlay from "./pages/Overlay";
 
 const queryClient = new QueryClient();
 
@@ -55,7 +54,6 @@ function App() {
             <Route path="/downloads" element={<Downloads />} />
             <Route path="/mobile" element={<MobileCompanion />} />
             <Route path="/mobile-companion" element={<MobileCompanion />} />
-            <Route path="/overlay" element={<Overlay />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
