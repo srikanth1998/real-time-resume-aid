@@ -89,9 +89,24 @@ const SessionReady = () => {
           <Card className="backdrop-blur-md bg-glass border border-glass-border inline-block">
             <CardContent className="p-6">
               <div className="text-white/60 text-sm mb-2">Your Session Code</div>
-              <div className="text-4xl font-mono font-bold text-white tracking-wider mb-2">
+              <div className="text-4xl font-mono font-bold text-white tracking-wider mb-4">
                 {sessionCode}
               </div>
+              
+              {/* Overlay Access Button */}
+              <div className="mb-4">
+                <Button 
+                  onClick={() => window.open('/overlay', '_blank')}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6 py-3 text-lg font-semibold"
+                >
+                  <ExternalLink className="h-5 w-5 mr-2" />
+                  Open AI Overlay
+                </Button>
+                <p className="text-white/60 text-xs mt-2">
+                  Use this overlay for real-time AI assistance during your interview
+                </p>
+              </div>
+              
               {isTrial && (
                 <div className="flex items-center justify-center space-x-2 text-green-400 text-sm">
                   <Clock className="h-4 w-4" />
@@ -138,7 +153,7 @@ const SessionReady = () => {
                   <div className="flex items-start space-x-3">
                     <Badge variant="outline" className="text-xs bg-blue-600/20 border-blue-500">3</Badge>
                     <div>
-                      <div className="text-white font-medium">Enter Session Code</div>
+                      <div className="text-white font-medium">Open AI Overlay</div>
                       <div className="text-white/60 text-sm">Use code: <span className="font-mono text-white">{sessionCode}</span></div>
                     </div>
                   </div>
