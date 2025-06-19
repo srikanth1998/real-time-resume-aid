@@ -1044,11 +1044,28 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Show the main window only (no green dot indicator)
     ShowWindow(g_hwnd, nCmdShow);
     
+    // Create and initialize overlay window
+    g_overlayWindow = new OverlayWindow();
+    if (!g_overlayWindow->Initialize(hInstance)) {
+        MessageBox(NULL, L"Failed to initialize overlay window", L"Error", MB_OK | MB_ICONERROR);
+        delete g_overlayWindow;
+        return -1;
+    }
+    
+    // Show overlay window
+    g_overlayWindow->Show();
+    
     // Run the message loop
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
+    }
+    
+    // Cleanup
+    if (g_overlayWindow) {
+        delete g_overlayWindow;
+        g_overlayWindow = nullptr;
     }
     
     // Clean up speech recognition thread if active
@@ -1068,5 +1085,5 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Uninitialize COM
     CoUninitialize();
     
-    return 0;
+    return (int)msg.wParam;
 }
