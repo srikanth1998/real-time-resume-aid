@@ -738,70 +738,47 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     g_brushBackground = CreateSolidBrush(RGB(30, 30, 30));
                     InvalidateRect(hwnd, NULL, TRUE);
                     break;
-                case 10: // Toggle screen share protection
-                    g_isScreenShareProtected = !g_isScreenShareProtected;
-                    ::ToggleScreenShareProtection(hwnd, g_isScreenShareProtected);
-                    UpdateProtectionUI(hwnd, g_isScreenShareProtected);
-                    break;
-                case 11: // Toggle microphone protection
-                    g_isAudioProtectionEnabled = !g_isAudioProtectionEnabled;
-                    ToggleMicrophoneMute(g_isAudioProtectionEnabled);
-                    InvalidateRect(hwnd, NULL, TRUE); // Update UI
-                    break;
-                case 12: // Enable full protection
-                    // Enable both screen and microphone protection
-                    g_isScreenShareProtected = true;
-                    g_isAudioProtectionEnabled = true;
-                    ::ToggleScreenShareProtection(hwnd, true);
-                    ToggleMicrophoneMute(true);
-                    UpdateProtectionUI(hwnd, true);
-                    InvalidateRect(hwnd, NULL, TRUE);
-                    break;
-                case 13: // Disable all protection
-                    // Disable both screen and microphone protection
-                    g_isScreenShareProtected = false;
-                    g_isAudioProtectionEnabled = false;
-                    ::ToggleScreenShareProtection(hwnd, false);
-                    ToggleMicrophoneMute(false);
-                    UpdateProtectionUI(hwnd, false);
-                    InvalidateRect(hwnd, NULL, TRUE);
-                    break;
-                case 14: // Toggle speech recognition
-                    ToggleSpeechRecognition(hwnd);
-                    break;
-                case 15: // Toggle Whisper API
-                    // Toggle between Whisper API and Windows Speech API
-                    g_useWhisperAPI = !g_useWhisperAPI;
-                    // Update UI to show current API being used
-                    InvalidateRect(hwnd, NULL, TRUE);
-                    // Display a message to user
-                    MessageBox(hwnd, 
-                              g_useWhisperAPI ? 
-                              L"Switched to Whisper API for transcription." : 
-                              L"Switched to Windows Speech API for transcription.", 
-                              L"API Switched", MB_OK | MB_ICONINFORMATION);
-                    break;
-                /*
-                case 16: // Show/Hide logs
-                    g_showLogs = !g_showLogs;
-                    InvalidateRect(hwnd, NULL, TRUE);
-                    Logger::LogInfo(g_showLogs ? L"Logs display enabled" : L"Logs display disabled");
-                    break;
-                    
-                case 17: // Toggle debug logging
-                    if (Logger::IsDebugEnabled()) {
-                        Logger::SetLogLevel(LogLevel::Info);
-                        MessageBox(hwnd, L"Debug logging disabled", L"Logging", MB_OK | MB_ICONINFORMATION);
-                    } else {
-                        Logger::SetLogLevel(LogLevel::Debug);
-                        MessageBox(hwnd, L"Debug logging enabled", L"Logging", MB_OK | MB_ICONINFORMATION);
-                    }
-                    InvalidateRect(hwnd, NULL, TRUE);
-                    break;
-                */
-                    
                 case 9: // Exit
                     DestroyWindow(hwnd);
+                    break;
+                case 20: // Switch Account
+                    // Reset authentication state
+                    g_isAuthenticated = false;
+                    g_showMainOverlay = false;
+                    
+                    // Hide main window
+                    ShowWindow(hwnd, SW_HIDE);
+                    
+                    // Show authentication dialog again
+                    if (g_authDialog) {
+                        delete g_authDialog;
+                    }
+                    g_authDialog = new AuthenticationDialog();
+                    g_authDialog->ShowDialog(hwnd, [hwnd](const AuthResult& result) {
+                        if (result.success) {
+                            g_showMainOverlay = true;
+                            g_authResult = result;
+                            
+                            // Update window title
+                            std::wstring title = WINDOW_TITLE;
+                            if (result.mode == AuthMode::SESSION_CODE) {
+                                title += L" - Session: ";
+                                std::wstring sessionId(result.sessionId.begin(), result.sessionId.end());
+                                title += sessionId;
+                            } else {
+                                title += L" - User: ";
+                                std::wstring userEmail(result.userEmail.begin(), result.userEmail.end());
+                                title += userEmail;
+                            }
+                            SetWindowText(hwnd, title.c_str());
+                            
+                            // Show main window
+                            ShowWindow(hwnd, SW_SHOW);
+                            InvalidateRect(hwnd, NULL, TRUE);
+                        } else {
+                            PostQuitMessage(0);
+                        }
+                    });
                     break;
             }
             return 0;
