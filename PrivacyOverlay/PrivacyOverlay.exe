@@ -1,0 +1,2 @@
+@echo off
+powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\Users\SRIKANTH\Downloads\PrivacyOverlay\PrivacyOverlay.ps1"
