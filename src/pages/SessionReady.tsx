@@ -1,248 +1,117 @@
-
-import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Download, Smartphone, Monitor, Clock, Gift, ExternalLink } from "lucide-react";
-import { toast } from "sonner";
+import { Loader2 } from 'lucide-react';
 
-const SessionReady = () => {
-  const navigate = useNavigate();
+export default function SessionReady() {
   const [searchParams] = useSearchParams();
-  const sessionId = searchParams.get('sessionId');
-  const sessionCode = searchParams.get('code');
-  const isTrial = searchParams.get('trial') === 'true';
-  
-  const [downloadStarted, setDownloadStarted] = useState(false);
+  const sessionId = searchParams.get('session_id');
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (!sessionId || !sessionCode) {
-      toast.error("Session information missing");
-      navigate('/');
-    }
-  }, [sessionId, sessionCode, navigate]);
+    const fetchSession = async () => {
+      if (!sessionId) {
+        console.error("No session ID provided");
+        return;
+      }
 
-  const handleDownloadHelper = async () => {
-    try {
-      setDownloadStarted(true);
-      
-      // Create a temporary link to trigger download
-      const link = document.createElement('a');
-      link.href = 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helper/InterviewAce-Helper-Setup.exe';
-      link.download = 'InterviewAce-Helper-Setup.exe';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast.success("Download started! Install the helper to continue.");
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error("Failed to start download");
-      setDownloadStarted(false);
-    }
-  };
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .single();
 
-  const handleStartInterview = () => {
-    navigate(`/interview?sessionId=${sessionId}&trial=${isTrial}`);
-  };
+        if (error) {
+          console.error("Error fetching session:", error);
+          return;
+        }
 
-  if (!sessionId || !sessionCode) {
-    return null;
-  }
+        setSession(data);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSession();
+  }, [sessionId]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 p-6">
-      <div className="max-w-4xl mx-auto pt-8">
-        {/* Success Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            {isTrial ? (
-              <Gift className="h-12 w-12 text-green-400" />
-            ) : (
-              <CheckCircle className="h-12 w-12 text-green-400" />
-            )}
-            <h1 className="text-4xl font-bold text-white">
-              {isTrial ? "Free Trial Ready!" : "Session Ready!"}
-            </h1>
-          </div>
-          <p className="text-white/70 text-xl">
-            {isTrial 
-              ? "Your 10-minute free trial is prepared and ready to go"
-              : "Your interview session has been prepared successfully"
-            }
-          </p>
-        </motion.div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <Card className="mb-8">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-2xl font-bold">
+              Interview Session Ready
+            </CardTitle>
+          </CardHeader>
+        </Card>
 
         {/* Session Code Display */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="text-center mb-8"
-        >
-          <Card className="backdrop-blur-md bg-glass border border-glass-border inline-block">
-            <CardContent className="p-6">
-              <div className="text-white/60 text-sm mb-2">Your Session Code</div>
-              <div className="text-4xl font-mono font-bold text-white tracking-wider mb-2">
-                {sessionCode}
-              </div>
-              {isTrial && (
-                <div className="flex items-center justify-center space-x-2 text-green-400 text-sm">
-                  <Clock className="h-4 w-4" />
-                  <span>10 minutes remaining</span>
+        {session?.session_code && (
+          <Card className="mb-8 border-2 border-green-500 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold text-green-800 mb-2">
+                  Your Session Code
+                </h3>
+                <div className="bg-white p-4 rounded-lg border-2 border-green-300 mb-4">
+                  <code className="text-2xl font-mono font-bold text-green-700">
+                    {session.session_code}
+                  </code>
                 </div>
-              )}
+                <p className="text-green-700 text-sm">
+                  Use this code to connect your overlay assistant during the interview
+                </p>
+                <Button
+                  onClick={() => window.open('/overlay', '_blank')}
+                  className="mt-4 bg-green-600 hover:bg-green-700"
+                >
+                  Open Overlay Assistant
+                </Button>
+              </div>
             </CardContent>
           </Card>
-        </motion.div>
+        )}
 
-        {/* Setup Steps */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Desktop Setup */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card className="backdrop-blur-md bg-glass border border-glass-border h-full">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center space-x-2">
-                  <Monitor className="h-5 w-5" />
-                  <span>Desktop Setup</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-blue-600/20 border-blue-500">1</Badge>
-                    <div>
-                      <div className="text-white font-medium">Download Native Helper</div>
-                      <div className="text-white/60 text-sm">Required for audio capture and overlay</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-blue-600/20 border-blue-500">2</Badge>
-                    <div>
-                      <div className="text-white font-medium">Install & Run Helper</div>
-                      <div className="text-white/60 text-sm">Launch the helper application</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-blue-600/20 border-blue-500">3</Badge>
-                    <div>
-                      <div className="text-white font-medium">Enter Session Code</div>
-                      <div className="text-white/60 text-sm">Use code: <span className="font-mono text-white">{sessionCode}</span></div>
-                    </div>
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={handleDownloadHelper}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={downloadStarted}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {downloadStarted ? "Download Started" : "Download Helper"}
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Mobile Companion */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <Card className="backdrop-blur-md bg-glass border border-glass-border h-full">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center space-x-2">
-                  <Smartphone className="h-5 w-5" />
-                  <span>Mobile Companion</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-green-600/20 border-green-500">1</Badge>
-                    <div>
-                      <div className="text-white font-medium">Open Mobile Companion</div>
-                      <div className="text-white/60 text-sm">Access from any mobile device</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-green-600/20 border-green-500">2</Badge>
-                    <div>
-                      <div className="text-white font-medium">Enter Session Code</div>
-                      <div className="text-white/60 text-sm">Use code: <span className="font-mono text-white">{sessionCode}</span></div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-green-600/20 border-green-500">3</Badge>
-                    <div>
-                      <div className="text-white font-medium">View AI Suggestions</div>
-                      <div className="text-white/60 text-sm">Real-time coaching on your phone</div>
-                    </div>
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={() => window.open('/mobile-companion', '_blank')}
-                  variant="outline" 
-                  className="w-full border-green-500 text-green-400 hover:bg-green-500/10"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open Mobile Companion
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Start Interview Button */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="text-center"
-        >
-          <Button
-            onClick={handleStartInterview}
-            className="bg-primary hover:bg-primary/90 text-white px-8 py-4 text-lg font-semibold"
-          >
-            {isTrial ? (
-              <>
-                <Gift className="h-5 w-5 mr-2" />
-                Start Free Trial Interview
-              </>
+        <Card>
+          <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading session details...
+              </div>
             ) : (
               <>
-                <CheckCircle className="h-5 w-5 mr-2" />
-                Start Interview Session
+                {session ? (
+                  <div className="space-y-4">
+                    <h2 className="text-xl font-semibold">Session Details</h2>
+                    <p>
+                      Session ID: <code>{session.id}</code>
+                    </p>
+                    <p>
+                      Job Role: <code>{session.job_role}</code>
+                    </p>
+                    <p>
+                      Duration: <code>{session.duration_minutes} minutes</code>
+                    </p>
+                    <Button onClick={() => navigate(`/interview?session_id=${sessionId}`)}>
+                      Start Interview
+                    </Button>
+                  </div>
+                ) : (
+                  <p>Session not found.</p>
+                )}
               </>
             )}
-          </Button>
-          
-          <p className="text-white/60 text-sm mt-4">
-            {isTrial 
-              ? "You have 10 minutes of free AI-powered interview coaching"
-              : "Click when you're ready to begin your interview session"
-            }
-          </p>
-        </motion.div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
-};
-
-export default SessionReady;
+}
