@@ -1,0 +1,52 @@
+# Build directories
+/build/
+/out/
+/bin/
+/lib/
+/Release/
+/Debug/
+/x64/
+/x86/
+
+# Compiled files
+*.exe
+*.dll
+*.obj
+*.o
+*.a
+*.lib
+*.so
+*.pdb
+*.ilk
+*.exp
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+
+# Temporary audio files
+temp_audio.wav
+*.wav
+
+# User-specific files
+*.rsuser
+*.userosscache
+
+# IDE configuration
+.idea/
+.vscode/
+
+# Cache/History
+.DS_Store
+Thumbs.db
