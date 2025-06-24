@@ -1,11 +1,12 @@
-
 #include "../include/auth_client.h"
 #include <iostream>
 #include <sstream>
 #include <thread>
+#include <chrono>
 
 AuthClient::AuthClient() 
-    : m_hSession(NULL), m_hConnect(NULL), m_isAuthenticated(false) {
+    : m_hSession(NULL), m_hConnect(NULL), m_isAuthenticated(false), 
+      m_durationHours(0), m_authType(AuthType::ACCOUNT_LOGIN) {
 }
 
 AuthClient::~AuthClient() {
@@ -109,7 +110,9 @@ bool AuthClient::VerifyOTP(const std::string& email, const std::string& otp, Aut
             if (responseJson.contains("success") && responseJson["success"]) {
                 m_isAuthenticated = true;
                 m_userEmail = email;
-                std::cout << "Authentication successful for " << email << std::endl;
+                m_authType = AuthType::ACCOUNT_LOGIN;
+                m_durationHours = 1; // Default duration for account users
+                std::cout << "Account authentication successful for " << email << std::endl;
                 if (callback) callback(true, "Authentication successful", email);
             } else {
                 std::string error = responseJson.contains("error") ? 
@@ -126,9 +129,53 @@ bool AuthClient::VerifyOTP(const std::string& email, const std::string& otp, Aut
     return true;
 }
 
+bool AuthClient::VerifySessionCode(const std::string& sessionCode, SessionCallback callback) {
+    std::thread([this, sessionCode, callback]() {
+        try {
+            json payload = {
+                {"session_code", sessionCode}
+            };
+            
+            std::string response = SendHttpRequest(
+                L"/functions/v1/verify-session-code",
+                "POST",
+                payload.dump()
+            );
+            
+            json responseJson = json::parse(response);
+            
+            if (responseJson.contains("success") && responseJson["success"]) {
+                m_isAuthenticated = true;
+                m_authType = AuthType::SESSION_CODE;
+                m_sessionId = responseJson.contains("session_id") ? responseJson["session_id"] : sessionCode;
+                m_durationHours = responseJson.contains("duration_hours") ? responseJson["duration_hours"] : 1;
+                m_userEmail = responseJson.contains("user_email") ? responseJson["user_email"] : "session-user";
+                
+                std::cout << "Session authentication successful. Session: " << m_sessionId 
+                         << ", Duration: " << m_durationHours << " hours" << std::endl;
+                
+                if (callback) callback(true, "Session authenticated successfully", m_sessionId, m_durationHours);
+            } else {
+                std::string error = responseJson.contains("error") ? 
+                    responseJson["error"] : "Invalid session code";
+                std::cerr << "Session authentication failed: " << error << std::endl;
+                if (callback) callback(false, error, "", 0);
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Exception verifying session code: " << e.what() << std::endl;
+            if (callback) callback(false, "Network error", "", 0);
+        }
+    }).detach();
+    
+    return true;
+}
+
 void AuthClient::SignOut() {
     m_isAuthenticated = false;
     m_userEmail.clear();
+    m_sessionId.clear();
+    m_durationHours = 0;
+    m_authType = AuthType::ACCOUNT_LOGIN;
     std::cout << "User signed out" << std::endl;
 }
 
@@ -138,15 +185,21 @@ std::string AuthClient::CreateInterviewSession() {
         return "";
     }
     
-    // Generate session ID with user context
-    auto now = std::chrono::system_clock::now();
-    auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-    
-    // Create a more meaningful session ID
-    std::string sessionId = "interview-" + std::to_string(timestamp) + "-" + m_userEmail.substr(0, m_userEmail.find('@'));
-    
-    std::cout << "Created interview session: " << sessionId << " for user: " << m_userEmail << std::endl;
-    return sessionId;
+    // For account users, create a new session
+    if (m_authType == AuthType::ACCOUNT_LOGIN) {
+        auto now = std::chrono::system_clock::now();
+        auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+        
+        std::string sessionId = "interview-" + std::to_string(timestamp) + "-" + m_userEmail.substr(0, m_userEmail.find('@'));
+        m_sessionId = sessionId;
+        
+        std::cout << "Created interview session: " << sessionId << " for user: " << m_userEmail << std::endl;
+        return sessionId;
+    } else {
+        // For session code users, return existing session ID
+        std::cout << "Using existing session: " << m_sessionId << " with " << m_durationHours << " hours duration" << std::endl;
+        return m_sessionId;
+    }
 }
 
 std::string AuthClient::SendHttpRequest(

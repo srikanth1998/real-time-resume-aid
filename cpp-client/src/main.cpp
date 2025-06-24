@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <string>
 #include <chrono>
@@ -18,13 +17,30 @@ const std::string SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJp
 // Use the filesystem namespace for path handling
 namespace fs = std::filesystem;
 
-// Authentication flow
-bool AuthenticateUser(AuthClient& authClient) {
+// Global variables for session tracking
+auto g_sessionStartTime = std::chrono::steady_clock::now();
+bool g_sessionActive = false;
+
+// Authentication mode selection
+int SelectAuthenticationMode() {
+    std::cout << "\n=== InterviewAce Authentication ===" << std::endl;
+    std::cout << "Select authentication method:" << std::endl;
+    std::cout << "1. Account Login (Email + OTP)" << std::endl;
+    std::cout << "2. Quick Session (6-digit code)" << std::endl;
+    std::cout << "Enter choice (1 or 2): ";
+    
+    int choice;
+    std::cin >> choice;
+    return choice;
+}
+
+// Account-based authentication flow
+bool AuthenticateWithAccount(AuthClient& authClient) {
     std::string email, otp;
     bool authSuccess = false;
     bool otpSent = false;
     
-    std::cout << "\n=== InterviewAce Authentication ===" << std::endl;
+    std::cout << "\n=== Account Login ===" << std::endl;
     std::cout << "Please enter your email address: ";
     std::cin >> email;
     
@@ -74,22 +90,71 @@ bool AuthenticateUser(AuthClient& authClient) {
     return authSuccess;
 }
 
+// Session code authentication flow
+bool AuthenticateWithSessionCode(AuthClient& authClient) {
+    std::string sessionCode;
+    bool authSuccess = false;
+    
+    std::cout << "\n=== Quick Session Login ===" << std::endl;
+    std::cout << "Please enter your 6-digit session code: ";
+    std::cin >> sessionCode;
+    
+    // Verify session code
+    bool verificationComplete = false;
+    authClient.VerifySessionCode(sessionCode, [&authSuccess, &verificationComplete](bool success, const std::string& message, const std::string& sessionId, int durationHours) {
+        if (success) {
+            std::cout << "✓ Session authenticated successfully!" << std::endl;
+            std::cout << "Session ID: " << sessionId << std::endl;
+            std::cout << "Duration: " << durationHours << " hours" << std::endl;
+            authSuccess = true;
+        } else {
+            std::cout << "✗ " << message << std::endl;
+            authSuccess = false;
+        }
+        verificationComplete = true;
+    });
+    
+    // Wait for verification to complete
+    while (!verificationComplete) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    
+    return authSuccess;
+}
+
+// Display session timer
+void DisplaySessionTimer(int durationHours) {
+    auto currentTime = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(currentTime - g_sessionStartTime);
+    auto totalDurationSeconds = durationHours * 3600;
+    auto remaining = totalDurationSeconds - elapsed.count();
+    
+    if (remaining <= 0) {
+        std::cout << "\n⚠️ SESSION TIME EXPIRED! ⚠️" << std::endl;
+        g_sessionActive = false;
+        return;
+    }
+    
+    int hours = remaining / 3600;
+    int minutes = (remaining % 3600) / 60;
+    int seconds = remaining % 60;
+    
+    std::cout << "\r⏱️ Time Remaining: " << hours << "h " << minutes << "m " << seconds << "s ";
+    std::cout.flush();
+}
+
 // Print usage instructions
 void PrintUsage() {
     std::cout << "InterviewAce - AI-Powered Interview Assistant\n";
     std::cout << "===========================================\n";
     std::cout << "This application captures audio and provides AI-powered interview assistance.\n";
+    std::cout << "\nAUTHENTICATION METHODS:\n";
+    std::cout << "1. Account Login - Use your registered email and OTP\n";
+    std::cout << "2. Quick Session - Use 6-digit code from paid web session\n";
     std::cout << "\nMODES:\n";
     std::cout << "1. Fixed Duration Capture (20 seconds)\n";
-    std::cout << "   - Records audio for a fixed duration\n";
-    std::cout << "   - Sends to AI for transcription and response\n";
-    std::cout << "\n";
     std::cout << "2. Continuous Capture with Silence Detection\n";
-    std::cout << "   - Real-time audio capture with smart segmentation\n";
-    std::cout << "   - Automatic processing when you stop speaking\n";
-    std::cout << "   - Press Enter to stop recording\n";
-    std::cout << "\n";
-    std::cout << "Using Supabase endpoint: " << SUPABASE_BASE_URL << "\n";
+    std::cout << "\nUsing Supabase endpoint: " << SUPABASE_BASE_URL << "\n";
 }
 
 int main() {
@@ -106,14 +171,27 @@ int main() {
         return 1;
     }
     
-    // Authenticate user
-    if (!AuthenticateUser(authClient)) {
+    // Select authentication method
+    int authMode = SelectAuthenticationMode();
+    bool authenticated = false;
+    
+    if (authMode == 1) {
+        authenticated = AuthenticateWithAccount(authClient);
+    } else if (authMode == 2) {
+        authenticated = AuthenticateWithSessionCode(authClient);
+    } else {
+        std::cerr << "Invalid authentication method selected" << std::endl;
+        CoUninitialize();
+        return 1;
+    }
+    
+    if (!authenticated) {
         std::cerr << "Authentication failed. Exiting..." << std::endl;
         CoUninitialize();
         return 1;
     }
     
-    // Create interview session for authenticated user
+    // Create or get interview session
     std::string sessionId = authClient.CreateInterviewSession();
     if (sessionId.empty()) {
         std::cerr << "Failed to create interview session" << std::endl;
@@ -121,19 +199,25 @@ int main() {
         return 1;
     }
     
-    std::cout << "\nSession created: " << sessionId << std::endl;
-    std::cout << "Authenticated as: " << authClient.GetUserEmail() << std::endl;
+    std::cout << "\n=== SESSION READY ===" << std::endl;
+    std::cout << "Session ID: " << sessionId << std::endl;
+    std::cout << "User: " << authClient.GetUserEmail() << std::endl;
+    std::cout << "Duration: " << authClient.GetDurationHours() << " hours" << std::endl;
+    std::cout << "Authentication Type: " << (authClient.GetAuthType() == AuthType::ACCOUNT_LOGIN ? "Account" : "Session Code") << std::endl;
     
-    // Flag to track if the session has been initialized
-    bool sessionInitialized = false;
+    // Wait for user to press Start
+    std::cout << "\nPress Enter to START your interview session...";
+    std::cin.ignore();
+    std::cin.get();
     
-    // Initialize the API client for speech-to-text and GPT (via Supabase edge functions)
-    WhisperAPIClient apiClient;
-    std::string anonKey = SUPABASE_ANON_KEY;
+    // Start session timer
+    g_sessionStartTime = std::chrono::steady_clock::now();
+    g_sessionActive = true;
     
-    std::cout << "\nUsing secure Supabase edge functions for API access" << std::endl;
+    std::cout << "\n🚀 SESSION STARTED! 🚀" << std::endl;
+    std::cout << "Duration: " << authClient.GetDurationHours() << " hours" << std::endl;
     
-    // Set up the audio capture
+    // Initialize audio capture
     AudioCapture audioCapture;
     
     // Generate a output file path in the current directory
@@ -150,11 +234,10 @@ int main() {
     }
     
     // Initialize API client
-    if (!apiClient.Initialize()) {
-        std::cerr << "Failed to initialize API client" << std::endl;
-        CoUninitialize();
-        return 1;
-    }
+    WhisperAPIClient apiClient;
+    std::string anonKey = SUPABASE_ANON_KEY;
+    
+    std::cout << "\nUsing secure Supabase edge functions for API access" << std::endl;
     
     // Set API endpoint for Supabase
     apiClient.SetAPIEndpoint(
@@ -186,6 +269,7 @@ int main() {
         }
     }
     
+    // Audio capture with session timer
     if (mode == 1) {
         // Fixed duration capture (20 seconds)
         std::cout << "\nStarting fixed duration audio capture (20 seconds)..." << std::endl;
@@ -196,9 +280,19 @@ int main() {
             return 1;
         }
         
-        // Wait for capture to finish (20 seconds + a little buffer)
+        // Wait for capture to finish with timer display
         std::cout << "Recording for 20 seconds..." << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(21));
+        for (int i = 0; i < 21 && g_sessionActive; i++) {
+            DisplaySessionTimer(authClient.GetDurationHours());
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+        
+        if (!g_sessionActive) {
+            std::cout << "\nSession expired during recording." << std::endl;
+            audioCapture.Stop();
+            CoUninitialize();
+            return 1;
+        }
         
         // Stop audio capture
         audioCapture.Stop();
@@ -263,9 +357,9 @@ int main() {
             }
         });
     } else if (mode == 2) {
-        // Continuous capture with silence detection
+        // Continuous capture with session timer
         std::cout << "\nStarting continuous audio capture with silence detection..." << std::endl;
-        std::cout << "Press Enter to stop recording" << std::endl;
+        std::cout << "Press Enter to stop recording (session will auto-stop when time expires)" << std::endl;
         
         // Configure silence detection parameters
         audioCapture.SetSilenceThreshold(0.015f);     // Adjust based on testing
@@ -340,9 +434,22 @@ int main() {
             return 1;
         }
         
-        // Wait for user to press Enter to stop
-        std::cin.ignore(1000, '\n'); // Clear any previous input
-        std::cin.get(); // Wait for Enter key
+        // Monitor session time while waiting for user input
+        std::thread timerThread([&authClient]() {
+            while (g_sessionActive) {
+                DisplaySessionTimer(authClient.GetDurationHours());
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+        });
+        
+        // Wait for user to press Enter or session to expire
+        std::cin.ignore(1000, '\n');
+        std::cin.get();
+        
+        g_sessionActive = false;
+        if (timerThread.joinable()) {
+            timerThread.join();
+        }
         
         // Stop continuous capture
         audioCapture.Stop();
@@ -354,10 +461,16 @@ int main() {
         return 1;
     }
     
+    // Calculate session duration
+    auto sessionEndTime = std::chrono::steady_clock::now();
+    auto totalDuration = std::chrono::duration_cast<std::chrono::minutes>(sessionEndTime - g_sessionStartTime);
+    
     // Cleanup and exit
-    std::cout << "\nInterview session complete!" << std::endl;
+    std::cout << "\n=== SESSION COMPLETE ===" << std::endl;
     std::cout << "Session ID: " << sessionId << std::endl;
     std::cout << "User: " << authClient.GetUserEmail() << std::endl;
+    std::cout << "Total Duration: " << totalDuration.count() << " minutes" << std::endl;
+    std::cout << "Authentication Type: " << (authClient.GetAuthType() == AuthType::ACCOUNT_LOGIN ? "Account" : "Session Code") << std::endl;
     std::cout << "\nPress Enter to exit..." << std::endl;
     std::cin.get();
     
