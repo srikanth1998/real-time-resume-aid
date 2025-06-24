@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <string>
 #include <chrono>
@@ -8,6 +9,7 @@
 #include <limits>
 #include "../include/audio_capture.h"
 #include "../include/whisper_api_client.h"
+#include "../include/auth_client.h"
 
 // Supabase credentials for edge functions
 const std::string SUPABASE_BASE_URL = "https://jafylkqbmvdptrqwwyed.supabase.co";
@@ -16,30 +18,76 @@ const std::string SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJp
 // Use the filesystem namespace for path handling
 namespace fs = std::filesystem;
 
-// Generate a session ID that matches the expected format in Supabase
-std::string GenerateSessionId() {
-    // Use a consistent session ID that's recognized by the edge function
-    // Format: "interview-" + timestamp + fixed string
-    auto now = std::chrono::system_clock::now();
-    auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-    return "interview-" + std::to_string(timestamp) + "-default";
+// Authentication flow
+bool AuthenticateUser(AuthClient& authClient) {
+    std::string email, otp;
+    bool authSuccess = false;
+    bool otpSent = false;
+    
+    std::cout << "\n=== InterviewAce Authentication ===" << std::endl;
+    std::cout << "Please enter your email address: ";
+    std::cin >> email;
+    
+    // Send OTP
+    std::cout << "Sending OTP to " << email << "..." << std::endl;
+    authClient.SendOTP(email, [&otpSent](bool success, const std::string& message) {
+        if (success) {
+            std::cout << "✓ " << message << std::endl;
+        } else {
+            std::cout << "✗ " << message << std::endl;
+        }
+        otpSent = true;
+    });
+    
+    // Wait for OTP to be sent
+    while (!otpSent) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    
+    if (!otpSent) {
+        std::cerr << "Failed to send OTP. Please check your email address." << std::endl;
+        return false;
+    }
+    
+    // Get OTP from user
+    std::cout << "Please enter the 6-digit OTP sent to your email: ";
+    std::cin >> otp;
+    
+    // Verify OTP
+    bool verificationComplete = false;
+    authClient.VerifyOTP(email, otp, [&authSuccess, &verificationComplete](bool success, const std::string& message, const std::string& userEmail) {
+        if (success) {
+            std::cout << "✓ Authentication successful! Welcome, " << userEmail << std::endl;
+            authSuccess = true;
+        } else {
+            std::cout << "✗ " << message << std::endl;
+            authSuccess = false;
+        }
+        verificationComplete = true;
+    });
+    
+    // Wait for verification to complete
+    while (!verificationComplete) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    
+    return authSuccess;
 }
 
 // Print usage instructions
 void PrintUsage() {
-    std::cout << "Audio Whisper App - Capture audio and send to Supabase Speech-to-Text API\n";
-    std::cout << "----------------------------------------------------------------------\n";
-    std::cout << "USAGE:\n";
-    std::cout << "Mode 1: Fixed Duration Capture\n";
-    std::cout << "  1. Start audio capture (20 seconds of system audio will be recorded)\n";
-    std::cout << "  2. Send the captured audio to Speech-to-Text API for transcription\n";
-    std::cout << "  3. View the transcription results\n";
+    std::cout << "InterviewAce - AI-Powered Interview Assistant\n";
+    std::cout << "===========================================\n";
+    std::cout << "This application captures audio and provides AI-powered interview assistance.\n";
+    std::cout << "\nMODES:\n";
+    std::cout << "1. Fixed Duration Capture (20 seconds)\n";
+    std::cout << "   - Records audio for a fixed duration\n";
+    std::cout << "   - Sends to AI for transcription and response\n";
     std::cout << "\n";
-    std::cout << "Mode 2: Continuous Capture with Silence Detection\n";
-    std::cout << "  1. Start continuous audio capture with automatic silence detection\n";
-    std::cout << "  2. Audio will be automatically split on silence gaps\n";
-    std::cout << "  3. Each segment will be sent to the API in real-time\n";
-    std::cout << "  4. Press Enter to stop recording\n";
+    std::cout << "2. Continuous Capture with Silence Detection\n";
+    std::cout << "   - Real-time audio capture with smart segmentation\n";
+    std::cout << "   - Automatic processing when you stop speaking\n";
+    std::cout << "   - Press Enter to stop recording\n";
     std::cout << "\n";
     std::cout << "Using Supabase endpoint: " << SUPABASE_BASE_URL << "\n";
 }
@@ -50,9 +98,31 @@ int main() {
     
     PrintUsage();
     
-    // Generate a random session ID
-    std::string sessionId = GenerateSessionId();
-    std::cout << "\nGenerated session ID: " << sessionId << "\n" << std::endl;
+    // Initialize authentication client
+    AuthClient authClient;
+    if (!authClient.Initialize(SUPABASE_BASE_URL, SUPABASE_ANON_KEY)) {
+        std::cerr << "Failed to initialize authentication client" << std::endl;
+        CoUninitialize();
+        return 1;
+    }
+    
+    // Authenticate user
+    if (!AuthenticateUser(authClient)) {
+        std::cerr << "Authentication failed. Exiting..." << std::endl;
+        CoUninitialize();
+        return 1;
+    }
+    
+    // Create interview session for authenticated user
+    std::string sessionId = authClient.CreateInterviewSession();
+    if (sessionId.empty()) {
+        std::cerr << "Failed to create interview session" << std::endl;
+        CoUninitialize();
+        return 1;
+    }
+    
+    std::cout << "\nSession created: " << sessionId << std::endl;
+    std::cout << "Authenticated as: " << authClient.GetUserEmail() << std::endl;
     
     // Flag to track if the session has been initialized
     bool sessionInitialized = false;
@@ -61,8 +131,7 @@ int main() {
     WhisperAPIClient apiClient;
     std::string anonKey = SUPABASE_ANON_KEY;
     
-    std::cout << "Using configured Supabase credentials" << std::endl;
-    std::cout << "Using secure Supabase edge functions for API access" << std::endl;
+    std::cout << "\nUsing secure Supabase edge functions for API access" << std::endl;
     
     // Set up the audio capture
     AudioCapture audioCapture;
@@ -120,17 +189,6 @@ int main() {
     if (mode == 1) {
         // Fixed duration capture (20 seconds)
         std::cout << "\nStarting fixed duration audio capture (20 seconds)..." << std::endl;
-        
-        // Set up a transcription callback for fixed mode
-        audioCapture.SetTranscriptionCallback([&apiClient, &anonKey](const std::string& filePath) {
-            std::cout << "\nSending audio to Whisper API..." << std::endl;
-            
-            apiClient.SendAudioToAPI(filePath, anonKey, [](const std::string& response) {
-                std::cout << "\n===== Speech-to-Text API Response =====\n";
-                std::cout << response << std::endl;
-                std::cout << "=======================================\n";
-            });
-        });
         
         if (!audioCapture.Start()) {
             std::cerr << "Failed to start audio capture" << std::endl;
@@ -297,9 +355,14 @@ int main() {
     }
     
     // Cleanup and exit
-    std::cout << "\nApplication complete. Cleaning up..." << std::endl;
+    std::cout << "\nInterview session complete!" << std::endl;
+    std::cout << "Session ID: " << sessionId << std::endl;
+    std::cout << "User: " << authClient.GetUserEmail() << std::endl;
     std::cout << "\nPress Enter to exit..." << std::endl;
     std::cin.get();
+    
+    // Sign out user
+    authClient.SignOut();
     
     // Clean up COM
     CoUninitialize();

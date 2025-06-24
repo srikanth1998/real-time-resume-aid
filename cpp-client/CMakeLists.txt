@@ -1,3 +1,4 @@
+
 cmake_minimum_required(VERSION 3.10)
 project(AudioWhisperApp)
 
@@ -14,6 +15,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 set(SOURCES
     src/audio_capture.cpp
     src/whisper_api_client.cpp
+    src/auth_client.cpp
     src/main.cpp
 )
 
