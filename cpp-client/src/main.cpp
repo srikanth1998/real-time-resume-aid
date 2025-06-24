@@ -36,42 +36,20 @@ int SelectAuthenticationMode() {
 
 // Account-based authentication flow
 bool AuthenticateWithAccount(AuthClient& authClient) {
-    std::string email, otp;
+    std::string email, password;
     bool authSuccess = false;
-    bool otpSent = false;
     
     std::cout << "\n=== Account Login ===" << std::endl;
     std::cout << "Please enter your email address: ";
     std::cin >> email;
     
-    // Send OTP
-    std::cout << "Sending OTP to " << email << "..." << std::endl;
-    authClient.SendOTP(email, [&otpSent](bool success, const std::string& message) {
-        if (success) {
-            std::cout << "✓ " << message << std::endl;
-        } else {
-            std::cout << "✗ " << message << std::endl;
-        }
-        otpSent = true;
-    });
+    std::cout << "Please enter your password: ";
+    std::cin >> password;
     
-    // Wait for OTP to be sent
-    while (!otpSent) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    
-    if (!otpSent) {
-        std::cerr << "Failed to send OTP. Please check your email address." << std::endl;
-        return false;
-    }
-    
-    // Get OTP from user
-    std::cout << "Please enter the 6-digit OTP sent to your email: ";
-    std::cin >> otp;
-    
-    // Verify OTP
-    bool verificationComplete = false;
-    authClient.VerifyOTP(email, otp, [&authSuccess, &verificationComplete](bool success, const std::string& message, const std::string& userEmail) {
+    // Sign in with password
+    std::cout << "Authenticating with " << email << "..." << std::endl;
+    bool authComplete = false;
+    authClient.SignInWithPassword(email, password, [&authSuccess, &authComplete](bool success, const std::string& message, const std::string& userEmail) {
         if (success) {
             std::cout << "✓ Authentication successful! Welcome, " << userEmail << std::endl;
             authSuccess = true;
@@ -79,11 +57,11 @@ bool AuthenticateWithAccount(AuthClient& authClient) {
             std::cout << "✗ " << message << std::endl;
             authSuccess = false;
         }
-        verificationComplete = true;
+        authComplete = true;
     });
     
-    // Wait for verification to complete
-    while (!verificationComplete) {
+    // Wait for authentication to complete
+    while (!authComplete) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     

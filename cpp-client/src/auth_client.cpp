@@ -58,56 +58,23 @@ bool AuthClient::Initialize(const std::string& supabaseUrl, const std::string& a
     return true;
 }
 
-bool AuthClient::SendOTP(const std::string& email, OTPCallback callback) {
-    std::thread([this, email, callback]() {
-        try {
-            json payload = {
-                {"email", email}
-            };
-            
-            std::string response = SendHttpRequest(
-                L"/functions/v1/send-otp-email",
-                "POST",
-                payload.dump()
-            );
-            
-            json responseJson = json::parse(response);
-            
-            if (responseJson.contains("success") && responseJson["success"]) {
-                std::cout << "OTP sent successfully to " << email << std::endl;
-                if (callback) callback(true, "OTP sent successfully");
-            } else {
-                std::string error = responseJson.contains("error") ? 
-                    responseJson["error"] : "Failed to send OTP";
-                std::cerr << "Failed to send OTP: " << error << std::endl;
-                if (callback) callback(false, error);
-            }
-        } catch (const std::exception& e) {
-            std::cerr << "Exception sending OTP: " << e.what() << std::endl;
-            if (callback) callback(false, "Network error");
-        }
-    }).detach();
-    
-    return true;
-}
-
-bool AuthClient::VerifyOTP(const std::string& email, const std::string& otp, AuthCallback callback) {
-    std::thread([this, email, otp, callback]() {
+bool AuthClient::SignInWithPassword(const std::string& email, const std::string& password, AuthCallback callback) {
+    std::thread([this, email, password, callback]() {
         try {
             json payload = {
                 {"email", email},
-                {"otp", otp}
+                {"password", password}
             };
             
             std::string response = SendHttpRequest(
-                L"/functions/v1/verify-otp",
+                L"/auth/v1/token?grant_type=password",
                 "POST",
                 payload.dump()
             );
             
             json responseJson = json::parse(response);
             
-            if (responseJson.contains("success") && responseJson["success"]) {
+            if (responseJson.contains("access_token") && responseJson.contains("user")) {
                 m_isAuthenticated = true;
                 m_userEmail = email;
                 m_authType = AuthType::ACCOUNT_LOGIN;
@@ -115,13 +82,13 @@ bool AuthClient::VerifyOTP(const std::string& email, const std::string& otp, Aut
                 std::cout << "Account authentication successful for " << email << std::endl;
                 if (callback) callback(true, "Authentication successful", email);
             } else {
-                std::string error = responseJson.contains("error") ? 
-                    responseJson["error"] : "Invalid OTP";
+                std::string error = responseJson.contains("error_description") ? 
+                    responseJson["error_description"] : "Invalid credentials";
                 std::cerr << "Authentication failed: " << error << std::endl;
                 if (callback) callback(false, error, "");
             }
         } catch (const std::exception& e) {
-            std::cerr << "Exception verifying OTP: " << e.what() << std::endl;
+            std::cerr << "Exception during authentication: " << e.what() << std::endl;
             if (callback) callback(false, "Network error", "");
         }
     }).detach();

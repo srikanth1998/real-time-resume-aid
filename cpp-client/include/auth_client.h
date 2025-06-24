@@ -13,7 +13,6 @@ using json = nlohmann::json;
 
 // Authentication callback types
 using AuthCallback = std::function<void(bool success, const std::string& message, const std::string& email)>;
-using OTPCallback = std::function<void(bool success, const std::string& message)>;
 using SessionCallback = std::function<void(bool success, const std::string& message, const std::string& sessionId, int durationHours)>;
 
 // Authentication types
@@ -40,9 +39,8 @@ public:
     // Initialize the authentication client
     bool Initialize(const std::string& supabaseUrl, const std::string& anonKey);
     
-    // Account-based authentication (existing users)
-    bool SendOTP(const std::string& email, OTPCallback callback = nullptr);
-    bool VerifyOTP(const std::string& email, const std::string& otp, AuthCallback callback = nullptr);
+    // Account-based authentication (email + password)
+    bool SignInWithPassword(const std::string& email, const std::string& password, AuthCallback callback = nullptr);
     
     // Session-based authentication (6-digit code from web app)
     bool VerifySessionCode(const std::string& sessionCode, SessionCallback callback = nullptr);
