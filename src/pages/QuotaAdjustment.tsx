@@ -20,7 +20,7 @@ const QuotaAdjustment = () => {
       type: 'coding',
       description: 'AI coding assistance and hints'
     },
-    'image-analysis': {
+    'question-analysis': {
       name: 'Question Analysis',
       basePrice: 6.99,
       type: 'image',
