@@ -74,6 +74,18 @@ serve(async (req) => {
         billing: 'monthly', 
         duration: 1200, // 20 credits * 60 min each
         description: 'Premium coaching features'
+      },
+      'question-analysis': {
+        name: 'Question Analysis Plan',
+        billing: 'one-time',
+        duration: 0, // Not time-based
+        description: 'AI-powered question analysis'
+      },
+      'coding-helper': {
+        name: 'Coding Helper Plan',
+        billing: 'one-time', 
+        duration: 0, // Not time-based
+        description: 'AI coding assistance'
       }
     }
 
