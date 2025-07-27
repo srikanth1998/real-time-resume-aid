@@ -89,95 +89,66 @@ const Index = () => {
 
   const plans = [
     {
-      id: 'free-trial',
-      name: 'Free Trial',
-      price: 'Free',
+      id: 'coding-helper',
+      name: 'Coding Helper',
+      price: '$6.99',
       priceUnit: '',
       billing: 'one-time',
-      duration: '10 minutes',
-      description: 'Try InterviewAce risk-free',
-      bestFor: 'New users - experience the magic',
+      duration: '5 questions',
+      description: 'Perfect for coding interviews, technical quizzes & programming challenges',
+      bestFor: 'Coding interviews',
       features: [
-        '10-minute trial session',
-        'Real-time AI assistance',
-        'Stealth overlay system',
-        'Works with any meeting app',
-        'No payment required'
+        '5 coding questions & quizzes',
+        'Smart coding & quiz assistance',
+        'Technical interview question help',
+        'Algorithm & data structure guidance',
+        'Programming challenge solutions',
+        'Quiz answer explanations'
       ],
       popular: false,
-      isFree: true,
+      comingSoon: false,
     },
     {
       id: 'quick-session',
       name: 'Quick Session',
-      price: '$9.99',
-      priceUnit: '/ hour',
+      price: '$6.99',
+      priceUnit: '/hr',
       billing: 'one-time',
       duration: 'Pay per hour',
-      description: 'Quick interview prep - no account needed',
-      bestFor: 'Immediate interview preparation',
+      description: 'Live smart interview assistance',
+      bestFor: 'Real-time interview coaching',
       features: [
-        'Instant access - no signup',
-        'Upload resume & job description', 
-        'Get 6-digit session code',
-        'Real-time AI coaching overlay',
-        'Works with native helper'
+        'Real-time interview coaching',
+        'Live smart assistance',
+        'Real-time answer suggestions',
+        'Technical question help',
+        'Professional coaching',
+        'Session recording',
+        'Performance analytics'
       ],
       popular: true,
+      comingSoon: true,
     },
     {
-      id: 'pay-as-you-go',
-      name: 'Hourly Sessions',
-      price: '$9.99',
-      priceUnit: '/ hour',
+      id: 'question-analysis',
+      name: 'Question Analysis',
+      price: '$6.99',
+      priceUnit: ' per 100 images',
       billing: 'one-time',
-      duration: 'Select hours needed',
-      description: 'Quick interview prep - no account needed',
-      bestFor: 'Immediate interview preparation',
+      duration: '100 images',
+      description: 'Smart interview question analysis and instant answers',
+      bestFor: 'Screenshot analysis',
       features: [
-        'Unlimited AI tokens per session',
-        'Priority LLM processing',
-        'Job-specific trained AI models',
-        'Real-time coaching overlay',
-        'Cross-device companion app'
-      ],
-      popular: true,
-    },
-    {
-      id: 'coach',
-      name: 'Coach Bundle',
-      price: '$99',
-      priceUnit: '/ month',
-      billing: 'monthly',
-      duration: '20 credits',
-      description: 'Career & placement coaches',
-      bestFor: 'Professional coaching practice',
-      features: [
-        '20 session credits (shareable)',
-        'Client management dashboard',
-        'White-label PDF reports',
-        'Logo upload & branding',
-        'Cross-device capabilities'
+        'Screenshot → Smart Analysis → Perfect Answer',
+        'Screenshot interview questions instantly',
+        'Smart analysis of coding challenges & algorithms',
+        'Get detailed answers for technical questions',
+        'Works with video calls, coding platforms',
+        'Supports all programming languages',
+        'Perfect for software engineering interviews'
       ],
       popular: false,
-    },
-    {
-      id: 'enterprise',
-      name: 'Enterprise / API',
-      price: 'Custom',
-      priceUnit: 'quote',
-      billing: 'annual',
-      duration: '500+ credits',
-      description: 'Job platforms, bootcamps',
-      bestFor: 'High-volume usage',
-      features: [
-        '500+ credits per year',
-        'SSO (SAML/OIDC)',
-        'Usage analytics export',
-        'Dedicated Slack support',
-        'Cross-device infrastructure'
-      ],
-      popular: false,
+      comingSoon: false,
     }
   ];
 
@@ -504,7 +475,7 @@ const Index = () => {
               className={`relative backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 shadow-2xl ${
                 plan.popular ? 'ring-2 ring-primary scale-105' : ''
               } ${
-                plan.isFree ? 'ring-2 ring-green-500' : ''
+                plan.comingSoon ? 'opacity-75' : ''
               }`}
             >
               {plan.popular && (
@@ -518,14 +489,14 @@ const Index = () => {
                 </motion.div>
               )}
               
-              {plan.isFree && (
+              {plan.comingSoon && (
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.5, type: "spring" }}
-                  className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-1 rounded-full text-sm font-medium"
+                  className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-white px-4 py-1 rounded-full text-sm font-medium"
                 >
-                  Free Trial
+                  Coming Soon
                 </motion.div>
               )}
               
@@ -563,22 +534,23 @@ const Index = () => {
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleSelectPlan(plan.id)}
                   className={`w-full py-4 text-lg font-semibold rounded-xl transition-all ${
-                    plan.isFree
-                      ? 'bg-green-600 text-white shadow-lg shadow-green-600/25 hover:shadow-green-600/40'
+                    plan.comingSoon
+                      ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                       : plan.popular 
                         ? 'bg-primary text-white shadow-lg shadow-primary/25 hover:shadow-primary/40' 
                         : 'backdrop-blur-md bg-glass border border-glass-border text-white hover:bg-white/20'
                   }`}
+                  disabled={plan.comingSoon}
                 >
-                  {plan.isFree ? (
+                  {plan.comingSoon ? (
                     <>
-                      <Gift className="inline h-5 w-5 mr-2" />
-                      Start Free Trial
+                      <Clock className="inline h-5 w-5 mr-2" />
+                      Coming Soon
                     </>
                   ) : (
                     <>
                       <Zap className="inline h-5 w-5 mr-2" />
-                      Get Started with {plan.name}
+                      Get {plan.name}
                     </>
                   )}
                 </motion.button>
