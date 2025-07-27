@@ -159,7 +159,8 @@ const Index = () => {
     } else if (planId === 'quick-session') {
       navigate(`/payment?plan=quick-session`);
     } else {
-      navigate(`/auth?plan=${planId}&device=${deviceMode}`);
+      // Navigate to quota adjustment page for other plans
+      navigate(`/quota-adjustment?plan=${planId}&device=${deviceMode}`);
     }
   };
 

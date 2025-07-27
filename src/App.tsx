@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import QuotaAdjustment from "./pages/QuotaAdjustment";
 import Payment from "./pages/Payment";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import Upload from "./pages/Upload";
@@ -39,6 +40,7 @@ function App() {
             <Route path="/faq" element={<FAQ />} />
             <Route path="/integrity" element={<Integrity />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/quota-adjustment" element={<QuotaAdjustment />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/resumes" element={<Resumes />} />
             <Route path="/analytics" element={<Analytics />} />
