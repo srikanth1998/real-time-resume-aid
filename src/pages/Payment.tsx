@@ -16,13 +16,18 @@ const Payment = () => {
   const { toast } = useToast();
   
   const planType = searchParams.get('plan') || 'pay-as-you-go';
+  const quota = searchParams.get('quota');
+  const totalFromParams = searchParams.get('total');
   
   const [email, setEmail] = useState('');
   const [hours, setHours] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const basePrice = 9.99; // $9.99 per hour
-  const totalPrice = basePrice * hours;
+  // Check if this is a quota-based payment (from quota adjustment page)
+  const isQuotaPayment = quota && totalFromParams;
+  
+  const basePrice = isQuotaPayment ? parseFloat(totalFromParams) : 9.99;
+  const totalPrice = isQuotaPayment ? parseFloat(totalFromParams) : (9.99 * hours);
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,13 +35,20 @@ const Payment = () => {
     setLoading(true);
 
     try {
-      console.log('Creating checkout session for quick session');
+      console.log('Creating checkout session for', isQuotaPayment ? 'quota payment' : 'quick session');
       
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: {
+        body: isQuotaPayment ? {
+          // Quota-based payment
+          planType: planType,
+          userEmail: email || 'guest@interviewace.com',
+          quota: parseInt(quota),
+          totalPrice: Math.round(totalPrice * 100) // Convert to cents
+        } : {
+          // Hourly payment (existing logic)
           planType: 'pay-as-you-go',
-          userEmail: email || 'guest@interviewace.com', // Default email for guest checkout
-          deviceMode: 'single', // Quick sessions are single device
+          userEmail: email || 'guest@interviewace.com',
+          deviceMode: 'single',
           hours: hours,
           totalPrice: Math.round(totalPrice * 100) // Convert to cents
         }
@@ -85,57 +97,99 @@ const Payment = () => {
           <Brain className="h-8 w-8 text-blue-600" />
           <span className="text-2xl font-bold text-gray-900">InterviewAce</span>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Quick Interview Session</h1>
-        <p className="text-gray-600">Pay per hour - No account required</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {isQuotaPayment ? (
+            planType === 'question-analysis' ? 'Question Analysis Plan' : 'Coding Helper Plan'
+          ) : (
+            'Quick Interview Session'
+          )}
+        </h1>
+        <p className="text-gray-600">
+          {isQuotaPayment ? 'One-time payment - No account required' : 'Pay per hour - No account required'}
+        </p>
       </div>
 
       <div className="max-w-2xl mx-auto">
         <form onSubmit={handleCheckout} className="space-y-8">
           
-          {/* Hour Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="h-5 w-5" />
-                <span>Session Duration</span>
-              </CardTitle>
-              <CardDescription>
-                Select how many hours you need for your interview session
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-3">
-                  {[1, 2, 3, 4].map((hour) => (
-                    <button
-                      key={hour}
-                      type="button"
-                      onClick={() => setHours(hour)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        hours === hour
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="text-lg font-semibold">{hour}h</div>
-                      <div className="text-sm text-gray-500">${(basePrice * hour).toFixed(2)}</div>
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
-                    <p className="text-sm text-gray-600">
-                      ${basePrice}/hour × {hours} = ${totalPrice.toFixed(2)}
-                    </p>
+          {/* Hour Selection - Only show for hourly payments */}
+          {!isQuotaPayment && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Clock className="h-5 w-5" />
+                  <span>Session Duration</span>
+                </CardTitle>
+                <CardDescription>
+                  Select how many hours you need for your interview session
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-3">
+                    {[1, 2, 3, 4].map((hour) => (
+                      <button
+                        key={hour}
+                        type="button"
+                        onClick={() => setHours(hour)}
+                        className={`p-3 rounded-lg border-2 transition-all ${
+                          hours === hour
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="text-lg font-semibold">{hour}h</div>
+                        <div className="text-sm text-gray-500">${(9.99 * hour).toFixed(2)}</div>
+                      </button>
+                    ))}
                   </div>
-                  <Badge variant="outline">
-                    ${totalPrice.toFixed(2)}
-                  </Badge>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
+                      <p className="text-sm text-gray-600">
+                        $9.99/hour × {hours} = ${totalPrice.toFixed(2)}
+                      </p>
+                    </div>
+                    <Badge variant="outline">
+                      ${totalPrice.toFixed(2)}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quota Summary - Only show for quota payments */}
+          {isQuotaPayment && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <DollarSign className="h-5 w-5" />
+                  <span>Plan Summary</span>
+                </CardTitle>
+                <CardDescription>
+                  Your selected plan and quota
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-semibold text-lg">
+                        {planType === 'question-analysis' ? 'Question Analysis' : 'Coding Helper'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {planType === 'question-analysis' ? `${quota} images` : `${quota} questions`}
+                      </p>
+                    </div>
+                    <Badge variant="default" className="text-lg py-2 px-4">
+                      ${totalPrice.toFixed(2)}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Optional Email Input */}
           <Card>
