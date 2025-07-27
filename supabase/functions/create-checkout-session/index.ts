@@ -13,8 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail, totalPrice, hours } = await req.json()
-    console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail, totalPrice, hours })
+    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail, totalPrice, hours, quota } = await req.json()
+    console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail, totalPrice, hours, quota })
 
     if (!userEmail) {
       throw new Error('User email is required')
@@ -90,7 +90,10 @@ serve(async (req) => {
     }
 
     const planConfig = planConfigs[planType as keyof typeof planConfigs]
+    console.log('Looking for plan config for planType:', planType)
+    console.log('Available plan types:', Object.keys(planConfigs))
     if (!planConfig) {
+      console.error(`Invalid plan type: ${planType}`)
       throw new Error(`Invalid plan type: ${planType}`)
     }
 
