@@ -40,9 +40,9 @@ const Payment = () => {
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: isQuotaPayment ? {
           // Quota-based payment
-          planType: planType,
+          planType: planType, // This should be 'question-analysis' or 'coding-helper'
           userEmail: email || 'guest@interviewace.com',
-          quota: parseInt(quota),
+          quota: parseInt(quota || '0'),
           totalPrice: Math.round(totalPrice * 100) // Convert to cents
         } : {
           // Hourly payment (existing logic)
