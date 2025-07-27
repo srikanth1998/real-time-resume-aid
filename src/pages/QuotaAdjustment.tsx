@@ -61,10 +61,10 @@ const QuotaAdjustment = () => {
     const basePrice = currentPlan?.basePrice || 6.99;
     if (isPlanType('coding')) {
       const additionalQuestions = (codingQuota - 5) / 5;
-      return basePrice + (additionalQuestions * 1.99);
+      return basePrice + (additionalQuestions * 6.99);
     } else if (isPlanType('image')) {
       const additionalImages = (imageQuota - 100) / 100;
-      return basePrice + (additionalImages * 2.99);
+      return basePrice + (additionalImages * 6.99);
     }
     return basePrice;
   };
@@ -160,7 +160,7 @@ const QuotaAdjustment = () => {
                   </div>
                   
                   <p className="text-xs text-muted-foreground">
-                    Maximum: 50 questions • Additional questions: $1.99 per 5 questions
+                    Maximum: 50 questions • Additional questions: $6.99 per 5 questions
                   </p>
                 </div>
               )}
@@ -207,7 +207,7 @@ const QuotaAdjustment = () => {
                   </div>
                   
                   <p className="text-xs text-muted-foreground">
-                    Maximum: 500 images • Additional images: $2.99 per 100 images
+                    Maximum: 500 images • Additional images: $6.99 per 100 images
                   </p>
                 </div>
               )}
