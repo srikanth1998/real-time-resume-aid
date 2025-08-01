@@ -52,7 +52,7 @@ serve(async (req) => {
     console.log('[EMAIL] Resend client initialized')
     
     // Use your correct domain
-    const uploadUrl = `https://preview--real-time-resume-aid.lovable.app/upload?session_id=${sessionId}&payment_id=${paymentId}&confirmed=true`
+    const uploadUrl = `https://preview--real-time-resume-aid.lovable.app/upload?session_id=${sessionId}&payment_id=${paymentId}&confirmed=true&email=${encodeURIComponent(email)}`
     console.log('[EMAIL] Generated upload URL:', uploadUrl)
 
     const deviceModeText = deviceMode === 'cross' ? ' (Cross-Device)' : ''

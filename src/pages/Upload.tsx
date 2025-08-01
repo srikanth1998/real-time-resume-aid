@@ -73,6 +73,7 @@ const UploadPage = () => {
         // For paid sessions, get sessionId from URL params (from payment page)
         sessionId = searchParams.get('sessionId') || searchParams.get('session_id');
         email = searchParams.get('email'); // Get email from payment flow
+        
         if (!sessionId) {
           throw new Error('Session ID not found');
         }
