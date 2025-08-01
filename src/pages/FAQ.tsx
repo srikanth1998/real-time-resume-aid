@@ -36,21 +36,6 @@ const FAQ = () => {
       category: "technical"
     },
     {
-      question: "What if my interview is on mobile?",
-      answer: "Our cross-device sync feature lets you run the helper on your computer while taking the interview on your phone or tablet. The overlay appears on your secondary screen.",
-      category: "technical"
-    },
-    {
-      question: "How does the refund policy work?",
-      answer: "Full refund within 24 hours if your session link remains unused. Once you activate a session, the service is considered delivered, but we're always happy to help with technical issues.",
-      category: "billing"
-    },
-    {
-      question: "Can I use it for multiple interviews?",
-      answer: "Each session link works for one interview. For multiple interviews, consider our Pro subscription (4 sessions/month) or pay per session as needed.",
-      category: "billing"
-    },
-    {
       question: "What if I have technical problems?",
       answer: "We provide setup testing and real-time support. You can test your overlay visibility before any interview, and our support team responds within 2 hours during business days.",
       category: "support"
