@@ -47,6 +47,7 @@ const UploadPage = () => {
     
     try {
       let sessionId: string;
+      let email: string | null = null;
       
       if (isTrial) {
         // Create free trial session directly
@@ -71,6 +72,7 @@ const UploadPage = () => {
       } else {
         // For paid sessions, get sessionId from URL params (from payment page)
         sessionId = searchParams.get('sessionId') || searchParams.get('session_id');
+        email = searchParams.get('email'); // Get email from payment flow
         if (!sessionId) {
           throw new Error('Session ID not found');
         }
@@ -105,6 +107,26 @@ const UploadPage = () => {
       if (error) {
         console.error('Asset processing error:', error);
         throw new Error(error.message || 'Failed to process session assets');
+      }
+
+      // Send email with session details if email was provided
+      if (email) {
+        try {
+          await supabase.functions.invoke('send-session-email', {
+            body: {
+              email,
+              sessionId,
+              sessionCode,
+              planType: isTrial ? 'Free Trial' : planType,
+              jobRole
+            }
+          });
+          toast.success("Session details sent to your email!");
+        } catch (emailError) {
+          console.error('Email sending error:', emailError);
+          // Don't fail the whole process if email fails
+          toast.warning("Session created but email could not be sent");
+        }
       }
 
       toast.success(isTrial ? "Free trial session created!" : "Session assets uploaded successfully!");
