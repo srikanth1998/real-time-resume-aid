@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Brain, Shield, Clock, Users, HelpCircle, CheckCircle } from "lucide-react";
+import Navigation from "@/components/Navigation";
 import {
   Accordion,
   AccordionContent,
@@ -84,30 +85,7 @@ const FAQ = () => {
       <div className="fixed bottom-20 right-20 w-96 h-96 bg-gradient-to-r from-teal-400/20 to-blue-400/20 rounded-full blur-3xl" />
 
       {/* Navigation */}
-      <motion.nav
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 backdrop-blur-md bg-glass border border-glass-border rounded-full px-8 py-4"
-      >
-        <div className="flex items-center space-x-8">
-          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate("/")}>
-            <Brain className="h-6 w-6 text-white" />
-            <span className="text-white font-poppins font-semibold">InterviewAce</span>
-          </div>
-          <div className="hidden md:flex items-center space-x-6 text-white/80">
-            <button onClick={() => navigate("/")} className="hover:text-white transition-colors">Home</button>
-            <button onClick={() => navigate("/how-it-works")} className="hover:text-white transition-colors">How It Works</button>
-            <button onClick={() => navigate("/#pricing")} className="hover:text-white transition-colors">Pricing</button>
-            <span className="text-white">FAQ</span>
-          </div>
-          <Button
-            onClick={() => navigate("/auth?plan=pay-as-you-go")}
-            className="bg-primary text-white px-6 py-2 rounded-full font-medium hover:shadow-lg hover:shadow-primary/25 transition-all"
-          >
-            Start Session
-          </Button>
-        </div>
-      </motion.nav>
+      <Navigation />
 
       {/* Main Content */}
       <div className="relative pt-32 px-4 pb-16">

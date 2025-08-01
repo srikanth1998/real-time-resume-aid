@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Check, Clock, DollarSign, Star, Zap, Users, Shield, Eye, EyeOff, Gift } from "lucide-react";
+import Navigation from "@/components/Navigation";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -184,37 +185,7 @@ const Index = () => {
       />
 
       {/* Static Navigation */}
-      <motion.nav
-        animate={{ 
-          backgroundColor: isScrolled ? 'rgba(15, 23, 42, 0.9)' : 'rgba(15, 23, 42, 0.1)',
-          backdropFilter: isScrolled ? 'blur(20px)' : 'blur(12px)',
-        }}
-        transition={{ duration: 0.3 }}
-        className="fixed top-0 left-0 right-0 z-50 border-b border-glass-border/30"
-      >
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Brain className="h-6 w-6 text-white" />
-              <span className="text-white font-poppins font-semibold">InterviewAce</span>
-            </div>
-            <div className="hidden md:flex items-center space-x-8 text-white/80">
-              <button onClick={() => navigate("/how-it-works")} className="hover:text-white transition-colors">How It Works</button>
-              <button onClick={() => navigate("/downloads")} className="hover:text-white transition-colors">Downloads</button>
-              <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-              <button onClick={() => navigate("/faq")} className="hover:text-white transition-colors">FAQ</button>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleSelectPlan('pay-as-you-go')}
-              className="bg-primary text-white px-6 py-2 rounded-full font-medium hover:shadow-lg hover:shadow-primary/25 transition-all"
-            >
-              Try Now
-            </motion.button>
-          </div>
-        </div>
-      </motion.nav>
+      <Navigation />
 
       {/* Hero Section */}
       <div className="relative min-h-screen flex items-center justify-center px-6 pt-24">
