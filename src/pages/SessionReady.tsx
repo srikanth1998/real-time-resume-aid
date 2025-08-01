@@ -103,14 +103,14 @@ const SessionReady = () => {
         </motion.div>
 
         {/* Setup Steps */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="max-w-md mx-auto">
           {/* Desktop Setup */}
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <Card className="backdrop-blur-md bg-glass border border-glass-border h-full">
+            <Card className="backdrop-blur-md bg-glass border border-glass-border">
               <CardHeader>
                 <CardTitle className="text-white flex items-center space-x-2">
                   <Monitor className="h-5 w-5" />
@@ -155,91 +155,7 @@ const SessionReady = () => {
               </CardContent>
             </Card>
           </motion.div>
-
-          {/* Mobile Companion */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <Card className="backdrop-blur-md bg-glass border border-glass-border h-full">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center space-x-2">
-                  <Smartphone className="h-5 w-5" />
-                  <span>Mobile Companion</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-green-600/20 border-green-500">1</Badge>
-                    <div>
-                      <div className="text-white font-medium">Open Mobile Companion</div>
-                      <div className="text-white/60 text-sm">Access from any mobile device</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-green-600/20 border-green-500">2</Badge>
-                    <div>
-                      <div className="text-white font-medium">Enter Session Code</div>
-                      <div className="text-white/60 text-sm">Use code: <span className="font-mono text-white">{sessionCode}</span></div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3">
-                    <Badge variant="outline" className="text-xs bg-green-600/20 border-green-500">3</Badge>
-                    <div>
-                      <div className="text-white font-medium">View AI Suggestions</div>
-                      <div className="text-white/60 text-sm">Real-time coaching on your phone</div>
-                    </div>
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={() => window.open('/mobile-companion', '_blank')}
-                  variant="outline" 
-                  className="w-full border-green-500 text-green-400 hover:bg-green-500/10"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open Mobile Companion
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
         </div>
-
-        {/* Start Interview Button */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="text-center"
-        >
-          <Button
-            onClick={handleStartInterview}
-            className="bg-primary hover:bg-primary/90 text-white px-8 py-4 text-lg font-semibold"
-          >
-            {isTrial ? (
-              <>
-                <Gift className="h-5 w-5 mr-2" />
-                Start Free Trial Interview
-              </>
-            ) : (
-              <>
-                <CheckCircle className="h-5 w-5 mr-2" />
-                Start Interview Session
-              </>
-            )}
-          </Button>
-          
-          <p className="text-white/60 text-sm mt-4">
-            {isTrial 
-              ? "You have 10 minutes of free AI-powered interview coaching"
-              : "Click when you're ready to begin your interview session"
-            }
-          </p>
-        </motion.div>
       </div>
     </div>
   );
