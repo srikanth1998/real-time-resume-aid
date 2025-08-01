@@ -16,11 +16,6 @@ const FAQ = () => {
 
   const faqs = [
     {
-      question: "Is this cheating?",
-      answer: "No - we only remind you of your own resume content. No fabrication, no false information. Think of it as having your resume organized in your mind rather than fumbling through papers.",
-      category: "ethics"
-    },
-    {
       question: "Can interviewers see it?",
       answer: "Absolutely not. Our overlay is invisible to screen sharing and video capture. It appears only on your local display, completely undetectable to others on the call.",
       category: "privacy"
@@ -32,7 +27,7 @@ const FAQ = () => {
     },
     {
       question: "How fast are reminders?",
-      answer: "2-5 seconds for Pro users, 5-10 seconds for standard sessions. The system analyzes conversation context and surfaces relevant insights from your background.",
+      answer: "Our system provides quick contextual reminders during conversations. The system analyzes conversation context and surfaces relevant insights from your background in real-time.",
       category: "technical"
     },
     {
