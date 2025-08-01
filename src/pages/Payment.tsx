@@ -199,7 +199,7 @@ const Payment = () => {
                 <span>Email (Optional)</span>
               </CardTitle>
               <CardDescription>
-                We'll send your interview report and session details to this email
+                We'll send your session details to this email
               </CardDescription>
             </CardHeader>
             <CardContent>
