@@ -23,6 +23,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    console.log("DEBUG: send-session-email function called with:", { email, sessionId, sessionCode, planType, jobRole });
     const { email, sessionId, sessionCode, planType, jobRole }: SendSessionEmailRequest = await req.json();
 
     if (!email || !sessionId) {

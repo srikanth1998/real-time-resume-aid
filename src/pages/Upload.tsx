@@ -74,6 +74,10 @@ const UploadPage = () => {
         sessionId = searchParams.get('sessionId') || searchParams.get('session_id');
         email = searchParams.get('email'); // Get email from payment flow
         
+        console.log('DEBUG: sessionId from URL:', sessionId);
+        console.log('DEBUG: email from URL:', email);
+        console.log('DEBUG: all URL params:', Object.fromEntries(searchParams.entries()));
+        
         if (!sessionId) {
           throw new Error('Session ID not found');
         }
@@ -111,8 +115,17 @@ const UploadPage = () => {
       }
 
       // Send email with session details if email was provided
+      console.log('DEBUG: About to check if email exists:', email);
       if (email) {
         try {
+          console.log('DEBUG: Calling send-session-email function with:', {
+            email,
+            sessionId,
+            sessionCode,
+            planType: isTrial ? 'Free Trial' : planType,
+            jobRole
+          });
+          
           await supabase.functions.invoke('send-session-email', {
             body: {
               email,
@@ -128,6 +141,8 @@ const UploadPage = () => {
           // Don't fail the whole process if email fails
           toast.warning("Session created but email could not be sent");
         }
+      } else {
+        console.log('DEBUG: No email found, skipping email sending');
       }
 
       toast.success(isTrial ? "Free trial session created!" : "Session assets uploaded successfully!");
