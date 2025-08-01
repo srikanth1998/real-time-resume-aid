@@ -48,185 +48,263 @@ export const Downloads = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Background */}
+      <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900" />
+      
+      {/* Floating orbs */}
+      <div className="fixed top-20 left-10 w-72 h-72 bg-gradient-to-r from-blue-400/20 to-purple-400/20 rounded-full blur-3xl" />
+      <div className="fixed bottom-20 right-20 w-96 h-96 bg-gradient-to-r from-teal-400/20 to-blue-400/20 rounded-full blur-3xl" />
+      <div className="fixed top-40 right-10 w-80 h-80 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-full blur-3xl" />
+
       <Navigation />
-      <div className="container mx-auto px-4 py-8 pt-24">{/* Added pt-24 to account for fixed nav */}
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Native Helper Downloads
+      
+      <div className="relative pt-32 px-4 pb-16">
+        <div className="max-w-6xl mx-auto">
+          
+          {/* Hero Section */}
+          <div className="text-center mb-16">
+            <h1 className="text-5xl lg:text-6xl font-bold font-poppins text-white mb-6">
+              Native Helper
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-400"> Downloads</span>
             </h1>
-            <p className="text-xl text-gray-300 mb-6">
-              Advanced audio capture and stealth overlay features for InterviewAce
+            <p className="text-xl text-white/80 font-inter mb-8 max-w-3xl mx-auto">
+              Advanced audio capture and stealth overlay features for seamless interview coaching
             </p>
             
-            <Alert className="bg-green-900/20 border-green-700 text-green-200 max-w-2xl mx-auto mb-4">
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Ready to Download:</strong> Native helpers are available for Windows and macOS. 
-                Download your platform-specific helper below for advanced audio capture and stealth features.
-              </AlertDescription>
-            </Alert>
-            
             {platform !== 'unknown' && (
-              <Alert className="bg-blue-900/20 border-blue-700 text-blue-200 max-w-md mx-auto">
-                <Monitor className="h-4 w-4" />
-                <AlertDescription>
-                  Detected platform: <strong>{platform === 'windows' ? 'Windows' : platform === 'macos' ? 'macOS' : 'Linux'}</strong>
-                </AlertDescription>
-              </Alert>
+              <div className="inline-flex items-center space-x-2 backdrop-blur-md bg-glass border border-glass-border rounded-full px-6 py-3">
+                <Monitor className="h-4 w-4 text-accent" />
+                <span className="text-white font-medium">
+                  Detected: {platform === 'windows' ? 'Windows' : platform === 'macos' ? 'macOS' : 'Linux'}
+                </span>
+              </div>
             )}
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
+          {/* Download Cards */}
+          <div className="grid lg:grid-cols-2 gap-8 mb-12">
+            
             {/* Windows Helper */}
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Monitor className="h-5 w-5" />
-                  Windows Helper
-                  {platform === 'windows' && (
-                    <Badge variant="default" className="bg-green-600">Recommended</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-gray-300 text-sm space-y-2">
-                  <p>• Native system audio capture via WASAPI</p>
-                  <p>• Direct system audio loopback - no drivers needed</p>
-                  <p>• Stealth overlay hidden from screen sharing</p>
-                  <p>• Works with any meeting platform</p>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-white">Requirements:</h4>
-                  <div className="text-sm text-gray-300">
-                    <p>• Windows 10/11</p>
-                    <p>• Administrator privileges for installation</p>
-                    <p>• No additional drivers required!</p>
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" />
+              <Card className="relative backdrop-blur-md bg-glass border border-glass-border rounded-3xl overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500" />
+                
+                <CardHeader className="text-center pb-6 pt-8">
+                  <div className="flex justify-center mb-4">
+                    <div className="p-4 rounded-full bg-blue-500/20 border border-blue-500/30">
+                      <Monitor className="h-8 w-8 text-blue-400" />
+                    </div>
                   </div>
-                </div>
+                  <CardTitle className="text-2xl font-bold text-white font-poppins flex items-center justify-center gap-3">
+                    Windows Helper
+                    {platform === 'windows' && (
+                      <Badge className="bg-green-600/20 text-green-400 border-green-500/50">Recommended</Badge>
+                    )}
+                  </CardTitle>
+                  <p className="text-white/70">Advanced system audio capture with stealth overlay</p>
+                </CardHeader>
+                
+                <CardContent className="space-y-6 p-8">
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-white text-lg">Features</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      {[
+                        'Native WASAPI audio capture',
+                        'Zero-driver system audio loopback',
+                        'Invisible stealth overlay',
+                        'Works with all meeting platforms',
+                        'Real-time audio processing'
+                      ].map((feature, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+                          <span className="text-white/80 text-sm">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-                <div className="space-y-2">
+                  <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-2xl p-4">
+                    <h4 className="font-semibold text-white mb-2">System Requirements</h4>
+                    <div className="text-sm text-white/70 space-y-1">
+                      <p>• Windows 10/11 (64-bit)</p>
+                      <p>• 4GB RAM minimum</p>
+                      <p>• Administrator privileges</p>
+                      <p>• No additional drivers required</p>
+                    </div>
+                  </div>
+
                   <Button 
                     onClick={() => downloadHelper('windows')}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 rounded-2xl font-semibold text-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300"
                   >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download Windows Helper
+                    <Download className="h-5 w-5 mr-2" />
+                    Download for Windows
                   </Button>
                   
-                  <div className="bg-green-900/20 border border-green-700 rounded-lg p-3">
-                    <div className="text-green-200 text-xs font-medium mb-1">✅ No Drivers Required!</div>
-                    <div className="text-green-300 text-xs">Uses native WASAPI loopback capture</div>
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3">
+                    <div className="text-green-400 text-sm font-medium mb-1">✅ Ready to Download</div>
+                    <div className="text-green-300/80 text-xs">Native WASAPI - No drivers needed!</div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
 
-            {/* macOS Helper */}
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Monitor className="h-5 w-5" />
-                  macOS Helper
-                  {platform === 'macos' && (
-                    <Badge variant="default" className="bg-green-600">Recommended</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-gray-300 text-sm space-y-2">
-                  <p>• Native CoreAudio process-tap (macOS 14.4+)</p>
-                  <p>• No virtual drivers required</p>
-                  <p>• Stealth overlay with window exclusion</p>
-                  <p>• Works with any meeting platform</p>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-white">Requirements:</h4>
-                  <div className="text-sm text-gray-300">
-                    <p>• macOS 14.4 or later</p>
-                    <p>• Security permissions for audio access</p>
-                    <p>• No additional drivers needed</p>
+            {/* macOS Helper - Coming Soon */}
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-gray-500/10 to-gray-600/10 rounded-3xl blur-xl transition-all duration-300" />
+              <Card className="relative backdrop-blur-md bg-glass border border-glass-border rounded-3xl overflow-hidden opacity-75">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-gray-500 to-gray-600" />
+                
+                <CardHeader className="text-center pb-6 pt-8">
+                  <div className="flex justify-center mb-4">
+                    <div className="p-4 rounded-full bg-gray-500/20 border border-gray-500/30">
+                      <Monitor className="h-8 w-8 text-gray-400" />
+                    </div>
                   </div>
-                </div>
+                  <CardTitle className="text-2xl font-bold text-white font-poppins flex items-center justify-center gap-3">
+                    macOS Helper
+                    <Badge className="bg-orange-600/20 text-orange-400 border-orange-500/50">Coming Soon</Badge>
+                  </CardTitle>
+                  <p className="text-white/70">Advanced CoreAudio capture for macOS</p>
+                </CardHeader>
+                
+                <CardContent className="space-y-6 p-8">
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-white text-lg">Planned Features</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      {[
+                        'Native CoreAudio process-tap',
+                        'System audio capture (macOS 14.4+)',
+                        'Stealth overlay with window exclusion',
+                        'Cross-platform compatibility',
+                        'Zero-latency audio processing'
+                      ].map((feature, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <div className="h-4 w-4 rounded-full border-2 border-gray-400 flex-shrink-0" />
+                          <span className="text-white/60 text-sm">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-                <div className="space-y-2">
+                  <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-2xl p-4">
+                    <h4 className="font-semibold text-white mb-2">Planned Requirements</h4>
+                    <div className="text-sm text-white/60 space-y-1">
+                      <p>• macOS 14.4 Sonoma or later</p>
+                      <p>• Apple Silicon or Intel processor</p>
+                      <p>• Security permissions for audio</p>
+                      <p>• No additional drivers required</p>
+                    </div>
+                  </div>
+
                   <Button 
-                    onClick={() => downloadHelper('macos')}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    disabled
+                    className="w-full bg-gray-600/50 text-white/50 py-4 rounded-2xl font-semibold text-lg cursor-not-allowed"
                   >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download macOS Helper
+                    <AlertTriangle className="h-5 w-5 mr-2" />
+                    Coming Soon
                   </Button>
                   
-                  <Alert className="bg-green-900/20 border-green-700 text-green-200 text-sm">
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>No drivers needed!</strong> Uses native CoreAudio process-tap API.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3">
+                    <div className="text-orange-400 text-sm font-medium mb-1">🚧 In Development</div>
+                    <div className="text-orange-300/80 text-xs">Expected release: Q2 2024</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Linux Notice */}
           {platform === 'linux' && (
-            <Alert className="bg-yellow-900/20 border-yellow-700 text-yellow-200 mb-8">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Linux users:</strong> Native helper is not available for Linux yet. 
-                You can still use voice recognition or text input modes in your browser.
-              </AlertDescription>
-            </Alert>
+            <div className="max-w-2xl mx-auto mb-12">
+              <Alert className="backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6">
+                <AlertTriangle className="h-5 w-5 text-yellow-400" />
+                <AlertDescription className="text-white/80 ml-2">
+                  <strong className="text-white">Linux Support:</strong> Native helper is planned for future release. 
+                  You can currently use browser-based voice recognition or text input modes.
+                </AlertDescription>
+              </Alert>
+            </div>
           )}
 
-          {/* Installation Instructions */}
-          <Card className="bg-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white">Installation Guide</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold text-white mb-3 flex items-center gap-2">
-                    <Monitor className="h-4 w-4" />
-                    Windows Setup
-                  </h3>
-                  <ol className="text-sm text-gray-300 space-y-2 list-decimal list-inside">
-                    <li>Download and run InterviewAce Helper as Administrator</li>
-                    <li>Allow Windows Defender/Antivirus if prompted</li>
-                    <li>The helper will run in system tray</li>
-                    <li>Direct system audio capture - no drivers needed!</li>
-                  </ol>
+          {/* Installation Guide */}
+          <div className="backdrop-blur-md bg-glass border border-glass-border rounded-3xl p-8">
+            <h2 className="text-3xl font-bold text-white font-poppins text-center mb-8">
+              Installation Guide
+            </h2>
+            
+            <div className="grid lg:grid-cols-2 gap-8">
+              
+              {/* Windows Guide */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="p-2 rounded-lg bg-blue-500/20 border border-blue-500/30">
+                    <Monitor className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-white">Windows Setup</h3>
                 </div>
-
-                <div>
-                  <h3 className="font-semibold text-white mb-3 flex items-center gap-2">
-                    <Monitor className="h-4 w-4" />
-                    macOS Setup
-                  </h3>
-                  <ol className="text-sm text-gray-300 space-y-2 list-decimal list-inside">
-                    <li>Download and install InterviewAce Helper DMG</li>
-                    <li>Grant audio permissions in System Preferences</li>
-                    <li>Allow the app in Security & Privacy settings</li>
-                    <li>The helper will appear in menu bar</li>
-                    <li>No additional drivers required!</li>
-                  </ol>
+                
+                <div className="space-y-3">
+                  {[
+                    'Download the InterviewAce Helper executable',
+                    'Right-click and "Run as Administrator"',
+                    'Allow Windows Defender if prompted',
+                    'Helper will appear in system tray',
+                    'Start your interview session!'
+                  ].map((step, index) => (
+                    <div key={index} className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 text-sm font-medium">
+                        {index + 1}
+                      </div>
+                      <span className="text-white/80">{step}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <Alert className="bg-green-900/20 border-green-700 text-green-200">
-                <CheckCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Pro Tip:</strong> After installation, start an interview session and select 
-                  "Native Audio" mode for the best experience with stealth overlay features.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
+              {/* macOS Guide */}
+              <div className="space-y-4 opacity-60">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="p-2 rounded-lg bg-gray-500/20 border border-gray-500/30">
+                    <Monitor className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-white">macOS Setup (Coming Soon)</h3>
+                </div>
+                
+                <div className="space-y-3">
+                  {[
+                    'Download and install the DMG package',
+                    'Grant audio permissions in System Settings',
+                    'Allow app in Security & Privacy',
+                    'Helper will appear in menu bar',
+                    'Ready for interview sessions!'
+                  ].map((step, index) => (
+                    <div key={index} className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-500/20 border border-gray-500/50 flex items-center justify-center text-gray-400 text-sm font-medium">
+                        {index + 1}
+                      </div>
+                      <span className="text-white/60">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 p-6 backdrop-blur-sm bg-accent/10 border border-accent/20 rounded-2xl">
+              <div className="flex items-start space-x-3">
+                <CheckCircle className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-accent font-semibold mb-1">Pro Tip</div>
+                  <div className="text-white/80 text-sm">
+                    After installation, test your setup before the actual interview. Start a practice session 
+                    to ensure audio capture and overlay visibility work perfectly.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
