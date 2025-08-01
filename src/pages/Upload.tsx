@@ -70,7 +70,7 @@ const UploadPage = () => {
         sessionId = session.id;
       } else {
         // For paid sessions, get sessionId from URL params (from payment page)
-        sessionId = searchParams.get('sessionId');
+        sessionId = searchParams.get('sessionId') || searchParams.get('session_id');
         if (!sessionId) {
           throw new Error('Session ID not found');
         }
