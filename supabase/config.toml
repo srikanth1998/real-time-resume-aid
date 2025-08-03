@@ -56,6 +56,9 @@ verify_jwt = false
 [functions.send-session-email]
 verify_jwt = false
 
+[functions.verify-session-code]
+verify_jwt = false
+
 [realtime]
 enabled = true
 ip_version = "ipv4"
