@@ -30,7 +30,7 @@ serve(async (req) => {
     // Look up the session by session_code
     const { data: session, error: sessionError } = await supabaseClient
       .from('sessions')
-      .select('*, users(email)')
+      .select('*')
       .eq('session_code', session_code)
       .eq('status', 'active')
       .maybeSingle()
@@ -63,7 +63,7 @@ serve(async (req) => {
         success: true,
         session_id: session.id,
         duration_hours: Math.max(1, remainingHours), // At least 1 hour
-        user_email: session.users?.email || 'session-user',
+        user_email: 'session-user',
         plan_type: session.plan_type,
         session_type: session.session_type,
         job_role: session.job_role,
