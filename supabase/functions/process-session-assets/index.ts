@@ -104,7 +104,7 @@ serve(async (req) => {
     const { data: updatedSession, error: updateError } = await supabaseService
       .from('sessions')
       .update({
-        status: 'active',
+        status: 'assets_received',
         session_code: sessionCode,
         job_role: jobRole,
         updated_at: now.toISOString()
