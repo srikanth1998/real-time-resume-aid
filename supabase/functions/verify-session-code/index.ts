@@ -32,7 +32,7 @@ serve(async (req) => {
       .from('sessions')
       .select('*')
       .eq('session_code', session_code)
-      .eq('status', 'active')
+      .in('status', ['assets_received', 'lobby_ready', 'in_progress'])
       .maybeSingle()
 
     if (sessionError || !session) {

@@ -1,0 +1,1 @@
+UPDATE sessions SET status = 'active' WHERE session_code = '409725';
