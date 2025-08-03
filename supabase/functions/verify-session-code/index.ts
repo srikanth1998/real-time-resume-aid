@@ -45,18 +45,22 @@ serve(async (req) => {
 
     // Check if session is still valid (not expired)
     const now = new Date()
-    const expiresAt = new Date(session.expires_at)
+    let remainingHours = 24 // Default to 24 hours if no expiry set
     
-    if (now > expiresAt) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Session has expired' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      )
+    if (session.expires_at) {
+      const expiresAt = new Date(session.expires_at)
+      
+      if (now > expiresAt) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Session has expired' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        )
+      }
+      
+      // Calculate remaining duration in hours
+      const remainingMs = expiresAt.getTime() - now.getTime()
+      remainingHours = Math.ceil(remainingMs / (1000 * 60 * 60))
     }
-
-    // Calculate remaining duration in hours
-    const remainingMs = expiresAt.getTime() - now.getTime()
-    const remainingHours = Math.ceil(remainingMs / (1000 * 60 * 60))
 
     return new Response(
       JSON.stringify({
