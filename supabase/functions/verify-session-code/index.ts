@@ -33,7 +33,7 @@ serve(async (req) => {
       .select('*, users(email)')
       .eq('session_code', session_code)
       .eq('status', 'active')
-      .single()
+      .maybeSingle()
 
     if (sessionError || !session) {
       console.error('Session lookup error:', sessionError)
@@ -65,7 +65,16 @@ serve(async (req) => {
         duration_hours: Math.max(1, remainingHours), // At least 1 hour
         user_email: session.users?.email || 'session-user',
         plan_type: session.plan_type,
-        job_role: session.job_role
+        session_type: session.session_type,
+        job_role: session.job_role,
+        // Usage tracking fields
+        questions_included: session.questions_included || 0,
+        questions_used: session.questions_used || 0,
+        coding_sessions_included: session.coding_sessions_included || 0,
+        coding_sessions_used: session.coding_sessions_used || 0,
+        // Calculated remaining values
+        questions_remaining: Math.max(0, (session.questions_included || 0) - (session.questions_used || 0)),
+        coding_sessions_remaining: Math.max(0, (session.coding_sessions_included || 0) - (session.coding_sessions_used || 0))
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
