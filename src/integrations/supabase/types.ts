@@ -447,6 +447,8 @@ export type Database = {
       }
       sessions: {
         Row: {
+          coding_sessions_included: number | null
+          coding_sessions_used: number | null
           completed_at: string | null
           created_at: string
           device_mode: string
@@ -458,6 +460,8 @@ export type Database = {
           job_role: string | null
           plan_type: Database["public"]["Enums"]["plan_type"]
           price_cents: number
+          questions_included: number | null
+          questions_used: number | null
           session_code: string | null
           session_type: string | null
           started_at: string | null
@@ -468,6 +472,8 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          coding_sessions_included?: number | null
+          coding_sessions_used?: number | null
           completed_at?: string | null
           created_at?: string
           device_mode?: string
@@ -479,6 +485,8 @@ export type Database = {
           job_role?: string | null
           plan_type: Database["public"]["Enums"]["plan_type"]
           price_cents: number
+          questions_included?: number | null
+          questions_used?: number | null
           session_code?: string | null
           session_type?: string | null
           started_at?: string | null
@@ -489,6 +497,8 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          coding_sessions_included?: number | null
+          coding_sessions_used?: number | null
           completed_at?: string | null
           created_at?: string
           device_mode?: string
@@ -500,6 +510,8 @@ export type Database = {
           job_role?: string | null
           plan_type?: Database["public"]["Enums"]["plan_type"]
           price_cents?: number
+          questions_included?: number | null
+          questions_used?: number | null
           session_code?: string | null
           session_type?: string | null
           started_at?: string | null
