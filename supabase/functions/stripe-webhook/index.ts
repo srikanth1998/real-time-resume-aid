@@ -102,26 +102,50 @@ serve(async (req) => {
       const sessionId = crypto.randomUUID()
       console.log('[WEBHOOK] Generated new session ID:', sessionId)
 
-      // Determine duration and price based on plan type
+      // Determine duration, price, and quotas based on plan type
       let durationMinutes = 60
       let priceCents = 1800 // Default Pay-As-You-Go $18.00
+      let questionsIncluded = 0
+      let codingSessionsIncluded = 0
 
       switch (planType) {
         case 'pay-as-you-go':
+        case 'quick-session':
           durationMinutes = 60
           priceCents = 1800
+          questionsIncluded = 10
+          codingSessionsIncluded = 1
+          break
+        case 'question-analysis':
+          durationMinutes = 0 // Not time-based
+          priceCents = 2500
+          questionsIncluded = 50
+          codingSessionsIncluded = 2
+          break
+        case 'coding-helper':
+          durationMinutes = 0 // Not time-based
+          priceCents = 3000
+          questionsIncluded = 25
+          codingSessionsIncluded = 5
           break
         case 'pro':
           durationMinutes = 240 // 4 sessions * 60 min each
           priceCents = 2900
+          questionsIncluded = 100
+          codingSessionsIncluded = 10
           break
         case 'coach':
+        case 'elite':
           durationMinutes = 1200 // 20 credits * 60 min each
           priceCents = 9900
+          questionsIncluded = 200
+          codingSessionsIncluded = 20
           break
         case 'enterprise':
           durationMinutes = 30000 // 500+ credits * 60 min each
           priceCents = 0 // Custom pricing
+          questionsIncluded = 500
+          codingSessionsIncluded = 100
           break
       }
 
@@ -144,6 +168,8 @@ serve(async (req) => {
         status: 'pending_assets',
         stripe_payment_intent_id: session.payment_intent,
         stripe_session_id: session.id,
+        questions_included: questionsIncluded,
+        coding_sessions_included: codingSessionsIncluded,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }

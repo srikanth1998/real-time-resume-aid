@@ -102,6 +102,39 @@ serve(async (req) => {
 
     console.log('Using plan config:', { ...planConfig, finalPrice })
 
+    // Determine questions and coding sessions based on plan type and quota
+    let questionsIncluded = 0
+    let codingSessionsIncluded = 0
+    
+    switch (planType) {
+      case 'question-analysis':
+        questionsIncluded = quota || 50 // Use quota if provided, default to 50
+        codingSessionsIncluded = 2
+        break
+      case 'coding-helper':
+        questionsIncluded = 25
+        codingSessionsIncluded = quota || 5 // Use quota if provided, default to 5
+        break
+      case 'quick-session':
+      case 'pay-as-you-go':
+        questionsIncluded = 10
+        codingSessionsIncluded = 1
+        break
+      case 'pro':
+        questionsIncluded = 100
+        codingSessionsIncluded = 10
+        break
+      case 'elite':
+        questionsIncluded = 200
+        codingSessionsIncluded = 20
+        break
+      default:
+        questionsIncluded = 10
+        codingSessionsIncluded = 1
+    }
+
+    console.log('Setting session quotas:', { questionsIncluded, codingSessionsIncluded, quota, hours })
+
     // Create a new session record for tracking
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
@@ -112,6 +145,8 @@ serve(async (req) => {
         price_cents: finalPrice,
         device_mode: deviceMode,
         status: 'pending_payment',
+        questions_included: questionsIncluded,
+        coding_sessions_included: codingSessionsIncluded,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
