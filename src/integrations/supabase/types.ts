@@ -611,15 +611,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
-      plan_type:
-        | "standard"
-        | "pro"
-        | "elite"
-        | "pay-as-you-go"
-        | "live-quiz"
-        | "live-coding"
-        | "question-analysis"
-        | "coding-helper"
+      plan_type: "coding-helper" | "quick-session" | "question-analysis"
       session_status:
         | "pending_payment"
         | "pending_assets"
@@ -757,16 +749,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
-      plan_type: [
-        "standard",
-        "pro",
-        "elite",
-        "pay-as-you-go",
-        "live-quiz",
-        "live-coding",
-        "question-analysis",
-        "coding-helper",
-      ],
+      plan_type: ["coding-helper", "quick-session", "question-analysis"],
       session_status: [
         "pending_payment",
         "pending_assets",
