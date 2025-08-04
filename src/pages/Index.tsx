@@ -213,20 +213,20 @@ const Index = () => {
               <motion.button
                 whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(34, 197, 94, 0.4)" }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => handleSelectPlan('free-trial')}
+                onClick={() => handleSelectPlan('coding-helper')}
                 className="bg-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-green-600/25 border border-green-500/50 hover:border-green-500 transition-all"
               >
-                <Gift className="inline h-5 w-5 mr-2" />
-                Try Free (10 min)
+                <Brain className="inline h-5 w-5 mr-2" />
+                Coding Helper ($6.99)
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(79, 70, 229, 0.4)" }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => handleSelectPlan('quick-session')}
+                onClick={() => handleSelectPlan('question-analysis')}
                 className="bg-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-primary/25 border border-primary/50 hover:border-primary transition-all"
               >
                 <Zap className="inline h-5 w-5 mr-2" />
-                Quick Session ($6.99/hr)
+                Question Analysis ($6.99)
               </motion.button>
             </div>
 
