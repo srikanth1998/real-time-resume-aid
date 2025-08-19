@@ -38,6 +38,8 @@ const Auth = () => {
   const searchParams = new URLSearchParams(location.search);
   const selectedPlan = searchParams.get('plan');
   const deviceMode = searchParams.get('device') || 'single';
+  const quota = searchParams.get('quota');
+  const total = searchParams.get('total');
   const returnUrl = searchParams.get('return') || '/dashboard';
 
   // Check if user is already authenticated
@@ -45,18 +47,31 @@ const Auth = () => {
     if (!isLoading && user && session) {
       // User is already logged in, redirect appropriately
       if (selectedPlan) {
-        navigate(`/payment?plan=${selectedPlan}&device=${deviceMode}`);
+        const paymentParams = new URLSearchParams({
+          plan: selectedPlan,
+          device: deviceMode
+        });
+        if (quota) paymentParams.append('quota', quota);
+        if (total) paymentParams.append('total', total);
+        navigate(`/payment?${paymentParams.toString()}`);
       } else {
         navigate(returnUrl);
       }
     }
-  }, [user, session, isLoading, navigate, selectedPlan, deviceMode, returnUrl]);
+  }, [user, session, isLoading, navigate, selectedPlan, deviceMode, quota, total, returnUrl]);
 
   const handleModeSelect = (selectedMode: 'session' | 'account') => {
     if (selectedMode === 'session') {
       startSessionMode();
       if (selectedPlan) {
-        navigate(`/payment?plan=${selectedPlan}&device=${deviceMode}&session=true`);
+        const paymentParams = new URLSearchParams({
+          plan: selectedPlan,
+          device: deviceMode,
+          session: 'true'
+        });
+        if (quota) paymentParams.append('quota', quota);
+        if (total) paymentParams.append('total', total);
+        navigate(`/payment?${paymentParams.toString()}`);
       } else {
         navigate('/dashboard?session=true');
       }
@@ -78,7 +93,13 @@ const Auth = () => {
       });
 
       if (selectedPlan) {
-        navigate(`/payment?plan=${selectedPlan}&device=${deviceMode}`);
+        const paymentParams = new URLSearchParams({
+          plan: selectedPlan,
+          device: deviceMode
+        });
+        if (quota) paymentParams.append('quota', quota);
+        if (total) paymentParams.append('total', total);
+        navigate(`/payment?${paymentParams.toString()}`);
       } else {
         navigate(returnUrl);
       }
