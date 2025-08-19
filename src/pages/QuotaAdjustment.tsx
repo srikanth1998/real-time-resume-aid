@@ -75,8 +75,7 @@ const QuotaAdjustment = () => {
       quota: isPlanType('coding') ? codingQuota.toString() : imageQuota.toString(),
       total: calculateTotal().toFixed(2)
     });
-    // Redirect to auth page first, then to payment
-    navigate(`/auth?${params.toString()}&return=/payment`);
+    navigate(`/payment?${params.toString()}`);
   };
 
   if (!currentPlan) {
@@ -226,7 +225,7 @@ const QuotaAdjustment = () => {
                   size="lg"
                 >
                   <CreditCard className="h-5 w-5 mr-2" />
-                  Sign Up & Continue to Payment
+                  Proceed to Payment
                 </Button>
               </div>
             </div>
