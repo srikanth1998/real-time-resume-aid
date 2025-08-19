@@ -26,9 +26,10 @@ const Terms = () => {
             <section>
               <h3 className="text-lg font-semibold text-white mb-3">1. Service Description</h3>
               <p>
-                InterviewAce provides AI-powered interview assistance through real-time audio processing, 
-                transcription, and intelligent response generation. Our service includes browser extensions, 
-                desktop applications, and web-based tools to help users during interviews.
+                InterviewAce is designed to assist with interview preparation through AI-powered interview assistance, 
+                real-time audio processing, transcription, and intelligent response generation. Our service includes 
+                browser extensions, desktop applications, and web-based tools to help users during interviews. 
+                We do not guarantee specific employment outcomes, job offers, or interview success.
               </p>
             </section>
 
@@ -42,6 +43,10 @@ const Terms = () => {
                 <li>Usage analytics and session metadata</li>
                 <li>Payment and billing information</li>
               </ul>
+              <p className="mt-3">
+                We may use third-party service providers (e.g., cloud hosting, payment processors, transcription engines) 
+                to operate our services. These providers are bound by contractual obligations to protect your data.
+              </p>
             </section>
 
             <section>
@@ -52,14 +57,20 @@ const Terms = () => {
                 your sensitive information. We do not share personal data with third parties except as required 
                 for service functionality.
               </p>
+              <p className="mt-3">
+                In compliance with GDPR and CCPA regulations, you have the right to access, download, correct, 
+                or request deletion of your personal data. To exercise these rights, please contact our support team.
+              </p>
             </section>
 
             <section>
               <h3 className="text-lg font-semibold text-white mb-3">4. AI & Machine Learning Disclosures</h3>
               <p>
                 Our service uses artificial intelligence to generate interview responses. AI-generated content 
-                should be reviewed and customized before use. We do not guarantee the accuracy or appropriateness 
-                of AI suggestions. Users are responsible for their own interview performance and responses.
+                should be reviewed and customized before use. AI responses may occasionally produce inaccurate, 
+                biased, or inappropriate content. Users should independently verify information before relying on it. 
+                We do not guarantee the accuracy or appropriateness of AI suggestions. Users are responsible for 
+                their own interview performance and responses.
               </p>
             </section>
 
@@ -72,38 +83,51 @@ const Terms = () => {
                 <li>Share or distribute copyrighted content without permission</li>
                 <li>Attempt to reverse engineer or hack our systems</li>
                 <li>Use the service to harm others or spread misinformation</li>
+                <li>Share accounts or resell the service to third parties</li>
+                <li>Use automated scraping or misuse AI outputs for commercial purposes</li>
               </ul>
             </section>
 
             <section>
               <h3 className="text-lg font-semibold text-white mb-3">6. Payment Terms</h3>
               <p>
-                Payments are processed securely through Stripe. Subscription fees are charged according to your 
-                selected plan. Refunds may be available within 30 days of purchase. We reserve the right to 
-                modify pricing with advance notice.
+                Payments are processed securely through Stripe. There are no refunds for our services once a session 
+                is started. Sessions are valid for 24 hours once created and can only be used once. Once a session 
+                is started, it cannot be used again. Failed payments may result in account suspension. We reserve 
+                the right to modify pricing with advance notice.
               </p>
             </section>
 
             <section>
               <h3 className="text-lg font-semibold text-white mb-3">7. Limitation of Liability</h3>
               <p>
-                InterviewAce is provided "as is" without warranties. We are not liable for interview outcomes, 
-                technical issues, or indirect damages. Our liability is limited to the amount paid for our services. 
-                Users assume responsibility for their interview performance and compliance with applicable laws.
+                To the maximum extent permitted by law, InterviewAce is provided "as is" without warranties. 
+                We are not liable for interview outcomes, technical issues, or indirect damages. Our liability 
+                is limited to the amount paid for our services. Users assume responsibility for their own 
+                interview performance and compliance with applicable laws.
               </p>
             </section>
 
             <section>
               <h3 className="text-lg font-semibold text-white mb-3">8. Account Termination</h3>
               <p>
-                We may suspend or terminate accounts for violations of these terms. Users can cancel subscriptions 
-                at any time. Upon termination, access to services will be discontinued, and data may be deleted 
-                according to our retention policies.
+                We may suspend or terminate accounts for violations of these terms. Upon termination, access to 
+                services will be discontinued, and stored data may be deleted according to our retention policies. 
+                No refunds are provided after account termination due to terms violations.
               </p>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold text-white mb-3">9. Contact Information</h3>
+              <h3 className="text-lg font-semibold text-white mb-3">9. Governing Law & Disputes</h3>
+              <p>
+                These terms are governed by the laws of Delaware, United States. Any disputes arising from these 
+                terms or use of our services shall be resolved in the courts of Delaware. By using our service, 
+                you consent to the jurisdiction and venue of such courts.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold text-white mb-3">10. Contact Information</h3>
               <p>
                 For questions about these terms or our services, please contact us through our support channels 
                 or customer service email.
