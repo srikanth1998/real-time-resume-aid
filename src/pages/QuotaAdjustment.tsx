@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Minus, Code, Image, ArrowLeft, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 const QuotaAdjustment = () => {
   const navigate = useNavigate();
@@ -12,6 +14,7 @@ const QuotaAdjustment = () => {
   
   const [codingQuota, setCodingQuota] = useState(5);
   const [imageQuota, setImageQuota] = useState(100);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const planDetails = {
     'coding-helper': {
@@ -212,6 +215,36 @@ const QuotaAdjustment = () => {
                 </div>
               )}
 
+              {/* Terms and Conditions */}
+              <div className="border-t border-border pt-6">
+                <div className="flex items-start space-x-2 mb-4">
+                  <Checkbox 
+                    id="terms" 
+                    checked={termsAccepted}
+                    onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label 
+                      htmlFor="terms"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      I agree to the{" "}
+                      <Link 
+                        to="/terms" 
+                        className="text-primary underline underline-offset-4 hover:no-underline"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Terms of Service and User Agreement
+                      </Link>
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      You must accept our terms to proceed with payment.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Pricing Summary */}
               <div className="border-t border-border pt-6">
                 <div className="flex justify-between items-center mb-4">
@@ -221,7 +254,8 @@ const QuotaAdjustment = () => {
                 
                 <Button 
                   onClick={handleProceedToPayment}
-                  className="w-full py-6 text-lg font-semibold bg-primary hover:bg-primary/90"
+                  disabled={!termsAccepted}
+                  className="w-full py-6 text-lg font-semibold bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   size="lg"
                 >
                   <CreditCard className="h-5 w-5 mr-2" />
