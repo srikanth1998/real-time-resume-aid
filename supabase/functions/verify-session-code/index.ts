@@ -27,35 +27,51 @@ serve(async (req) => {
       )
     }
 
-    // Look up the session by session_code
-    const { data: session, error: sessionError } = await supabaseClient
+    // First, look up the session by session_code to get the session ID
+    const { data: sessionLookup, error: lookupError } = await supabaseClient
       .from('sessions')
-      .select('*')
+      .select('id, expires_at')
       .eq('session_code', session_code)
       .in('status', ['assets_received', 'lobby_ready', 'in_progress'])
       .maybeSingle()
 
-    if (sessionError || !session) {
-      console.error('Session lookup error:', sessionError)
+    if (lookupError || !sessionLookup) {
+      console.error('Session lookup error:', lookupError)
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid or expired session code' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       )
     }
 
-    // Check if session is still valid (not expired)
+    // Now use the start_session function to mark the session as started and prevent reuse
+    const { data: startResult, error: startError } = await supabaseClient
+      .rpc('start_session', { session_uuid: sessionLookup.id })
+
+    if (startError) {
+      console.error('Start session error:', startError)
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to start session' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
+    }
+
+    // Check the result from start_session function
+    if (!startResult.success) {
+      console.error('Session start failed:', startResult.error)
+      return new Response(
+        JSON.stringify({ success: false, error: startResult.error }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+
+    const session = startResult.session
+
+    // Calculate remaining duration in hours
     const now = new Date()
     let remainingHours = 24 // Default to 24 hours if no expiry set
     
     if (session.expires_at) {
       const expiresAt = new Date(session.expires_at)
-      
-      if (now > expiresAt) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Session has expired' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-        )
-      }
       
       // Calculate remaining duration in hours
       const remainingMs = expiresAt.getTime() - now.getTime()
