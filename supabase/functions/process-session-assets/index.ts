@@ -99,14 +99,17 @@ serve(async (req) => {
       throw new Error('Failed to store job description')
     }
 
-    // Update session with assets received status and session code
+    // Update session with assets received status, session code, and 24-hour expiry
     const now = new Date()
+    const expires24h = new Date(now.getTime() + (24 * 60 * 60 * 1000)) // 24 hours from now
+    
     const { data: updatedSession, error: updateError } = await supabaseService
       .from('sessions')
       .update({
         status: 'assets_received',
         session_code: sessionCode,
         job_role: jobRole,
+        expires_at: expires24h.toISOString(),
         updated_at: now.toISOString()
       })
       .eq('id', sessionId)
