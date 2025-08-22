@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,10 +17,75 @@ const UploadPage = () => {
   const isTrial = searchParams.get('trial') === 'true';
   const planType = searchParams.get('plan') || 'quick-session';
   
+  // Get session info from URL params
+  const sessionId = searchParams.get('sessionId') || searchParams.get('session_id');
+  const email = searchParams.get('email');
+  
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [jobRole, setJobRole] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+
+  // Check if this session should skip upload (coding-helper or question-analysis)
+  useEffect(() => {
+    const checkSessionType = async () => {
+      if (!sessionId) return;
+      
+      try {
+        // Get session details to check plan type
+        const { data: session, error } = await supabase
+          .from('sessions')
+          .select('plan_type, session_code')
+          .eq('id', sessionId)
+          .single();
+
+        if (session && (session.plan_type === 'coding-helper' || session.plan_type === 'question-analysis')) {
+          // For coding/question plans, generate session code if not exists and redirect
+          let sessionCode = session.session_code;
+          
+          if (!sessionCode) {
+            sessionCode = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Update session with code and set status to assets_received
+            await supabase
+              .from('sessions')
+              .update({
+                session_code: sessionCode,
+                status: 'assets_received',
+                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', sessionId);
+
+            // Send email with session code if email is available
+            if (email) {
+              try {
+                await supabase.functions.invoke('send-session-email', {
+                  body: {
+                    email,
+                    sessionId,
+                    sessionCode,
+                    planType: session.plan_type === 'coding-helper' ? 'Coding Helper' : 'Question Analysis',
+                    jobRole: session.plan_type === 'coding-helper' ? 'Developer' : 'Analyst'
+                  }
+                });
+              } catch (emailError) {
+                console.error('Email sending error:', emailError);
+              }
+            }
+          }
+          
+          // Redirect to session ready page
+          navigate(`/session-ready?sessionId=${sessionId}&code=${sessionCode}`);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking session type:', error);
+      }
+    };
+
+    checkSessionType();
+  }, [sessionId, email, navigate]);
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -46,8 +111,8 @@ const UploadPage = () => {
     setIsUploading(true);
     
     try {
-      let sessionId: string;
-      let email: string | null = null;
+      let currentSessionId: string;
+      let currentEmail: string | null = null;
       
       if (isTrial) {
         // Create free trial session directly
@@ -68,17 +133,17 @@ const UploadPage = () => {
           throw new Error('Failed to create trial session');
         }
         
-        sessionId = session.id;
+        currentSessionId = session.id;
       } else {
-        // For paid sessions, get sessionId from URL params (from payment page)
-        sessionId = searchParams.get('sessionId') || searchParams.get('session_id');
-        email = searchParams.get('email'); // Get email from payment flow
+        // For paid sessions, use sessionId from component level
+        currentSessionId = sessionId!; // We know this exists from URL params
+        currentEmail = email; // Get email from component level
         
-        console.log('DEBUG: sessionId from URL:', sessionId);
-        console.log('DEBUG: email from URL:', email);
+        console.log('DEBUG: sessionId from URL:', currentSessionId);
+        console.log('DEBUG: email from URL:', currentEmail);
         console.log('DEBUG: all URL params:', Object.fromEntries(searchParams.entries()));
         
-        if (!sessionId) {
+        if (!currentSessionId) {
           throw new Error('Session ID not found');
         }
       }
@@ -100,7 +165,7 @@ const UploadPage = () => {
       // Process session assets
       const { data, error } = await supabase.functions.invoke('process-session-assets', {
         body: {
-          sessionId,
+          sessionId: currentSessionId,
           resumeFile: fileData,
           resumeFilename: resumeFile.name,
           jobDescription,
@@ -115,12 +180,12 @@ const UploadPage = () => {
       }
 
       // Send email with session details if email was provided
-      console.log('DEBUG: About to check if email exists:', email);
-      if (email) {
+      console.log('DEBUG: About to check if email exists:', currentEmail);
+      if (currentEmail) {
         try {
           console.log('DEBUG: Calling send-session-email function with:', {
-            email,
-            sessionId,
+            email: currentEmail,
+            sessionId: currentSessionId,
             sessionCode,
             planType: isTrial ? 'Free Trial' : planType,
             jobRole
@@ -128,8 +193,8 @@ const UploadPage = () => {
           
           await supabase.functions.invoke('send-session-email', {
             body: {
-              email,
-              sessionId,
+              email: currentEmail,
+              sessionId: currentSessionId,
               sessionCode,
               planType: isTrial ? 'Free Trial' : (planType === 'pay-as-you-go' ? 'Quick Session' : planType),
               jobRole
@@ -148,7 +213,7 @@ const UploadPage = () => {
       toast.success(isTrial ? "Free trial session created!" : "Session assets uploaded successfully!");
       
       // Navigate to session ready page
-      navigate(`/session-ready?sessionId=${sessionId}&code=${sessionCode}&trial=${isTrial}`);
+      navigate(`/session-ready?sessionId=${currentSessionId}&code=${sessionCode}&trial=${isTrial}`);
       
     } catch (error) {
       console.error('Upload error:', error);
