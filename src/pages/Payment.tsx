@@ -295,7 +295,10 @@ const Payment = () => {
         </form>
 
         <div className="text-center mt-6 text-sm text-gray-500">
-          After payment, you'll upload your resume and job details to prepare your AI coach
+          After payment, {isQuotaPayment && (planType === 'coding-helper' || planType === 'question-analysis') 
+            ? "you'll get a session code to use in your desktop app" 
+            : "you'll upload your resume and job details to prepare your AI coach"
+          }
         </div>
       </div>
     </div>
