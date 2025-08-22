@@ -32,6 +32,15 @@ const Payment = () => {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!email.trim()) {
+      toast({
+        title: "Email Required",
+        description: "Please enter your email address to continue.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -41,13 +50,13 @@ const Payment = () => {
         body: isQuotaPayment ? {
           // Quota-based payment
           planType: planType, // This should be 'question-analysis' or 'coding-helper'
-          userEmail: email || 'guest@interviewace.com',
+          userEmail: email,
           quota: parseInt(quota || '0'),
           totalPrice: Math.round(totalPrice * 100) // Convert to cents
         } : {
           // Hourly payment (existing logic)
           planType: 'pay-as-you-go',
-          userEmail: email || 'guest@interviewace.com',
+          userEmail: email,
           deviceMode: 'single',
           hours: hours,
           totalPrice: Math.round(totalPrice * 100) // Convert to cents
@@ -191,15 +200,15 @@ const Payment = () => {
             </Card>
           )}
 
-          {/* Optional Email Input */}
+          {/* Email Input - Required */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Mail className="h-5 w-5" />
-                <span>Email (Optional)</span>
+                <span>Email Address *</span>
               </CardTitle>
               <CardDescription>
-                We'll send your session details to this email
+                Required - We'll send your session code and details to this email
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -208,12 +217,13 @@ const Payment = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your@email.com (optional)"
+                  placeholder="your@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
                 <p className="text-sm text-gray-600">
-                  Leave empty for anonymous session. You'll still get a session code to connect.
+                  📧 Your session code and access instructions will be sent here
                 </p>
               </div>
             </CardContent>
@@ -278,7 +288,7 @@ const Payment = () => {
           <Button 
             type="submit" 
             className="w-full py-6 text-lg"
-            disabled={loading}
+            disabled={loading || !email.trim()}
           >
             {loading ? (
               <>
@@ -296,8 +306,8 @@ const Payment = () => {
 
         <div className="text-center mt-6 text-sm text-gray-500">
           After payment, {isQuotaPayment && (planType === 'coding-helper' || planType === 'question-analysis') 
-            ? "you'll get a session code to use in your desktop app" 
-            : "you'll upload your resume and job details to prepare your AI coach"
+            ? "you'll get a session code sent to your email" 
+            : "you'll get a session code sent to your email, then upload your resume and job details"
           }
         </div>
       </div>

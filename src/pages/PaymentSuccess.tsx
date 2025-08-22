@@ -61,6 +61,24 @@ const PaymentSuccess = () => {
           }
 
           setSessionCode(generatedCode);
+          
+          // Send email with session code
+          try {
+            await supabase.functions.invoke('send-session-email', {
+              body: {
+                email: searchParams.get('email') || '',
+                sessionId,
+                sessionCode: generatedCode,
+                planType: session.plan_type === 'coding-helper' ? 'Coding Helper' : 'Question Analysis',
+                jobRole: session.plan_type === 'coding-helper' ? 'Developer' : 'Analyst'
+              }
+            });
+            toast.success("Session code sent to your email!");
+          } catch (emailError) {
+            console.error('Email sending error:', emailError);
+            toast.warning("Session created but email could not be sent");
+          }
+          
           setLoading(false);
 
           // Redirect to session ready after showing success
@@ -69,10 +87,32 @@ const PaymentSuccess = () => {
           }, 3000);
 
         } else {
-          // For quick-session, redirect to upload page
+          // For quick-session, generate session code and redirect to upload page  
+          const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+          
+          // Update session with code
+          const { error: updateError } = await supabase
+            .from('sessions')
+            .update({
+              session_code: generatedCode,
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sessionId);
+
+          if (updateError) {
+            console.error('Session update error:', updateError);
+            toast.error('Failed to prepare session');
+            navigate('/');
+            return;
+          }
+
+          setSessionCode(generatedCode);
           setLoading(false);
+          
+          // Redirect to upload page with session code
           setTimeout(() => {
-            navigate(`/upload?sessionId=${sessionId}&session_id=${sessionId}`);
+            navigate(`/upload?sessionId=${sessionId}&session_id=${sessionId}&email=${encodeURIComponent(searchParams.get('email') || '')}`);
           }, 3000);
         }
 
