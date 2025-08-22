@@ -81,10 +81,7 @@ const PaymentSuccess = () => {
           
           setLoading(false);
 
-          // Redirect to session ready after showing success
-          setTimeout(() => {
-            navigate(`/session-ready?sessionId=${sessionId}&code=${generatedCode}`);
-          }, 3000);
+          // Stay on this page - no redirect
 
         } else {
           // For quick-session, generate session code and redirect to upload page  
@@ -208,11 +205,8 @@ const PaymentSuccess = () => {
                 </div>
               )}
 
-              <div className="text-xs text-gray-400">
-                {planType === 'coding-helper' || planType === 'question-analysis' 
-                  ? 'Redirecting to session setup...'
-                  : 'Redirecting to upload page...'
-                }
+              <div className="text-sm text-blue-700">
+                This is your final session page. Use the code above in your desktop app.
               </div>
             </>
           )}
