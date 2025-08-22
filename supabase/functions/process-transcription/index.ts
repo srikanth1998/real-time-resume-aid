@@ -42,15 +42,6 @@ serve(async (req) => {
       throw new Error(`Session is not active or in progress (current status: ${session.status})`)
     }
 
-    // Check quota before processing
-    const questionsUsed = session.questions_used || 0
-    const questionsIncluded = session.questions_included || 0
-    const remainingQuestions = questionsIncluded - questionsUsed
-
-    if (remainingQuestions <= 0) {
-      throw new Error(`Question quota exceeded. Used: ${questionsUsed}/${questionsIncluded}`)
-    }
-
     // Generate AI answer first
     console.log('Generating AI answer for question:', text)
     const { data: aiResponse, error: aiError } = await supabase.functions.invoke('generate-interview-answer', {
@@ -83,33 +74,14 @@ serve(async (req) => {
       throw transcriptError
     }
 
-    // Update questions_used counter
-    const { error: updateError } = await supabase
-      .from('sessions')
-      .update({ 
-        questions_used: questionsUsed + 1,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', sessionId)
-
-    if (updateError) {
-      console.error('Failed to update questions counter:', updateError)
-      throw updateError
-    }
-
-    const newRemainingQuestions = remainingQuestions - 1
     console.log('Transcription and answer stored successfully for session:', sessionId)
-    console.log('Questions remaining:', newRemainingQuestions)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: 'Transcription processed and answer generated successfully',
         sessionId,
-        answer: generatedAnswer,
-        questionsUsed: questionsUsed + 1,
-        questionsIncluded,
-        remainingQuestions: newRemainingQuestions
+        answer: generatedAnswer
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
