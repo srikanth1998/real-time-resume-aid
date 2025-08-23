@@ -6,7 +6,10 @@ import { Brain, CheckCircle, Mail, Clock, Code, Image, Loader2 } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+console.log('PaymentSuccess module loading at:', new Date().toISOString());
+
 const PaymentSuccess = () => {
+  console.log('PaymentSuccess component rendering at:', new Date().toISOString());
   console.log('PaymentSuccess component loaded - URL:', window.location.href);
   
   const [searchParams] = useSearchParams();
