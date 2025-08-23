@@ -123,6 +123,36 @@ serve(async (req) => {
 
     console.log('Session assets processed successfully:', updatedSession)
 
+    // Send session email with code if we have user email
+    if (updatedSession.user_id) {
+      try {
+        // Get user email from profiles or sessions table
+        const { data: profile } = await supabaseService
+          .from('profiles')
+          .select('email')
+          .eq('id', updatedSession.user_id)
+          .single()
+
+        if (profile?.email) {
+          // Call send-session-email function
+          const emailResponse = await supabaseService.functions.invoke('send-session-email', {
+            body: {
+              email: profile.email,
+              sessionId: sessionId,
+              sessionCode: sessionCode,
+              planType: updatedSession.plan_type,
+              jobRole: jobRole
+            }
+          })
+
+          console.log('Email function response:', emailResponse)
+        }
+      } catch (emailError) {
+        console.error('Error sending session email:', emailError)
+        // Don't fail the whole process if email fails
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
