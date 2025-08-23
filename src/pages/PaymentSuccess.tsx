@@ -12,6 +12,8 @@ const PaymentSuccess = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const sessionId = searchParams.get('session_id');
+  console.log('PaymentSuccess: sessionId from URL:', sessionId);
+  
   const [loading, setLoading] = useState(true);
   const [sessionCode, setSessionCode] = useState<string | null>(null);
   const [planType, setPlanType] = useState<string | null>(null);
