@@ -109,7 +109,7 @@ export const NativeAudioSetup = () => {
           <Alert>
             <CheckCircle className="h-4 w-4" />
             <AlertDescription>
-              Native system audio capture is ready! Direct audio access available without virtual drivers.
+              Native system audio capture is ready! Direct audio access available without additional software.
             </AlertDescription>
           </Alert>
         )}

@@ -8,7 +8,7 @@ interface NativeAudioCapabilities {
   platform: string;
   systemAudio: {
     available: boolean;
-    method: string; // WASAPI or CoreAudio
+    method: string; // Advanced audio capture method
   };
 }
 

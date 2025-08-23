@@ -143,8 +143,8 @@ export const NativeAudioMode = ({ sessionId, onTranscriptionReceived }: NativeAu
         )}
 
         <div className="text-xs text-gray-400 space-y-1">
-          <p>• Direct system audio capture via {capabilities.systemAudio?.method || 'native APIs'}</p>
-          <p>• No virtual drivers or browser permissions required</p>
+          <p>• Direct system audio capture via advanced audio technology</p>
+          <p>• No additional software or browser permissions required</p>
           <p>• Works with any meeting platform or application</p>
         </div>
 

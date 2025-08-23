@@ -105,8 +105,8 @@ export const Downloads = () => {
                     <h4 className="font-semibold text-white text-lg">Features</h4>
                     <div className="grid grid-cols-1 gap-2">
                       {[
-                        'Native WASAPI audio capture',
-                        'Zero-driver system audio loopback',
+                        'Advanced system audio capture',
+                        'Direct audio access without drivers',
                         'Invisible stealth overlay',
                         'Works with all meeting platforms',
                         'Real-time audio processing'
@@ -137,10 +137,10 @@ export const Downloads = () => {
                     Download for Windows
                   </Button>
                   
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3">
-                    <div className="text-green-400 text-sm font-medium mb-1">✅ Ready to Download</div>
-                    <div className="text-green-300/80 text-xs">Native WASAPI - No drivers needed!</div>
-                  </div>
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3">
+                      <div className="text-green-400 text-sm font-medium mb-1">✅ Ready to Download</div>
+                      <div className="text-green-300/80 text-xs">Advanced audio capture - No drivers needed!</div>
+                    </div>
                 </CardContent>
               </Card>
             </div>
