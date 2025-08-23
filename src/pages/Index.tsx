@@ -209,26 +209,6 @@ const Index = () => {
               </p>
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-4">
-              <motion.button
-                whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(34, 197, 94, 0.4)" }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleSelectPlan('coding-helper')}
-                className="bg-green-600 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-green-600/25 border border-green-500/50 hover:border-green-500 transition-all"
-              >
-                <Brain className="inline h-5 w-5 mr-2" />
-                Coding Helper ($6.99)
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(79, 70, 229, 0.4)" }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleSelectPlan('question-analysis')}
-                className="bg-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-primary/25 border border-primary/50 hover:border-primary transition-all"
-              >
-                <Zap className="inline h-5 w-5 mr-2" />
-                Question Analysis ($6.99)
-              </motion.button>
-            </div>
 
             <div className="flex flex-wrap items-center gap-8 text-sm">
               <div className="flex items-center space-x-2 text-white/70">

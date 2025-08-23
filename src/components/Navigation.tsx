@@ -87,14 +87,6 @@ const Navigation = () => {
             </button>
           </div>
           
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/upload?plan=quick-session&trial=true')}
-            className="bg-primary text-white px-6 py-2 rounded-full font-medium hover:shadow-lg hover:shadow-primary/25 transition-all"
-          >
-            Try Now
-          </motion.button>
         </div>
       </div>
     </motion.nav>
