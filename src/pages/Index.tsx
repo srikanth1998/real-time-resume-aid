@@ -90,6 +90,27 @@ const Index = () => {
 
   const plans = [
     {
+      id: 'question-analysis',
+      name: 'Quiz Analysis',
+      price: '$6.99',
+      priceUnit: ' per 100 questions',
+      billing: 'one-time',
+      duration: '100 questions',
+      description: 'Smart question analysis and instant answers for any topic',
+      bestFor: 'Universal quiz assistance',
+      features: [
+        'Smart Analysis → Perfect Answer',
+        'Get instant help with any quiz questions',
+        'Works with all subjects and topics',
+        'Detailed explanations for complex questions',
+        'Compatible with any platform or format',
+        'Supports multiple languages and fields',
+        'Perfect for interviews, tests, and assessments'
+      ],
+      popular: false,
+      comingSoon: false,
+    },
+    {
       id: 'coding-helper',
       name: 'Coding Helper',
       price: '$6.99',
@@ -129,27 +150,6 @@ const Index = () => {
       ],
       popular: false,
       comingSoon: true,
-    },
-    {
-      id: 'question-analysis',
-      name: 'Quiz Analysis',
-      price: '$6.99',
-      priceUnit: ' per 100 questions',
-      billing: 'one-time',
-      duration: '100 questions',
-      description: 'Smart question analysis and instant answers for any topic',
-      bestFor: 'Universal quiz assistance',
-      features: [
-        'Smart Analysis → Perfect Answer',
-        'Get instant help with any quiz questions',
-        'Works with all subjects and topics',
-        'Detailed explanations for complex questions',
-        'Compatible with any platform or format',
-        'Supports multiple languages and fields',
-        'Perfect for interviews, tests, and assessments'
-      ],
-      popular: false,
-      comingSoon: false,
     }
   ];
 
