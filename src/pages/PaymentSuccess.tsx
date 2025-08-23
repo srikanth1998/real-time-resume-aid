@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const PaymentSuccess = () => {
+  console.log('PaymentSuccess component loaded - URL:', window.location.href);
+  
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const sessionId = searchParams.get('session_id');
