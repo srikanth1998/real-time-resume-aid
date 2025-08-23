@@ -359,7 +359,7 @@ const Index = () => {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: (index + 1) * 0.1 }}
               whileHover={{ y: -8, rotateX: 2 }}
-              className={`relative backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 shadow-2xl ${
+              className={`relative backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 shadow-2xl h-full flex flex-col ${
                 plan.popular ? 'ring-2 ring-primary scale-105' : ''
               } ${
                 plan.comingSoon ? 'opacity-75' : ''
@@ -400,8 +400,8 @@ const Index = () => {
                 </div>
               </div>
               
-              <div className="space-y-6">
-                <div className="space-y-3">
+              <div className="space-y-6 flex-grow flex flex-col">
+                <div className="space-y-3 flex-grow">
                   {plan.features.map((feature, featureIndex) => (
                     <motion.div
                       key={featureIndex}
