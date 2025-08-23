@@ -60,11 +60,16 @@ const Payment = () => {
       
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: isQuotaPayment ? {
-          // Quota-based payment
+          // Quota-based payment - include all required fields
           planType: planType, // This should be 'question-analysis' or 'coding-helper'
           userEmail: email || 'support@interviewaceguru.com',
+          deviceMode: 'single', // Add required deviceMode field
           quota: parseInt(quota || '0'),
-          totalPrice: priceInINR * 100 // Convert to paise
+          totalPrice: priceInINR * 100, // Convert to paise
+          // Add default values for other expected fields
+          priceAmount: priceInINR * 100,
+          planName: planType === 'question-analysis' ? 'Question Analysis Plan' : 'Coding Helper Plan',
+          duration: 0 // Not time-based for quota plans
         } : {
           // Hourly payment (existing logic)
           planType: 'pay-as-you-go',
