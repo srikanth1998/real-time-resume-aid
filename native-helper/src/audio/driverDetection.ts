@@ -43,54 +43,13 @@ export class DriverDetector {
     }
   }
 
-  static async detectMacOSBlackHole(): Promise<DriverStatus> {
-    try {
-      // Check for BlackHole using system_profiler
-      const { stdout } = await execAsync('system_profiler SPAudioDataType');
-      
-      if (stdout.includes('BlackHole')) {
-        // Extract version if possible
-        const versionMatch = stdout.match(/BlackHole.*?(\d+\.\d+\.\d+)/);
-        return {
-          installed: true,
-          deviceName: 'BlackHole',
-          version: versionMatch?.[1] || 'Unknown'
-        };
-      }
-
-      // Also check using audiodevice list (if available)
-      try {
-        const { stdout: deviceList } = await execAsync('ls /System/Library/Extensions/ | grep -i blackhole');
-        if (deviceList.trim()) {
-          return {
-            installed: true,
-            deviceName: 'BlackHole',
-            version: 'Unknown'
-          };
-        }
-      } catch {
-        // Ignore error, primary check above is more reliable
-      }
-
-      return { installed: false };
-    } catch (error) {
-      console.error('Error detecting BlackHole:', error);
-      return { 
-        installed: false, 
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
   static async getCurrentPlatformDriver(): Promise<DriverStatus> {
     if (process.platform === 'win32') {
       return this.detectWindowsVBCable();
-    } else if (process.platform === 'darwin') {
-      return this.detectMacOSBlackHole();
     } else {
       return { 
         installed: false, 
-        error: 'Unsupported platform' 
+        error: 'Unsupported platform - only Windows is supported' 
       };
     }
   }
@@ -98,8 +57,6 @@ export class DriverDetector {
   static getDriverDownloadUrl(): string {
     if (process.platform === 'win32') {
       return 'https://vb-audio.com/Cable/';
-    } else if (process.platform === 'darwin') {
-      return 'https://github.com/ExistentialAudio/BlackHole/releases';
     }
     return '';
   }
@@ -107,8 +64,6 @@ export class DriverDetector {
   static getDriverName(): string {
     if (process.platform === 'win32') {
       return 'VB-Cable';
-    } else if (process.platform === 'darwin') {
-      return 'BlackHole';
     }
     return 'Unknown Driver';
   }

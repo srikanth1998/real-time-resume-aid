@@ -41,46 +41,8 @@ jobs:
           name: windows-helper
           path: native-helper/releases/*.exe
 
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          
-      - name: Install dependencies
-        working-directory: native-helper
-        run: npm install
-        
-      - name: Build application
-        working-directory: native-helper
-        run: npm run build
-        
-      - name: Import Code-Signing Certificates
-        uses: Apple-Actions/import-codesign-certs@v1
-        with:
-          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
-          p12-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          
-      - name: Build and notarize macOS app
-        working-directory: native-helper
-        run: npm run dist:mac
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-helper
-          path: native-helper/releases/*.dmg
-
   deploy:
-    needs: [build-windows, build-macos]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -103,12 +65,4 @@ jobs:
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               -H "Content-Type: application/octet-stream" \
               --data-binary @windows-helper/*.exe
-          fi
-          
-          # Upload macOS helper  
-          if [ -f macos-helper/*.dmg ]; then
-            curl -X POST "$SUPABASE_URL/storage/v1/object/native-helpers/InterviewAce-Helper-macOS.dmg" \
-              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @macos-helper/*.dmg
           fi

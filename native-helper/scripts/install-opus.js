@@ -12,10 +12,6 @@ const downloads = {
   win32: {
     url: `https://github.com/xiph/opus/releases/download/v${OPUS_VERSION}/opus-${OPUS_VERSION}.tar.gz`,
     needsCompile: true
-  },
-  darwin: {
-    url: `https://github.com/xiph/opus/releases/download/v${OPUS_VERSION}/opus-${OPUS_VERSION}.tar.gz`,
-    needsCompile: true
   }
 };
 
@@ -62,15 +58,8 @@ async function installOpus() {
       } catch (e) {
         console.log('vcpkg not available, using manual installation...');
       }
-    } else if (platform === 'darwin') {
-      console.log('Attempting to install via Homebrew...');
-      try {
-        execSync('brew install opus', { stdio: 'inherit' });
-        console.log('Successfully installed Opus via Homebrew');
-        return;
-      } catch (e) {
-        console.log('Homebrew not available, using manual installation...');
-      }
+    } else {
+      throw new Error(`Platform ${platform} is not supported - only Windows is supported`);
     }
 
     // Fallback: Manual installation
@@ -132,12 +121,6 @@ async function manualInstallation(platform, depsDir) {
       if (fs.existsSync(path.join(buildDir, 'opus.lib'))) {
         fs.copyFileSync(path.join(buildDir, 'opus.lib'), path.join(depsDir, 'lib', 'opus.lib'));
       }
-    } else {
-      // Use autotools for macOS/Linux
-      execSync('./autogen.sh', { stdio: 'inherit' });
-      execSync('./configure --prefix=' + depsDir, { stdio: 'inherit' });
-      execSync('make install', { stdio: 'inherit' });
-    }
     
     // Copy headers
     const headerSrc = path.join(sourceDir, 'include');
@@ -192,8 +175,7 @@ void opus_encoder_destroy(OpusEncoder *st);
     // Create empty .lib file for Windows
     fs.writeFileSync(path.join(libDir, 'opus.lib'), '');
   } else {
-    // Create empty .a file for macOS/Linux
-    fs.writeFileSync(path.join(libDir, 'libopus.a'), '');
+    throw new Error('Platform not supported - only Windows is supported');
   }
   
   console.log('Dummy files created. Note: Audio encoding will not work until real Opus is installed.');

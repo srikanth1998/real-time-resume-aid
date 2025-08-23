@@ -10,14 +10,12 @@ import { useNativeAudio } from '@/hooks/useNativeAudio';
 export const NativeAudioSetup = () => {
   const { capabilities, checkNativeHelper } = useNativeAudio(null);
   const [isChecking, setIsChecking] = useState(false);
-  const [platform, setPlatform] = useState<'windows' | 'macos' | 'unknown'>('unknown');
+  const [platform, setPlatform] = useState<'windows' | 'unknown'>('unknown');
 
   useEffect(() => {
-    // Detect platform
+    // Detect platform - Only Windows is supported
     if (navigator.platform.includes('Win')) {
       setPlatform('windows');
-    } else if (navigator.platform.includes('Mac')) {
-      setPlatform('macos');
     }
   }, []);
 
@@ -29,17 +27,13 @@ export const NativeAudioSetup = () => {
 
   const downloadHelper = () => {
     // Download from Supabase Storage
-    const downloadUrl = platform === 'windows' 
-      ? 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe'
-      : 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-macOS.dmg';
+    const downloadUrl = 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe';
     
     window.open(downloadUrl, '_blank');
   };
 
   const installDriver = () => {
-    const driverUrl = platform === 'windows'
-      ? 'https://vb-audio.com/Cable/'
-      : 'https://github.com/ExistentialAudio/BlackHole';
+    const driverUrl = 'https://vb-audio.com/Cable/';
     
     window.open(driverUrl, '_blank');
   };
@@ -49,7 +43,7 @@ export const NativeAudioSetup = () => {
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Native audio capture is only supported on Windows and macOS.
+          Native audio capture is only supported on Windows.
         </AlertDescription>
       </Alert>
     );

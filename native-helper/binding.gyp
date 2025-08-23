@@ -31,31 +31,6 @@
           }
         }]
       ]
-    },
-    {
-      "target_name": "macos_capture", 
-      "conditions": [
-        ["OS=='mac'", {
-          "sources": [
-            "src/audio/macos-capture.swift",
-            "src/bindings/macos-binding.mm"
-          ],
-          "include_dirs": [
-            "<!(node -p \"require('nan')\")", 
-            "deps/opus/include"
-          ],
-          "libraries": [
-            "-framework AVFoundation",
-            "-framework AudioToolbox", 
-            "-framework CoreAudio"
-          ],
-          "xcode_settings": {
-            "SWIFT_VERSION": "5.0",
-            "CLANG_ENABLE_OBJC_ARC": "YES",
-            "MACOSX_DEPLOYMENT_TARGET": "10.15"
-          }
-        }]
-      ]
     }
   ]
 }

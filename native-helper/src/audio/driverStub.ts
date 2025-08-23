@@ -20,21 +20,12 @@ export class DriverDetector {
     };
   }
 
-  static async detectMacOSBlackHole(): Promise<DriverStatus> {
-    // Return stub response that driver is installed
-    return {
-      installed: true,
-      version: '1.0.0',
-      deviceName: 'BlackHole Audio Device'
-    };
-  }
-
   static async getCurrentPlatformDriver(): Promise<DriverStatus> {
-    // Return stub response that driver is installed without logging
+    // Return stub response that driver is installed without logging - Windows only
     return {
       installed: true,
       version: '1.0.0',
-      deviceName: process.platform === 'win32' ? 'Virtual Audio Device' : 'BlackHole Audio Device'
+      deviceName: 'Virtual Audio Device'
     };
   }
 }

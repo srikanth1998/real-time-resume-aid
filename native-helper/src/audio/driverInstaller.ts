@@ -31,10 +31,8 @@ export class DriverInstaller {
     
     if (platform === 'win32') {
       this.installationSteps = await this.getWindowsInstallationSteps();
-    } else if (platform === 'darwin') {
-      this.installationSteps = await this.getMacOSInstallationSteps();
     } else {
-      throw new Error('Unsupported platform for driver installation');
+      throw new Error('Unsupported platform for driver installation - only Windows is supported');
     }
 
     return this.installationSteps;
@@ -69,43 +67,6 @@ export class DriverInstaller {
         id: 'verify',
         title: 'Verify Installation',
         description: 'Check that VB-Cable appears in your audio devices',
-        action: async () => {
-          await this.verifyInstallation();
-        },
-        completed: driverStatus.installed
-      }
-    ];
-  }
-
-  private async getMacOSInstallationSteps(): Promise<InstallationStep[]> {
-    const driverStatus = await DriverDetector.detectMacOSBlackHole();
-    
-    return [
-      {
-        id: 'download',
-        title: 'Download BlackHole',
-        description: 'Download BlackHole from GitHub releases or install via Homebrew',
-        action: async () => {
-          await shell.openExternal('https://github.com/ExistentialAudio/BlackHole/releases');
-        },
-        completed: false
-      },
-      {
-        id: 'install',
-        title: 'Install BlackHole',
-        description: 'Install using: brew install blackhole-2ch or run the downloaded installer',
-        completed: driverStatus.installed
-      },
-      {
-        id: 'permissions',
-        title: 'Grant Permissions',
-        description: 'Allow BlackHole in System Preferences > Security & Privacy',
-        completed: driverStatus.installed
-      },
-      {
-        id: 'verify',
-        title: 'Verify Installation',
-        description: 'Check that BlackHole appears in Audio MIDI Setup',
         action: async () => {
           await this.verifyInstallation();
         },
@@ -168,7 +129,7 @@ export class DriverInstaller {
       this.onStatusChange([...this.installationSteps]);
     }
   }
-
+  
   // Get platform-specific installation instructions
   getDetailedInstructions(): string[] {
     if (process.platform === 'win32') {
@@ -180,17 +141,7 @@ export class DriverInstaller {
         '5. Open Sound settings and verify "CABLE Input" and "CABLE Output" appear',
         '6. Set "CABLE Input" as your default recording device if needed'
       ];
-    } else if (process.platform === 'darwin') {
-      return [
-        '1. Install via Homebrew: brew install blackhole-2ch',
-        'OR download from: https://github.com/ExistentialAudio/BlackHole/releases',
-        '2. If using installer, double-click the .pkg file',
-        '3. Go to System Preferences > Security & Privacy',
-        '4. Allow BlackHole if prompted',
-        '5. Open Audio MIDI Setup and verify BlackHole appears',
-        '6. Create a Multi-Output Device including BlackHole if needed'
-      ];
     }
-    return ['Platform not supported'];
+    return ['Platform not supported - only Windows is supported'];
   }
 }
