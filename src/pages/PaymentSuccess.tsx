@@ -17,20 +17,33 @@ const PaymentSuccess = () => {
   useEffect(() => {
     const processSession = async () => {
       if (!sessionId) {
+        console.error('PaymentSuccess: No session ID provided in URL');
         navigate('/');
         return;
       }
+
+      setLoading(true);
+      console.log('PaymentSuccess: Processing session:', sessionId);
 
       try {
         // Get session details to check plan type
         const { data: session, error: sessionError } = await supabase
           .from('sessions')
-          .select('plan_type, device_mode')
+          .select('plan_type, device_mode, status, session_code')
           .eq('id', sessionId)
-          .single();
+          .maybeSingle();
 
-        if (sessionError || !session) {
-          console.error('Session fetch error:', sessionError);
+        console.log('PaymentSuccess: Session fetch result:', { session, sessionError });
+
+        if (sessionError) {
+          console.error('PaymentSuccess: Session fetch error:', sessionError);
+          toast.error('Error fetching session details');
+          navigate('/');
+          return;
+        }
+
+        if (!session) {
+          console.error('PaymentSuccess: Session not found for ID:', sessionId);
           toast.error('Session not found');
           navigate('/');
           return;
