@@ -120,12 +120,12 @@ const Index = () => {
       description: 'Perfect for coding interviews, technical quizzes & programming challenges',
       bestFor: 'Coding interviews',
       features: [
-        '5 coding questions & quizzes',
-        'Smart coding & quiz assistance',
+        '5 coding questions & challenges',
+        'Smart coding assistance',
         'Technical interview question help',
         'Algorithm & data structure guidance',
         'Programming challenge solutions',
-        'Quiz answer explanations'
+        'Code explanation & optimization tips'
       ],
       popular: false,
       comingSoon: false,
