@@ -132,47 +132,6 @@ const FAQ = () => {
             </Accordion>
           </motion.div>
 
-          {/* Still Have Questions Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center mt-16"
-          >
-            <Card className="backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-12">
-              <CardHeader>
-                <CardTitle className="text-3xl font-bold text-white font-poppins mb-4">
-                  Still Have Questions?
-                </CardTitle>
-                <p className="text-white/80 mb-8 max-w-2xl mx-auto">
-                  We're here to help you feel confident about using our interview coaching tool. 
-                  Reach out anytime for personalized support.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button
-                    onClick={() => navigate("/auth?plan=pay-as-you-go")}
-                    size="lg"
-                    className="bg-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
-                  >
-                    Start Your Session
-                  </Button>
-                  <Button
-                    onClick={() => navigate("/integrity")}
-                    variant="outline"
-                    size="lg"
-                    className="backdrop-blur-md bg-glass border border-glass-border text-white px-8 py-4 rounded-xl font-medium text-lg hover:bg-white/20 transition-all"
-                  >
-                    Read Our Ethics Guide
-                  </Button>
-                </div>
-                <p className="text-white/60 text-sm mt-6">
-                  Response time: Under 2 hours during business days
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
         </div>
       </div>
     </div>
