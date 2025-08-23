@@ -76,13 +76,13 @@ export const Downloads = () => {
             )}
           </div>
 
-          {/* Download Cards */}
-          <div className="max-w-2xl mx-auto mb-12">
+          {/* Helper and Installation Grid */}
+          <div className="grid lg:grid-cols-2 gap-8 mb-12">
             
             {/* Windows Helper */}
             <div className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" />
-              <Card className="relative backdrop-blur-md bg-glass border border-glass-border rounded-3xl overflow-hidden">
+              <Card className="relative backdrop-blur-md bg-glass border border-glass-border rounded-3xl overflow-hidden h-full">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500" />
                 
                 <CardHeader className="text-center pb-6 pt-8">
@@ -145,6 +145,54 @@ export const Downloads = () => {
               </Card>
             </div>
 
+            {/* Installation Guide */}
+            <div className="relative group">
+              <Card className="backdrop-blur-md bg-glass border border-glass-border rounded-3xl p-8 h-full">
+                <h3 className="text-2xl font-bold text-white font-poppins text-center mb-8">
+                  Installation Guide
+                </h3>
+                
+                {/* Windows Guide */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="p-2 rounded-lg bg-blue-500/20 border border-blue-500/30">
+                      <Monitor className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <h4 className="text-xl font-semibold text-white">Windows Setup</h4>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {[
+                      'Download the InterviewAce Helper executable',
+                      'Right-click and "Run as Administrator"',
+                      'Allow Windows Defender if prompted',
+                      'Helper will appear in system tray',
+                      'Start your interview session!'
+                    ].map((step, index) => (
+                      <div key={index} className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 text-sm font-medium">
+                          {index + 1}
+                        </div>
+                        <span className="text-white/80">{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-8 p-6 backdrop-blur-sm bg-accent/10 border border-accent/20 rounded-2xl">
+                  <div className="flex items-start space-x-3">
+                    <CheckCircle className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-accent font-semibold mb-1">Pro Tip</div>
+                      <div className="text-white/80 text-sm">
+                        After installation, test your setup before the actual interview. Start a practice session 
+                        to ensure audio capture and overlay visibility work perfectly.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
           </div>
 
           {/* Linux Notice */}
@@ -160,56 +208,6 @@ export const Downloads = () => {
             </div>
           )}
 
-          {/* Installation Guide */}
-          <div className="backdrop-blur-md bg-glass border border-glass-border rounded-3xl p-8">
-            <h2 className="text-3xl font-bold text-white font-poppins text-center mb-8">
-              Installation Guide
-            </h2>
-            
-            <div className="max-w-2xl mx-auto">
-              
-              {/* Windows Guide */}
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="p-2 rounded-lg bg-blue-500/20 border border-blue-500/30">
-                    <Monitor className="h-5 w-5 text-blue-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-white">Windows Setup</h3>
-                </div>
-                
-                <div className="space-y-3">
-                  {[
-                    'Download the InterviewAce Helper executable',
-                    'Right-click and "Run as Administrator"',
-                    'Allow Windows Defender if prompted',
-                    'Helper will appear in system tray',
-                    'Start your interview session!'
-                  ].map((step, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 text-sm font-medium">
-                        {index + 1}
-                      </div>
-                      <span className="text-white/80">{step}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-
-            <div className="mt-8 p-6 backdrop-blur-sm bg-accent/10 border border-accent/20 rounded-2xl">
-              <div className="flex items-start space-x-3">
-                <CheckCircle className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-accent font-semibold mb-1">Pro Tip</div>
-                  <div className="text-white/80 text-sm">
-                    After installation, test your setup before the actual interview. Start a practice session 
-                    to ensure audio capture and overlay visibility work perfectly.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
