@@ -21,16 +21,22 @@ export const useInterviewSession = (sessionId: string | null) => {
       
       if (timeLeft <= 0) {
         handleSessionExpired();
+      } else if (timeLeft === 3600) { // 1 hour remaining
+        toast({
+          title: "1 hour remaining",
+          description: "Your 24-hour session will expire in 1 hour.",
+          variant: "destructive"
+        });
       } else if (timeLeft === 300) {
         toast({
           title: "5 minutes remaining",
-          description: "Your session will end in 5 minutes.",
+          description: "Your 24-hour session will expire in 5 minutes.",
           variant: "destructive"
         });
       } else if (timeLeft === 60) {
         toast({
-          title: "1 minute remaining",
-          description: "Your session will end in 1 minute.",
+          title: "1 minute remaining", 
+          description: "Your 24-hour session will expire in 1 minute.",
           variant: "destructive"
         });
       }
@@ -52,8 +58,8 @@ export const useInterviewSession = (sessionId: string | null) => {
       .eq('id', sessionId);
 
     toast({
-      title: "Session completed",
-      description: "Your interview session has ended.",
+      title: "Session expired",
+      description: "Your 24-hour session has expired.",
     });
 
     navigate(`/complete?session_id=${sessionId}`);
@@ -121,16 +127,21 @@ export const useInterviewSession = (sessionId: string | null) => {
         if (sessionData.status === 'assets_received') {
           console.log('🔄 Session has assets_received status, updating to in_progress...');
           
+          // Check if session has already expired (24-hour creation limit)
           const now = new Date();
-          const expiresAt = new Date(now.getTime() + sessionData.duration_minutes * 60 * 1000);
+          if (sessionData.expires_at && new Date(sessionData.expires_at) <= now) {
+            console.log('❌ Session expired (24-hour creation limit)');
+            await handleSessionExpired();
+            return;
+          }
           
           const { data: updatedSession, error: updateError } = await supabase
             .from('sessions')
             .update({
               status: 'in_progress',
               started_at: now.toISOString(),
-              expires_at: expiresAt.toISOString(),
               updated_at: now.toISOString()
+              // Keep the original expires_at (24-hour creation limit) - don't overwrite it
             })
             .eq('id', sessionId)
             .select()
@@ -146,7 +157,9 @@ export const useInterviewSession = (sessionId: string | null) => {
           console.log('✅ Session updated to in_progress:', updatedSession);
           setSession(updatedSession);
           
-          const timeLeft = Math.max(0, Math.floor((new Date(updatedSession.expires_at).getTime() - now.getTime()) / 1000));
+          // Calculate remaining time until 24-hour expiration
+          const currentTime = new Date();
+          const timeLeft = Math.max(0, Math.floor((new Date(updatedSession.expires_at).getTime() - currentTime.getTime()) / 1000));
           setTimeRemaining(timeLeft);
           
           startTimer(new Date(updatedSession.expires_at));
