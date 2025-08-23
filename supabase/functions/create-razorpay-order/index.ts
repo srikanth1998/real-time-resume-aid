@@ -7,12 +7,27 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  console.log('=== EDGE FUNCTION CALLED ===')
+  console.log('Method:', req.method)
+  console.log('Headers:', Object.fromEntries(req.headers.entries()))
+  
   if (req.method === 'OPTIONS') {
+    console.log('OPTIONS request - returning CORS headers')
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail, totalPrice, hours, quota } = await req.json()
+    console.log('=== PARSING REQUEST BODY ===')
+    let requestBody;
+    try {
+      requestBody = await req.json()
+      console.log('✅ Request body parsed successfully:', requestBody)
+    } catch (parseError) {
+      console.error('❌ FAILED to parse request body:', parseError)
+      throw new Error(`Invalid JSON in request body: ${parseError.message}`)
+    }
+    
+    const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail, totalPrice, hours, quota } = requestBody
     console.log('=== RAZORPAY ORDER CREATION START ===')
     console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail, totalPrice, hours, quota })
 
