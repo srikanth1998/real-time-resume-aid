@@ -1,6 +1,0 @@
-This is a placeholder file. 
-
-The icon creation script encountered an error. To fix this, you have two options:
-
-1. Use any image editor to create a 32x32 or 64x64 pixel icon file named "privacy_icon.ico"
-2. Remove the icon references from the project files if you just want to test the functionality
