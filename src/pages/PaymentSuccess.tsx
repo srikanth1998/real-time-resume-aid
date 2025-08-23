@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,69 +6,41 @@ import { Brain, CheckCircle, Mail, Clock, Code, Image, Loader2 } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-console.log('PaymentSuccess module loading at:', new Date().toISOString());
-
 const PaymentSuccess = () => {
-  console.log('PaymentSuccess component rendering at:', new Date().toISOString());
-  console.log('PaymentSuccess component loaded - URL:', window.location.href);
-  
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const sessionId = searchParams.get('session_id');
-  console.log('PaymentSuccess: sessionId from URL:', sessionId);
-  
   const [loading, setLoading] = useState(true);
   const [sessionCode, setSessionCode] = useState<string | null>(null);
   const [planType, setPlanType] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('PaymentSuccess: useEffect started');
-    
     const processSession = async () => {
+      if (!sessionId) {
+        navigate('/');
+        return;
+      }
+
       try {
-        console.log('PaymentSuccess: processSession function called');
-        
-        if (!sessionId) {
-          console.error('PaymentSuccess: No session ID provided in URL');
-          navigate('/');
-          return;
-        }
-
-        setLoading(true);
-        console.log('PaymentSuccess: Processing session:', sessionId);
-
         // Get session details to check plan type
-        console.log('PaymentSuccess: Fetching session from database');
         const { data: session, error: sessionError } = await supabase
           .from('sessions')
-          .select('plan_type, device_mode, status, session_code')
+          .select('plan_type, device_mode')
           .eq('id', sessionId)
-          .maybeSingle();
+          .single();
 
-        console.log('PaymentSuccess: Session fetch result:', { session, sessionError });
-
-        if (sessionError) {
-          console.error('PaymentSuccess: Session fetch error:', sessionError);
-          toast.error('Error fetching session details');
-          navigate('/');
-          return;
-        }
-
-        if (!session) {
-          console.error('PaymentSuccess: Session not found for ID:', sessionId);
+        if (sessionError || !session) {
+          console.error('Session fetch error:', sessionError);
           toast.error('Session not found');
           navigate('/');
           return;
         }
 
         setPlanType(session.plan_type);
-        console.log('PaymentSuccess: Session plan type:', session.plan_type);
 
         // For coding-helper and question-analysis, generate session code directly
         if (session.plan_type === 'coding-helper' || session.plan_type === 'question-analysis') {
-          console.log('PaymentSuccess: Generating session code for plan:', session.plan_type);
           const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-          console.log('PaymentSuccess: Generated code:', generatedCode);
           
           // Update session with code and set status to assets_received
           const { error: updateError } = await supabase
@@ -80,21 +53,17 @@ const PaymentSuccess = () => {
             })
             .eq('id', sessionId);
 
-          console.log('PaymentSuccess: Database update result:', { updateError });
-
           if (updateError) {
-            console.error('PaymentSuccess: Session update error:', updateError);
+            console.error('Session update error:', updateError);
             toast.error('Failed to prepare session');
             navigate('/');
             return;
           }
 
           setSessionCode(generatedCode);
-          console.log('PaymentSuccess: Session code set in state:', generatedCode);
           
           // Send email with session code
           try {
-            console.log('PaymentSuccess: Sending email with session code');
             await supabase.functions.invoke('send-session-email', {
               body: {
                 email: searchParams.get('email') || '',
@@ -104,16 +73,21 @@ const PaymentSuccess = () => {
                 jobRole: session.plan_type === 'coding-helper' ? 'Developer' : 'Analyst'
               }
             });
-            console.log('PaymentSuccess: Email sent successfully');
             toast.success("Session code sent to your email!");
           } catch (emailError) {
-            console.error('PaymentSuccess: Email sending error:', emailError);
+            console.error('Email sending error:', emailError);
             toast.warning("Session created but email could not be sent");
           }
           
+          setLoading(false);
+
+          // Redirect to session ready after showing success
+          setTimeout(() => {
+            navigate(`/session-ready?sessionId=${sessionId}&code=${generatedCode}`);
+          }, 3000);
+
         } else {
           // For quick-session, generate session code and redirect to upload page  
-          console.log('PaymentSuccess: Processing quick-session plan');
           const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
           
           // Update session with code
@@ -127,13 +101,14 @@ const PaymentSuccess = () => {
             .eq('id', sessionId);
 
           if (updateError) {
-            console.error('PaymentSuccess: Session update error:', updateError);
+            console.error('Session update error:', updateError);
             toast.error('Failed to prepare session');
             navigate('/');
             return;
           }
 
           setSessionCode(generatedCode);
+          setLoading(false);
           
           // Redirect to upload page with session code
           setTimeout(() => {
@@ -142,17 +117,14 @@ const PaymentSuccess = () => {
         }
 
       } catch (error) {
-        console.error('PaymentSuccess: Processing error:', error);
+        console.error('Processing error:', error);
         toast.error('Failed to process session');
         navigate('/');
-      } finally {
-        console.log('PaymentSuccess: Setting loading to false');
-        setLoading(false);
       }
     };
 
     processSession();
-  }, [sessionId, navigate, searchParams]);
+  }, [sessionId, navigate]);
 
   const getPlanIcon = () => {
     if (planType === 'coding-helper') return <Code className="h-8 w-8 text-green-600" />;
@@ -236,8 +208,11 @@ const PaymentSuccess = () => {
                 </div>
               )}
 
-              <div className="text-sm text-blue-700">
-                This is your final session page. Use the code above in your desktop app.
+              <div className="text-xs text-gray-400">
+                {planType === 'coding-helper' || planType === 'question-analysis' 
+                  ? 'Redirecting to session setup...'
+                  : 'Redirecting to upload page...'
+                }
               </div>
             </>
           )}
