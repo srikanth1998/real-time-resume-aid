@@ -50,10 +50,13 @@ const PaymentSuccess = () => {
         }
 
         setPlanType(session.plan_type);
+        console.log('PaymentSuccess: Session plan type:', session.plan_type);
 
         // For coding-helper and question-analysis, generate session code directly
         if (session.plan_type === 'coding-helper' || session.plan_type === 'question-analysis') {
+          console.log('PaymentSuccess: Generating session code for plan:', session.plan_type);
           const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+          console.log('PaymentSuccess: Generated code:', generatedCode);
           
           // Update session with code and set status to assets_received
           const { error: updateError } = await supabase
@@ -66,14 +69,17 @@ const PaymentSuccess = () => {
             })
             .eq('id', sessionId);
 
+          console.log('PaymentSuccess: Database update result:', { updateError });
+
           if (updateError) {
-            console.error('Session update error:', updateError);
+            console.error('PaymentSuccess: Session update error:', updateError);
             toast.error('Failed to prepare session');
             navigate('/');
             return;
           }
 
           setSessionCode(generatedCode);
+          console.log('PaymentSuccess: Session code set in state:', generatedCode);
           
           // Send email with session code
           try {
