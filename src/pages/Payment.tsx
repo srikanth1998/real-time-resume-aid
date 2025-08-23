@@ -10,6 +10,12 @@ import { Brain, Clock, DollarSign, CheckCircle, Loader2, Mail, Download } from "
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 const Payment = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -29,28 +35,43 @@ const Payment = () => {
   const basePrice = isQuotaPayment ? parseFloat(totalFromParams) : 9.99;
   const totalPrice = isQuotaPayment ? parseFloat(totalFromParams) : (9.99 * hours);
 
+  // Load Razorpay script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     
     setLoading(true);
 
     try {
-      console.log('Creating checkout session for', isQuotaPayment ? 'quota payment' : 'quick session');
+      console.log('Creating Razorpay order for', isQuotaPayment ? 'quota payment' : 'quick session');
       
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+      // Convert USD to INR (approximate rate)
+      const usdToInrRate = 83; // Approximate exchange rate
+      const priceInINR = Math.round(totalPrice * usdToInrRate);
+      
+      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: isQuotaPayment ? {
           // Quota-based payment
           planType: planType, // This should be 'question-analysis' or 'coding-helper'
           userEmail: email || 'support@interviewaceguru.com',
           quota: parseInt(quota || '0'),
-          totalPrice: Math.round(totalPrice * 100) // Convert to cents
+          totalPrice: priceInINR * 100 // Convert to paise
         } : {
           // Hourly payment (existing logic)
           planType: 'pay-as-you-go',
           userEmail: email || 'support@interviewaceguru.com',
           deviceMode: 'single',
           hours: hours,
-          totalPrice: Math.round(totalPrice * 100) // Convert to cents
+          totalPrice: priceInINR * 100 // Convert to paise
         }
       });
 
@@ -58,20 +79,50 @@ const Payment = () => {
         throw error;
       }
 
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error('No checkout URL received');
+      if (!data.order_id) {
+        throw new Error('No order ID received');
       }
+
+      // Initialize Razorpay checkout
+      const options = {
+        key: data.key_id,
+        amount: data.amount,
+        currency: data.currency,
+        name: data.name,
+        description: data.description,
+        order_id: data.order_id,
+        prefill: data.prefill,
+        theme: {
+          color: '#3B82F6'
+        },
+        handler: function (response: any) {
+          // Payment successful
+          console.log('Payment successful:', response);
+          toast({
+            title: "Payment Successful!",
+            description: "Redirecting to upload page...",
+          });
+          // Redirect to upload page
+          navigate(`/upload?session_id=${data.sessionId}&payment_id=${response.razorpay_payment_id}`);
+        },
+        modal: {
+          ondismiss: function() {
+            setLoading(false);
+            console.log('Payment modal closed');
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
 
     } catch (error: any) {
       console.error('Checkout error:', error);
       toast({
         title: "Payment Error",
-        description: error.message || "Failed to create checkout session. Please try again.",
+        description: error.message || "Failed to create Razorpay order. Please try again.",
         variant: "destructive"
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -138,8 +189,8 @@ const Payment = () => {
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <div className="text-lg font-semibold">{hour}h</div>
-                        <div className="text-sm text-gray-500">${(9.99 * hour).toFixed(2)}</div>
+                       <div className="text-lg font-semibold">{hour}h</div>
+                        <div className="text-sm text-gray-500">₹{(9.99 * hour * 83).toFixed(0)}</div>
                       </button>
                     ))}
                   </div>
@@ -147,11 +198,11 @@ const Payment = () => {
                     <div>
                       <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
                       <p className="text-sm text-gray-600">
-                        $9.99/hour × {hours} = ${totalPrice.toFixed(2)}
+                        ₹{(9.99 * 83).toFixed(0)}/hour × {hours} = ₹{(totalPrice * 83).toFixed(0)}
                       </p>
                     </div>
                     <Badge variant="outline">
-                      ${totalPrice.toFixed(2)}
+                      ₹{(totalPrice * 83).toFixed(0)}
                     </Badge>
                   </div>
                 </div>
@@ -183,7 +234,7 @@ const Payment = () => {
                       </p>
                     </div>
                     <Badge variant="default" className="text-lg py-2 px-4">
-                      ${totalPrice.toFixed(2)}
+                      ₹{(totalPrice * 83).toFixed(0)}
                     </Badge>
                   </div>
                 </div>
@@ -288,7 +339,7 @@ const Payment = () => {
             ) : (
               <>
                 <DollarSign className="h-5 w-5 mr-2" />
-                Pay ${totalPrice.toFixed(2)} & Continue
+                Pay ₹{(totalPrice * 83).toFixed(0)} & Continue
               </>
             )}
           </Button>

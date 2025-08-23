@@ -29,10 +29,10 @@ port = 54322
 shadow_port = 54320
 major_version = 15
 
-[functions.create-checkout-session]
+[functions.create-razorpay-order]
 verify_jwt = false
 
-[functions.stripe-webhook]
+[functions.razorpay-webhook]
 verify_jwt = false
 
 [functions.send-upload-link]
