@@ -177,26 +177,6 @@ const HowItWorks = () => {
                 Join thousands of candidates who've gained confidence and clarity in their interviews. 
                 Get started in just a few minutes with our streamlined setup process.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button
-                  onClick={() => navigate("/auth?plan=pay-as-you-go")}
-                  size="lg"
-                  className="bg-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
-                >
-                  Get Started Now
-                </Button>
-                <Button
-                  onClick={() => navigate("/#pricing")}
-                  variant="outline"
-                  size="lg"
-                  className="backdrop-blur-md bg-glass border border-glass-border text-white px-8 py-4 rounded-xl font-medium text-lg hover:bg-white/20 transition-all"
-                >
-                  View Pricing
-                </Button>
-              </div>
-              <p className="text-white/60 text-sm mt-4">
-                Full refund within 24 hours if session unused
-              </p>
             </div>
           </motion.div>
         </div>
