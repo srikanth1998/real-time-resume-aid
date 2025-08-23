@@ -1,10 +1,7 @@
 import { motion } from "framer-motion";
-import { Wrench, Clock, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { Wrench, Clock } from "lucide-react";
 
 const Maintenance = () => {
-  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
@@ -57,17 +54,7 @@ const Maintenance = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.9, duration: 0.8 }}
-          className="space-y-4"
         >
-          <Button
-            onClick={() => navigate("/")}
-            variant="outline"
-            className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Home
-          </Button>
-          
           <p className="text-sm text-white/60">
             Follow us for updates: 
             <span className="text-primary ml-1">@InterviewAce</span>
