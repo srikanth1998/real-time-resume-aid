@@ -203,7 +203,7 @@ const Complete = () => {
                 Book Another Session
               </Button>
               <Button 
-                onClick={() => window.open('mailto:support@interviewace.com', '_blank')}
+                onClick={() => window.open('mailto:support@interviewaceguru.com', '_blank')}
                 variant="outline" 
                 className="w-full h-12"
               >

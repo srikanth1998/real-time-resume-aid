@@ -41,13 +41,13 @@ const Payment = () => {
         body: isQuotaPayment ? {
           // Quota-based payment
           planType: planType, // This should be 'question-analysis' or 'coding-helper'
-          userEmail: email || 'guest@interviewace.com',
+          userEmail: email || 'support@interviewaceguru.com',
           quota: parseInt(quota || '0'),
           totalPrice: Math.round(totalPrice * 100) // Convert to cents
         } : {
           // Hourly payment (existing logic)
           planType: 'pay-as-you-go',
-          userEmail: email || 'guest@interviewace.com',
+          userEmail: email || 'support@interviewaceguru.com',
           deviceMode: 'single',
           hours: hours,
           totalPrice: Math.round(totalPrice * 100) // Convert to cents

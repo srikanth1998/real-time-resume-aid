@@ -454,11 +454,20 @@ const Index = () => {
         >
           <div className="backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 inline-block">
             <p className="text-white/80 mb-4">✨ All plans include:</p>
-            <div className="flex flex-wrap justify-center gap-6 text-sm text-white/70">
+            <div className="flex flex-wrap justify-center gap-6 text-sm text-white/70 mb-6">
               <span>• Live clarity coaching</span>
               <span>• Transparent overlay system</span>
               <span>• Invisible to screen shares</span>
               <span>• Works with any meeting app</span>
+            </div>
+            <div className="border-t border-white/20 pt-4 mt-4">
+              <p className="text-white/80 mb-2">Need help? Contact us:</p>
+              <a 
+                href="mailto:support@interviewaceguru.com" 
+                className="text-accent hover:text-accent/80 transition-colors font-medium"
+              >
+                support@interviewaceguru.com
+              </a>
             </div>
           </div>
         </motion.div>
