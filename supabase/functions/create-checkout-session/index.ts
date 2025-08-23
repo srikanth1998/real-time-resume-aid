@@ -192,7 +192,7 @@ serve(async (req) => {
         },
       ],
       mode: isSubscription ? 'subscription' : 'payment',
-      success_url: `${req.headers.get('origin')}/payment-success?session_id=${session.id}&email=${encodeURIComponent(userEmail)}`,
+      success_url: `${req.headers.get('origin')}/upload?session_id=${session.id}`,
       cancel_url: `${req.headers.get('origin')}/payment?cancelled=true`,
       metadata: {
         session_id: session.id,

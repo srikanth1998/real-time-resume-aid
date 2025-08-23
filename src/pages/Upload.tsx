@@ -131,7 +131,7 @@ const UploadPage = () => {
               email,
               sessionId,
               sessionCode,
-              planType: isTrial ? 'Free Trial' : (planType === 'pay-as-you-go' ? 'Quick Session' : planType),
+              planType: isTrial ? 'Free Trial' : planType,
               jobRole
             }
           });
