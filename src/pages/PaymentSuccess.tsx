@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,18 +21,23 @@ const PaymentSuccess = () => {
   const [planType, setPlanType] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('PaymentSuccess: useEffect started');
+    
     const processSession = async () => {
-      if (!sessionId) {
-        console.error('PaymentSuccess: No session ID provided in URL');
-        navigate('/');
-        return;
-      }
-
-      setLoading(true);
-      console.log('PaymentSuccess: Processing session:', sessionId);
-
       try {
+        console.log('PaymentSuccess: processSession function called');
+        
+        if (!sessionId) {
+          console.error('PaymentSuccess: No session ID provided in URL');
+          navigate('/');
+          return;
+        }
+
+        setLoading(true);
+        console.log('PaymentSuccess: Processing session:', sessionId);
+
         // Get session details to check plan type
+        console.log('PaymentSuccess: Fetching session from database');
         const { data: session, error: sessionError } = await supabase
           .from('sessions')
           .select('plan_type, device_mode, status, session_code')
@@ -90,6 +94,7 @@ const PaymentSuccess = () => {
           
           // Send email with session code
           try {
+            console.log('PaymentSuccess: Sending email with session code');
             await supabase.functions.invoke('send-session-email', {
               body: {
                 email: searchParams.get('email') || '',
@@ -99,18 +104,16 @@ const PaymentSuccess = () => {
                 jobRole: session.plan_type === 'coding-helper' ? 'Developer' : 'Analyst'
               }
             });
+            console.log('PaymentSuccess: Email sent successfully');
             toast.success("Session code sent to your email!");
           } catch (emailError) {
-            console.error('Email sending error:', emailError);
+            console.error('PaymentSuccess: Email sending error:', emailError);
             toast.warning("Session created but email could not be sent");
           }
           
-          setLoading(false);
-
-          // Stay on this page - no redirect
-
         } else {
           // For quick-session, generate session code and redirect to upload page  
+          console.log('PaymentSuccess: Processing quick-session plan');
           const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
           
           // Update session with code
@@ -124,14 +127,13 @@ const PaymentSuccess = () => {
             .eq('id', sessionId);
 
           if (updateError) {
-            console.error('Session update error:', updateError);
+            console.error('PaymentSuccess: Session update error:', updateError);
             toast.error('Failed to prepare session');
             navigate('/');
             return;
           }
 
           setSessionCode(generatedCode);
-          setLoading(false);
           
           // Redirect to upload page with session code
           setTimeout(() => {
@@ -140,14 +142,17 @@ const PaymentSuccess = () => {
         }
 
       } catch (error) {
-        console.error('Processing error:', error);
+        console.error('PaymentSuccess: Processing error:', error);
         toast.error('Failed to process session');
         navigate('/');
+      } finally {
+        console.log('PaymentSuccess: Setting loading to false');
+        setLoading(false);
       }
     };
 
     processSession();
-  }, [sessionId, navigate]);
+  }, [sessionId, navigate, searchParams]);
 
   const getPlanIcon = () => {
     if (planType === 'coding-helper') return <Code className="h-8 w-8 text-green-600" />;
