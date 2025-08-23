@@ -132,13 +132,13 @@ const Index = () => {
     },
     {
       id: 'question-analysis',
-      name: 'Question Analysis',
+      name: 'Quiz Analysis',
       price: '$6.99',
       priceUnit: ' per 100 questions',
       billing: 'one-time',
       duration: '100 questions',
       description: 'Smart interview question analysis and instant answers from screenshots',
-      bestFor: 'Screenshot analysis',
+      bestFor: 'Real-time quiz assistance',
       features: [
         'Screenshot → Smart Analysis → Perfect Answer',
         'Take screenshots of interview questions instantly',
