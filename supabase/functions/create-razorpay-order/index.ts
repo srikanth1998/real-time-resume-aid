@@ -13,17 +13,22 @@ serve(async (req) => {
 
   try {
     const { planType, priceAmount, planName, duration, deviceMode = 'single', userEmail, totalPrice, hours, quota } = await req.json()
+    console.log('=== RAZORPAY ORDER CREATION START ===')
     console.log('Received request:', { planType, priceAmount, planName, duration, deviceMode, userEmail, totalPrice, hours, quota })
 
     if (!userEmail) {
+      console.error('❌ ERROR: User email is required')
       throw new Error('User email is required')
     }
+
+    console.log('✅ Email validation passed')
 
     // Initialize Supabase client with anon key for auth
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
+    console.log('✅ Supabase client initialized')
 
     // Get the auth header and extract the JWT token (if provided)
     const authHeader = req.headers.get('authorization')
@@ -35,11 +40,13 @@ serve(async (req) => {
         const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt)
         if (user) {
           userId = user.id
-          console.log('Authenticated user:', user.id)
+          console.log('✅ Authenticated user:', user.id)
         }
       } catch (authError) {
-        console.log('No valid auth, proceeding as guest checkout')
+        console.log('ℹ️ No valid auth, proceeding as guest checkout')
       }
+    } else {
+      console.log('ℹ️ No auth header, proceeding as guest')
     }
 
     // Use service role key to create session
@@ -47,6 +54,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+    console.log('✅ Supabase service client initialized')
 
     // Map plan types to valid enum values and configuration
     const planConfigs = {
@@ -133,9 +141,10 @@ serve(async (req) => {
         codingSessionsIncluded = 1
     }
 
-    console.log('Setting session quotas:', { questionsIncluded, codingSessionsIncluded, quota, hours })
+    console.log('✅ Setting session quotas:', { questionsIncluded, codingSessionsIncluded, quota, hours })
 
     // Create a new session record for tracking
+    console.log('🔄 Creating session in database...')
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .insert({
@@ -154,11 +163,11 @@ serve(async (req) => {
       .single()
 
     if (sessionError || !session) {
-      console.error('Error creating session:', sessionError)
-      throw new Error('Failed to create session')
+      console.error('❌ ERROR: Failed to create session:', sessionError)
+      throw new Error(`Failed to create session: ${sessionError?.message || 'Unknown error'}`)
     }
 
-    console.log('Created session:', session.id)
+    console.log('✅ Created session successfully:', session.id)
 
     // Initialize Razorpay
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
@@ -193,6 +202,8 @@ serve(async (req) => {
       }
     }
 
+    console.log('🔄 Creating Razorpay order with data:', orderData)
+
     const auth = btoa(`${razorpayKeyId}:${razorpaySecretKey}`)
     
     const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
@@ -204,14 +215,20 @@ serve(async (req) => {
       body: JSON.stringify(orderData)
     })
 
+    console.log('🔄 Razorpay API response status:', razorpayResponse.status)
+
     if (!razorpayResponse.ok) {
       const errorData = await razorpayResponse.text()
-      console.error('Razorpay error:', errorData)
-      throw new Error('Failed to create Razorpay order')
+      console.error('❌ ERROR: Razorpay API failed:', {
+        status: razorpayResponse.status,
+        statusText: razorpayResponse.statusText,
+        errorData: errorData
+      })
+      throw new Error(`Razorpay API failed: ${razorpayResponse.status} - ${errorData}`)
     }
 
     const razorpayOrder = await razorpayResponse.json()
-    console.log('Created Razorpay order:', razorpayOrder.id)
+    console.log('✅ Created Razorpay order successfully:', razorpayOrder.id)
 
     // Update session with Razorpay order ID
     const { error: updateError } = await supabaseService
@@ -246,12 +263,19 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error:', error)
+    console.error('❌ FATAL ERROR in create-razorpay-order:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    })
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: 'Check edge function logs for more information'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 500,
       },
     )
   }
