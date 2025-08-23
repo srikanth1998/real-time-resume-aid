@@ -28,12 +28,48 @@ const Payment = () => {
   const [email, setEmail] = useState('');
   const [hours, setHours] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
 
   // Check if this is a quota-based payment (from quota adjustment page)
   const isQuotaPayment = quota && totalFromParams;
   
   const basePrice = isQuotaPayment ? parseFloat(totalFromParams) : 9.99;
   const totalPrice = isQuotaPayment ? parseFloat(totalFromParams) : (9.99 * hours);
+
+  // Test function to verify Supabase edge functions are working
+  const testFunction = async () => {
+    setTestLoading(true);
+    try {
+      console.log('🧪 Testing Supabase function...');
+      const { data, error } = await supabase.functions.invoke('test-function', {
+        body: { test: 'Hello from frontend!' }
+      });
+      
+      if (error) {
+        console.error('❌ Test function error:', error);
+        toast({
+          title: "Test Failed",
+          description: `Error: ${error.message}`,
+          variant: "destructive"
+        });
+      } else {
+        console.log('✅ Test function success:', data);
+        toast({
+          title: "Test Successful!",
+          description: `Response: ${data.message}`,
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Test function catch:', error);
+      toast({
+        title: "Test Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   // Load Razorpay script
   useEffect(() => {
@@ -327,6 +363,34 @@ const Payment = () => {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Test Button - Temporary */}
+          <Card className="border-2 border-yellow-200 bg-yellow-50">
+            <CardHeader>
+              <CardTitle className="text-yellow-800">🧪 Debug Test</CardTitle>
+              <CardDescription className="text-yellow-700">
+                Test if Supabase functions are working
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                type="button"
+                onClick={testFunction}
+                disabled={testLoading}
+                variant="outline"
+                className="w-full border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+              >
+                {testLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  'Test Supabase Function'
+                )}
+              </Button>
             </CardContent>
           </Card>
 

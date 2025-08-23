@@ -29,6 +29,9 @@ port = 54322
 shadow_port = 54320
 major_version = 15
 
+[functions.test-function]
+verify_jwt = false
+
 [functions.create-razorpay-order]
 verify_jwt = false
 
