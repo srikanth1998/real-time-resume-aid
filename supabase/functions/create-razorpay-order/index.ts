@@ -161,11 +161,20 @@ serve(async (req) => {
     console.log('Created session:', session.id)
 
     // Initialize Razorpay
-    const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID') || 'rzp_test_your_key'
+    const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
     const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
     
+    console.log('Razorpay keys check:', {
+      keyId: razorpayKeyId ? 'Present' : 'Missing',
+      secretKey: razorpaySecretKey ? 'Present' : 'Missing'
+    })
+    
+    if (!razorpayKeyId) {
+      throw new Error('Razorpay Key ID not configured')
+    }
+    
     if (!razorpaySecretKey) {
-      throw new Error('Razorpay secret key not configured')
+      throw new Error('Razorpay Secret Key not configured')
     }
 
     const deviceModeText = deviceMode === 'cross' ? ' (Cross-Device)' : ''
