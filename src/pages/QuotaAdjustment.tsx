@@ -61,7 +61,9 @@ const QuotaAdjustment = () => {
   };
 
   const calculateTotal = () => {
-    const basePrice = currentPlan?.basePrice || 299;
+    if (!currentPlan) return 0;
+    
+    const basePrice = currentPlan.basePrice;
     if (isPlanType('coding')) {
       const additionalQuestions = codingQuota - 3;
       return basePrice + (additionalQuestions * 99);
