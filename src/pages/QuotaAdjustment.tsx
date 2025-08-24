@@ -12,8 +12,8 @@ const QuotaAdjustment = () => {
   const [searchParams] = useSearchParams();
   const planId = searchParams.get('plan');
   
-  const [codingQuota, setCodingQuota] = useState(5);
-  const [imageQuota, setImageQuota] = useState(100);
+  const [codingQuota, setCodingQuota] = useState(3);
+  const [imageQuota, setImageQuota] = useState(25);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const planDetails = {
@@ -43,9 +43,9 @@ const QuotaAdjustment = () => {
   const adjustCodingQuota = (increment: boolean) => {
     setCodingQuota(prev => {
       if (increment) {
-        return Math.min(prev + 5, 50);
+        return Math.min(prev + 1, 50);
       } else {
-        return Math.max(prev - 5, 5);
+        return Math.max(prev - 1, 3);
       }
     });
   };
@@ -53,9 +53,9 @@ const QuotaAdjustment = () => {
   const adjustImageQuota = (increment: boolean) => {
     setImageQuota(prev => {
       if (increment) {
-        return Math.min(prev + 100, 500);
+        return Math.min(prev + 25, 500);
       } else {
-        return Math.max(prev - 100, 100);
+        return Math.max(prev - 25, 25);
       }
     });
   };
@@ -63,11 +63,11 @@ const QuotaAdjustment = () => {
   const calculateTotal = () => {
     const basePrice = currentPlan?.basePrice || 299;
     if (isPlanType('coding')) {
-      const additionalQuestions = (codingQuota - 5) / 5;
-      return basePrice + (additionalQuestions * 299);
+      const additionalQuestions = codingQuota - 3;
+      return basePrice + (additionalQuestions * 99);
     } else if (isPlanType('image')) {
-      const additionalImages = (imageQuota - 100) / 100;
-      return basePrice + (additionalImages * 299);
+      const additionalImages = Math.floor((imageQuota - 25) / 25);
+      return basePrice + (additionalImages * 99);
     }
     return basePrice;
   };
@@ -142,14 +142,14 @@ const QuotaAdjustment = () => {
                         variant="outline"
                         size="icon"
                         onClick={() => adjustCodingQuota(false)}
-                        disabled={codingQuota <= 5}
+                        disabled={codingQuota <= 3}
                         className="h-10 w-10"
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
                       
                       <span className="text-sm text-muted-foreground min-w-[80px] text-center">
-                        +5 each
+                        +1 each
                       </span>
                       
                       <Button
@@ -165,7 +165,7 @@ const QuotaAdjustment = () => {
                   </div>
                   
                   <p className="text-xs text-muted-foreground">
-                    Maximum: 50 questions • Additional questions: ₹299 per 5 questions
+                    Maximum: 50 questions • Additional questions: ₹99 per question
                   </p>
                 </div>
               )}
@@ -189,14 +189,14 @@ const QuotaAdjustment = () => {
                         variant="outline"
                         size="icon"
                         onClick={() => adjustImageQuota(false)}
-                        disabled={imageQuota <= 100}
+                        disabled={imageQuota <= 25}
                         className="h-10 w-10"
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
                       
                       <span className="text-sm text-muted-foreground min-w-[80px] text-center">
-                        +100 each
+                        +25 each
                       </span>
                       
                       <Button
@@ -212,7 +212,7 @@ const QuotaAdjustment = () => {
                   </div>
                   
                   <p className="text-xs text-muted-foreground">
-                    Maximum: 500 images • Additional images: ₹299 per 100 images
+                    Maximum: 500 images • Additional images: ₹99 per 25 images
                   </p>
                 </div>
               )}
