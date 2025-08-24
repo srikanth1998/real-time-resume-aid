@@ -33,8 +33,10 @@ const Payment = () => {
   // Check if this is a quota-based payment (from quota adjustment page)
   const isQuotaPayment = quota && totalFromParams;
   
+  // For quota payments, price is already in INR. For hourly, it's in USD and needs conversion.
   const basePrice = isQuotaPayment ? parseFloat(totalFromParams) : 9.99;
   const totalPrice = isQuotaPayment ? parseFloat(totalFromParams) : (9.99 * hours);
+  const displayPrice = isQuotaPayment ? totalPrice : (totalPrice * 83); // Only convert USD to INR for hourly
 
   // Test function to verify Supabase edge functions are working
   const testFunction = async () => {
@@ -90,9 +92,10 @@ const Payment = () => {
     try {
       console.log('Creating Razorpay order for', isQuotaPayment ? 'quota payment' : 'quick session');
       
-      // Convert USD to INR (approximate rate)
-      const usdToInrRate = 83; // Approximate exchange rate
-      const priceInINR = Math.round(totalPrice * usdToInrRate);
+      // USD to INR conversion rate (only used for hourly payments)
+      const usdToInrRate = 83;
+      // For quota payments, totalPrice is already in INR. For hourly, convert USD to INR.
+      const priceInINR = Math.round(isQuotaPayment ? totalPrice : (totalPrice * usdToInrRate));
       
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: isQuotaPayment ? {
@@ -238,13 +241,13 @@ const Payment = () => {
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
-                      <p className="text-sm text-gray-600">
-                        ₹{(9.99 * 83).toFixed(0)}/hour × {hours} = ₹{(totalPrice * 83).toFixed(0)}
-                      </p>
-                    </div>
-                    <Badge variant="outline">
-                      ₹{(totalPrice * 83).toFixed(0)}
-                    </Badge>
+                       <p className="text-sm text-gray-600">
+                         ₹{(9.99 * 83).toFixed(0)}/hour × {hours} = ₹{Math.round(displayPrice)}
+                       </p>
+                     </div>
+                     <Badge variant="outline">
+                       ₹{Math.round(displayPrice)}
+                     </Badge>
                   </div>
                 </div>
               </CardContent>
@@ -274,9 +277,9 @@ const Payment = () => {
                         {planType === 'question-analysis' ? `${quota} images` : `${quota} questions`}
                       </p>
                     </div>
-                    <Badge variant="default" className="text-lg py-2 px-4">
-                      ₹{(totalPrice * 83).toFixed(0)}
-                    </Badge>
+                     <Badge variant="default" className="text-lg py-2 px-4">
+                       ₹{Math.round(totalPrice)}
+                     </Badge>
                   </div>
                 </div>
               </CardContent>
@@ -406,11 +409,11 @@ const Payment = () => {
                 Processing Payment...
               </>
             ) : (
-              <>
-                <DollarSign className="h-5 w-5 mr-2" />
-                Pay ₹{(totalPrice * 83).toFixed(0)} & Continue
-              </>
-            )}
+               <>
+                 <DollarSign className="h-5 w-5 mr-2" />
+                 Pay ₹{Math.round(displayPrice)} & Continue
+               </>
+             )}
           </Button>
         </form>
 

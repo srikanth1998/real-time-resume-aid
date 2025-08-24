@@ -40,19 +40,13 @@ const QuotaAdjustment = () => {
   // Initialize quota from URL params
   useEffect(() => {
     const quotaParam = searchParams.get('quota');
-    console.log('URL quota param:', quotaParam);
-    console.log('Plan ID:', planId);
-    console.log('Plan type:', planDetails[planId as keyof typeof planDetails]?.type);
     
     if (quotaParam) {
       const quota = parseInt(quotaParam);
-      console.log('Parsed quota:', quota);
       
       if (planDetails[planId as keyof typeof planDetails]?.type === 'coding') {
-        console.log('Setting coding quota to:', quota);
         setCodingQuota(quota);
       } else {
-        console.log('Setting image quota to:', quota);
         setImageQuota(quota);
       }
     }
@@ -85,20 +79,14 @@ const QuotaAdjustment = () => {
     if (!currentPlan) return 0;
     
     const basePrice = currentPlan.basePrice;
-    console.log('Calculate Total - Base price:', basePrice);
-    console.log('Calculate Total - Image quota:', imageQuota);
-    console.log('Calculate Total - Coding quota:', codingQuota);
-    console.log('Calculate Total - Is image plan:', isPlanType('image'));
     
     if (isPlanType('coding')) {
       const additionalQuestions = codingQuota - 3;
       const total = basePrice + (additionalQuestions * 99);
-      console.log('Calculate Total - Coding: additional questions:', additionalQuestions, 'total:', total);
       return total;
     } else if (isPlanType('image')) {
       const additionalImages = Math.floor((imageQuota - 25) / 25);
       const total = basePrice + (additionalImages * 99);
-      console.log('Calculate Total - Image: additional images:', additionalImages, 'total:', total);
       return total;
     }
     return basePrice;
