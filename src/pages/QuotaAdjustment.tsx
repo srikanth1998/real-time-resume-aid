@@ -109,7 +109,9 @@ const QuotaAdjustment = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Plans
           </Button>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Customize Your {currentPlan.name}</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            {isPlanType('image') ? 'Customize Your Question Analysis' : `Customize Your ${currentPlan.name}`}
+          </h1>
           <p className="text-muted-foreground">{currentPlan.description}</p>
         </motion.div>
 
