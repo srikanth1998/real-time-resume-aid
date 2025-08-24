@@ -133,10 +133,10 @@ const Index = () => {
     {
       id: 'quick-session',
       name: 'Quick Session',
-      price: '$6.99',
-      priceUnit: '/hr',
+      price: '₹299',
+      priceUnit: '',
       billing: 'one-time',
-      duration: 'Pay per hour',
+      duration: 'Per session',
       description: 'Live smart interview assistance',
       bestFor: 'Real-time interview coaching',
       features: [
