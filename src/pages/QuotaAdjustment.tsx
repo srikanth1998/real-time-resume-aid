@@ -19,19 +19,19 @@ const QuotaAdjustment = () => {
   const planDetails = {
     'coding-helper': {
       name: 'Coding Helper',
-      basePrice: 6.99,
+      basePrice: 199,
       type: 'coding',
       description: 'AI coding assistance and hints'
     },
     'question-analysis': {
       name: 'Question Analysis',
-      basePrice: 6.99,
+      basePrice: 99,
       type: 'image',
       description: 'Visual question analysis'
     },
     'pay-as-you-go': {
       name: 'Pay As You Go',
-      basePrice: 6.99,
+      basePrice: 299,
       type: 'coding',
       description: 'Flexible coding assistance'
     }
@@ -61,13 +61,13 @@ const QuotaAdjustment = () => {
   };
 
   const calculateTotal = () => {
-    const basePrice = currentPlan?.basePrice || 6.99;
+    const basePrice = currentPlan?.basePrice || 299;
     if (isPlanType('coding')) {
       const additionalQuestions = (codingQuota - 5) / 5;
-      return basePrice + (additionalQuestions * 6.99);
+      return basePrice + (additionalQuestions * 299);
     } else if (isPlanType('image')) {
       const additionalImages = (imageQuota - 100) / 100;
-      return basePrice + (additionalImages * 6.99);
+      return basePrice + (additionalImages * 299);
     }
     return basePrice;
   };
@@ -163,7 +163,7 @@ const QuotaAdjustment = () => {
                   </div>
                   
                   <p className="text-xs text-muted-foreground">
-                    Maximum: 50 questions • Additional questions: $6.99 per 5 questions
+                    Maximum: 50 questions • Additional questions: ₹299 per 5 questions
                   </p>
                 </div>
               )}
@@ -210,7 +210,7 @@ const QuotaAdjustment = () => {
                   </div>
                   
                   <p className="text-xs text-muted-foreground">
-                    Maximum: 500 images • Additional images: $6.99 per 100 images
+                    Maximum: 500 images • Additional images: ₹299 per 100 images
                   </p>
                 </div>
               )}
@@ -249,7 +249,7 @@ const QuotaAdjustment = () => {
               <div className="border-t border-border pt-6">
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-lg font-medium text-foreground">Total Price</span>
-                  <span className="text-3xl font-bold text-primary">${calculateTotal().toFixed(2)}</span>
+                  <span className="text-3xl font-bold text-primary">₹{calculateTotal()}</span>
                 </div>
                 
                 <Button 
