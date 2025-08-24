@@ -12,10 +12,6 @@ const QuotaAdjustment = () => {
   const [searchParams] = useSearchParams();
   const planId = searchParams.get('plan');
   
-  const [codingQuota, setCodingQuota] = useState(3);
-  const [imageQuota, setImageQuota] = useState(25);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-
   const planDetails = {
     'coding-helper': {
       name: 'Coding Helper',
@@ -36,6 +32,23 @@ const QuotaAdjustment = () => {
       description: 'Flexible coding assistance'
     }
   };
+  
+  const [codingQuota, setCodingQuota] = useState(3);
+  const [imageQuota, setImageQuota] = useState(25);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Initialize quota from URL params
+  useEffect(() => {
+    const quotaParam = searchParams.get('quota');
+    if (quotaParam) {
+      const quota = parseInt(quotaParam);
+      if (planDetails[planId as keyof typeof planDetails]?.type === 'coding') {
+        setCodingQuota(quota);
+      } else {
+        setImageQuota(quota);
+      }
+    }
+  }, [searchParams, planId]);
 
   const currentPlan = planDetails[planId as keyof typeof planDetails];
   const isPlanType = (type: string) => currentPlan?.type === type;
