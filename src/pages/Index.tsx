@@ -92,10 +92,10 @@ const Index = () => {
     {
       id: 'question-analysis',
       name: 'Quiz Analysis',
-      price: '$6.99',
-      priceUnit: ' per 100 questions',
+      price: '₹99',
+      priceUnit: '',
       billing: 'one-time',
-      duration: '100 questions',
+      duration: '25 questions',
       description: 'Smart question analysis and instant answers for any topic',
       bestFor: 'Universal quiz assistance',
       features: [
@@ -113,14 +113,14 @@ const Index = () => {
     {
       id: 'coding-helper',
       name: 'Coding Helper',
-      price: '$6.99',
+      price: '₹199',
       priceUnit: '',
       billing: 'one-time',
-      duration: '5 questions',
+      duration: '3 questions',
       description: 'Perfect for coding interviews, technical quizzes & programming challenges',
       bestFor: 'Coding interviews',
       features: [
-        '5 coding questions & challenges',
+        '3 coding questions & challenges',
         'Smart coding assistance',
         'Technical interview question help',
         'Algorithm & data structure guidance',
