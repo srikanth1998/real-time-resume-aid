@@ -13,14 +13,58 @@ serve(async (req) => {
   }
 
   try {
+    console.log('[VERIFY] Starting session code verification')
+    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Get client IP for rate limiting
+    const clientIP = req.headers.get('x-forwarded-for') || 
+                    req.headers.get('x-real-ip') || 
+                    'unknown';
+    
+    console.log('[VERIFY] Client IP:', clientIP);
+
+    // Check rate limit before processing
+    const { data: rateLimitCheck, error: rateLimitError } = await supabaseClient
+      .rpc('check_session_code_rate_limit', { client_ip: clientIP });
+    
+    if (rateLimitError) {
+      console.error('[VERIFY] Rate limit check error:', rateLimitError);
+    } else if (!rateLimitCheck) {
+      console.log('[VERIFY] ❌ Rate limit exceeded for IP:', clientIP);
+      
+      // Log the failed attempt
+      await supabaseClient.rpc('log_session_code_attempt', {
+        client_ip: clientIP,
+        code: null,
+        was_successful: false
+      });
+      
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Too many attempts. Please try again later.' 
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const { session_code } = await req.json()
+    console.log('[VERIFY] Received session code:', session_code?.substring(0, 5) + '...')
 
     if (!session_code) {
+      console.log('[VERIFY] ❌ No session code provided')
+      
+      // Log the failed attempt
+      await supabaseClient.rpc('log_session_code_attempt', {
+        client_ip: clientIP,
+        code: null,
+        was_successful: false
+      });
+      
       return new Response(
         JSON.stringify({ success: false, error: 'Session code is required' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
@@ -37,6 +81,14 @@ serve(async (req) => {
 
     if (lookupError || !sessionLookup) {
       console.error('Session lookup error:', lookupError)
+      
+      // Log the failed attempt
+      await supabaseClient.rpc('log_session_code_attempt', {
+        client_ip: clientIP,
+        code: session_code,
+        was_successful: false
+      });
+      
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid or expired session code' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -65,6 +117,15 @@ serve(async (req) => {
     }
 
     const session = startResult.session
+
+    // Log successful session code verification
+    await supabaseClient.rpc('log_session_code_attempt', {
+      client_ip: clientIP,
+      code: session_code,
+      was_successful: true
+    });
+
+    console.log('[VERIFY] ✅ Session started successfully:', session.id);
 
     // Calculate remaining duration in hours
     const now = new Date()
