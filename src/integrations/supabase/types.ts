@@ -410,6 +410,30 @@ export type Database = {
           },
         ]
       }
+      session_code_attempts: {
+        Row: {
+          created_at: string | null
+          id: string
+          ip_address: unknown
+          session_code: string | null
+          success: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          ip_address: unknown
+          session_code?: string | null
+          success?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown
+          session_code?: string | null
+          success?: boolean | null
+        }
+        Relationships: []
+      }
       session_connections: {
         Row: {
           connection_id: string
@@ -605,6 +629,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_session_code_rate_limit: {
+        Args: { client_ip: unknown }
+        Returns: boolean
+      }
       cleanup_expired_otps: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -619,6 +647,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      log_session_code_attempt: {
+        Args: { client_ip: unknown; code: string; was_successful: boolean }
+        Returns: undefined
       }
       start_session: {
         Args: { session_uuid: string }
