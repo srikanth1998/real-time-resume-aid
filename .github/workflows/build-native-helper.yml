@@ -35,11 +35,27 @@ jobs:
           CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           
+      - name: Generate RELEASES file
+        working-directory: native-helper
+        run: |
+          # Generate Squirrel RELEASES file
+          cd releases
+          for file in *.exe *.nupkg; do
+            if [ -f "$file" ]; then
+              sha1=$(sha1sum "$file" | cut -d' ' -f1)
+              size=$(stat -c%s "$file")
+              echo "$sha1 $file $size" >> RELEASES
+            fi
+          done
+          
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-helper
-          path: native-helper/releases/*.exe
+          path: |
+            native-helper/releases/*.exe
+            native-helper/releases/*.nupkg
+            native-helper/releases/RELEASES
 
   deploy:
     needs: [build-windows]
@@ -59,10 +75,31 @@ jobs:
           SUPABASE_URL: https://jafylkqbmvdptrqwwyed.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          # Upload Windows helper
+          # Upload to auto-update server structure
+          mkdir -p updates
+          
+          # Copy files to updates directory
+          if [ -d windows-helper ]; then
+            cp windows-helper/*.exe updates/Setup.exe 2>/dev/null || true
+            cp windows-helper/*.nupkg updates/ 2>/dev/null || true
+            cp windows-helper/RELEASES updates/ 2>/dev/null || true
+          fi
+          
+          # Upload to Supabase Storage for legacy support
           if [ -f windows-helper/*.exe ]; then
             curl -X POST "$SUPABASE_URL/storage/v1/object/native-helpers/InterviewAce-Helper-Windows.exe" \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               -H "Content-Type: application/octet-stream" \
               --data-binary @windows-helper/*.exe
           fi
+          
+          # Upload auto-update files to storage
+          for file in updates/*; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              curl -X POST "$SUPABASE_URL/storage/v1/object/updates/$filename" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary "@$file"
+            fi
+          done
