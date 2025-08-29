@@ -32,6 +32,10 @@ serve(async (req) => {
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
     const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
     
+    // Debug: List all environment variables that start with RAZORPAY
+    const allEnvVars = Object.keys(Deno.env.toObject()).filter(key => key.startsWith('RAZORPAY'))
+    console.log('🔍 All RAZORPAY env vars:', allEnvVars)
+    
     console.log('🔑 Key status:', {
       keyId: razorpayKeyId ? 'Present' : 'Missing',
       secretKey: razorpaySecretKey ? 'Present' : 'Missing'
@@ -40,6 +44,12 @@ serve(async (req) => {
     console.log('🔍 Debug - Key lengths:', {
       keyIdLength: razorpayKeyId ? razorpayKeyId.length : 0,
       secretKeyLength: razorpaySecretKey ? razorpaySecretKey.length : 0
+    })
+    
+    // Debug: Show first few characters of keys (masked)
+    console.log('🔍 Key previews:', {
+      keyIdPreview: razorpayKeyId ? `${razorpayKeyId.substring(0, 8)}...` : 'null',
+      secretKeyPreview: razorpaySecretKey ? `${razorpaySecretKey.substring(0, 8)}...` : 'null'  
     })
     
     if (!razorpayKeyId) {
