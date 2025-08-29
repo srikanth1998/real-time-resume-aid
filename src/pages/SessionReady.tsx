@@ -30,7 +30,8 @@ const SessionReady = () => {
       
       // Create a temporary link to trigger download
       const link = document.createElement('a');
-      link.href = 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helper/InterviewAce-Helper-Setup.exe';
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      link.href = `${supabaseUrl}/storage/v1/object/public/native-helper/InterviewAce-Helper-Setup.exe`;
       link.download = 'InterviewAce-Helper-Setup.exe';
       document.body.appendChild(link);
       link.click();
