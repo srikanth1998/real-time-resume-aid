@@ -137,12 +137,12 @@ const Payment = () => {
 
   const downloadHelper = () => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://jafylkqbmvdptrqwwyed.supabase.co';
-    const downloadUrl = `${supabaseUrl}/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe`;
+    const downloadUrl = `${supabaseUrl}/storage/v1/object/public/native-helpers/StealthOverlay_Setup.exe`;
     
     // Create temporary link to trigger download
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = 'InterviewAce-Helper-Windows.exe';
+    link.download = 'StealthOverlay_Setup.exe';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
