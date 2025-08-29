@@ -647,6 +647,7 @@ export type Database = {
           device_mode: string
           expires_at: string
           id: string
+          job_role: string
           session_code: string
           session_type: string
           status: Database["public"]["Enums"]["session_status"]
