@@ -22,8 +22,8 @@ const QuotaAdjustment = () => {
     'question-analysis': {
       name: 'Question Analysis',
       basePrice: 99,
-      type: 'image',
-      description: 'Visual question analysis'
+      type: 'question',
+      description: 'AI question analysis and assistance'
     },
     'pay-as-you-go': {
       name: 'Pay As You Go',
@@ -84,9 +84,9 @@ const QuotaAdjustment = () => {
       const additionalQuestions = codingQuota - 3;
       const total = basePrice + (additionalQuestions * 99);
       return total;
-    } else if (isPlanType('image')) {
-      const additionalImages = Math.floor((imageQuota - 25) / 25);
-      const total = basePrice + (additionalImages * 99);
+    } else if (isPlanType('question')) {
+      const additionalQuestions = Math.floor((imageQuota - 25) / 25);
+      const total = basePrice + (additionalQuestions * 99);
       return total;
     }
     return basePrice;
@@ -130,7 +130,7 @@ const QuotaAdjustment = () => {
             Back to Plans
           </Button>
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {isPlanType('image') ? 'Customize Your Question Analysis' : `Customize Your ${currentPlan.name}`}
+            {isPlanType('question') ? 'Customize Your Question Analysis' : `Customize Your ${currentPlan.name}`}
           </h1>
           <p className="text-muted-foreground">{currentPlan.description}</p>
         </motion.div>
@@ -190,17 +190,17 @@ const QuotaAdjustment = () => {
                 </div>
               )}
 
-              {/* Image Quota Adjustment */}
-              {isPlanType('image') && (
+              {/* Question Quota Adjustment */}
+              {isPlanType('question') && (
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3 mb-4">
-                    <Image className="h-6 w-6 text-primary" />
-                    <h3 className="text-xl font-semibold text-foreground">Image Analysis</h3>
+                    <Code className="h-6 w-6 text-primary" />
+                    <h3 className="text-xl font-semibold text-foreground">Question Analysis</h3>
                   </div>
                   
                   <div className="flex items-center justify-between bg-secondary/20 rounded-lg p-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Images included</p>
+                      <p className="text-sm text-muted-foreground">Questions included</p>
                       <p className="text-2xl font-bold text-foreground">{imageQuota}</p>
                     </div>
                     
@@ -232,7 +232,7 @@ const QuotaAdjustment = () => {
                   </div>
                   
                   <p className="text-xs text-muted-foreground">
-                    Maximum: 500 images • Additional images: ₹99 per 25 images
+                    Maximum: 500 questions • Additional questions: ₹99 per 25 questions
                   </p>
                 </div>
               )}
