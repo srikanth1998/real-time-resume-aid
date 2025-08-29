@@ -7,14 +7,11 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION STARTED - v4.0 (Fresh Secrets Deploy)')
-  console.log('Method:', req.method)
+  console.log('🚀 EDGE FUNCTION v5.0 - FRESH DEPLOYMENT')
   console.log('🕐 Timestamp:', new Date().toISOString())
-  console.log('🌍 Environment check:', {
-    NODE_ENV: Deno.env.get('NODE_ENV'),
-    DENO_DEPLOYMENT_ID: Deno.env.get('DENO_DEPLOYMENT_ID')
-  })
+  console.log('Method:', req.method)
   
+  // Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
     console.log('OPTIONS request - returning CORS headers')
     return new Response('ok', { headers: corsHeaders })
@@ -24,48 +21,32 @@ serve(async (req) => {
     console.log('📥 Parsing request body...')
     const body = await req.json()
     console.log('✅ Request body parsed successfully')
-    console.log('📊 Body keys:', Object.keys(body))
     
     const { planType, userEmail, totalPrice, quota, deviceMode = 'single' } = body
-    console.log('📊 Extracted data:', { planType, userEmail, totalPrice, quota, deviceMode })
+    console.log('📊 Request data:', { planType, userEmail, totalPrice, quota, deviceMode })
 
     if (!userEmail) {
       console.error('❌ No email provided')
       throw new Error('User email is required')
     }
 
-    console.log('🔑 Checking Razorpay keys...')
+    // Get Razorpay credentials with detailed logging
+    console.log('🔑 Loading Razorpay credentials...')
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
     const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
     
-    // Debug: List all environment variables that start with RAZORPAY
-    const allEnvVars = Object.keys(Deno.env.toObject()).filter(key => key.startsWith('RAZORPAY'))
-    console.log('🔍 All RAZORPAY env vars:', allEnvVars)
+    // Enhanced debugging
+    const envObject = Deno.env.toObject()
+    const razorpayVars = Object.keys(envObject).filter(key => key.includes('RAZORPAY'))
+    console.log('🔍 Available RAZORPAY variables:', razorpayVars)
     
-    console.log('🔑 Key status:', {
-      keyId: razorpayKeyId ? 'Present' : 'Missing',
-      secretKey: razorpaySecretKey ? 'Present' : 'Missing'
+    console.log('🔑 Credentials status:', {
+      keyId: razorpayKeyId ? `Present (${razorpayKeyId.length} chars)` : 'MISSING',
+      secretKey: razorpaySecretKey ? `Present (${razorpaySecretKey.length} chars)` : 'MISSING'
     })
     
-    console.log('🔍 Debug - Key lengths:', {
-      keyIdLength: razorpayKeyId ? razorpayKeyId.length : 0,
-      secretKeyLength: razorpaySecretKey ? razorpaySecretKey.length : 0
-    })
-    
-    // Debug: Show first few characters of keys (masked)
-    console.log('🔍 Key previews:', {
-      keyIdPreview: razorpayKeyId ? `${razorpayKeyId.substring(0, 8)}...` : 'null',
-      secretKeyPreview: razorpaySecretKey ? `${razorpaySecretKey.substring(0, 8)}...` : 'null'  
-    })
-    
-    if (!razorpayKeyId) {
-      const errorMsg = 'Razorpay Key ID not configured'
-      console.error('❌', errorMsg)
-      throw new Error(errorMsg)
-    }
-    
-    if (!razorpaySecretKey) {
-      const errorMsg = 'Razorpay Secret Key not configured'
+    if (!razorpayKeyId || !razorpaySecretKey) {
+      const errorMsg = `Missing Razorpay credentials: KeyID=${!!razorpayKeyId}, Secret=${!!razorpaySecretKey}`
       console.error('❌', errorMsg)
       throw new Error(errorMsg)
     }

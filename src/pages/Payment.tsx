@@ -152,8 +152,8 @@ const Payment = () => {
   };
 
   const downloadHelper = () => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const downloadUrl = `${supabaseUrl}/storage/v1/object/public/native-helpers/StealthOverlay_Setup.exe`;
+    // Use the Supabase URL from the client configuration
+    const downloadUrl = `https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/StealthOverlay_Setup.exe`;
     
     // Create temporary link to trigger download
     const link = document.createElement('a');
