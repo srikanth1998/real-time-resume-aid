@@ -125,12 +125,30 @@ serve(async (req) => {
     console.error('💥 FATAL ERROR:', {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
+      timestamp: new Date().toISOString()
     })
+    
+    // Log additional context for debugging
+    console.error('🔍 Error Context:', {
+      hasRazorpayKeyId: !!Deno.env.get('RAZORPAY_KEY_ID'),
+      hasRazorpaySecretKey: !!Deno.env.get('RAZORPAY_SECRET_KEY'),
+      errorType: error.constructor.name,
+      isNetworkError: error.message.includes('fetch'),
+      isAuthError: error.message.includes('401') || error.message.includes('auth'),
+    })
+    
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        debug_info: {
+          error_type: error.name,
+          has_keys: {
+            key_id: !!Deno.env.get('RAZORPAY_KEY_ID'),
+            secret_key: !!Deno.env.get('RAZORPAY_SECRET_KEY')
+          }
+        }
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
