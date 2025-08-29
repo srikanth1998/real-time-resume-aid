@@ -37,13 +37,24 @@ serve(async (req) => {
       secretKey: razorpaySecretKey ? 'Present' : 'Missing'
     })
     
+    console.log('🔍 Debug - Key lengths:', {
+      keyIdLength: razorpayKeyId ? razorpayKeyId.length : 0,
+      secretKeyLength: razorpaySecretKey ? razorpaySecretKey.length : 0
+    })
+    
     if (!razorpayKeyId) {
-      throw new Error('Razorpay Key ID not configured')
+      const errorMsg = 'Razorpay Key ID not configured'
+      console.error('❌', errorMsg)
+      throw new Error(errorMsg)
     }
     
     if (!razorpaySecretKey) {
-      throw new Error('Razorpay Secret Key not configured')
+      const errorMsg = 'Razorpay Secret Key not configured'
+      console.error('❌', errorMsg)
+      throw new Error(errorMsg)
     }
+    
+    console.log('✅ Both Razorpay keys are available')
 
     console.log('💰 Creating Razorpay order...')
     const orderData = {
