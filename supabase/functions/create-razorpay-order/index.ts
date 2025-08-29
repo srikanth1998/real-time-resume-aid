@@ -7,7 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION STARTED')
+  console.log('🚀 EDGE FUNCTION STARTED - v2.0')
   console.log('Method:', req.method)
   console.log('🕐 Timestamp:', new Date().toISOString())
   console.log('🌍 Environment check:', {
