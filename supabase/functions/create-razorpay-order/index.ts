@@ -9,6 +9,11 @@ const corsHeaders = {
 serve(async (req) => {
   console.log('🚀 EDGE FUNCTION STARTED')
   console.log('Method:', req.method)
+  console.log('🕐 Timestamp:', new Date().toISOString())
+  console.log('🌍 Environment check:', {
+    NODE_ENV: Deno.env.get('NODE_ENV'),
+    DENO_DEPLOYMENT_ID: Deno.env.get('DENO_DEPLOYMENT_ID')
+  })
   
   if (req.method === 'OPTIONS') {
     console.log('OPTIONS request - returning CORS headers')
@@ -18,7 +23,8 @@ serve(async (req) => {
   try {
     console.log('📥 Parsing request body...')
     const body = await req.json()
-    console.log('✅ Request body parsed:', body)
+    console.log('✅ Request body parsed successfully')
+    console.log('📊 Body keys:', Object.keys(body))
     
     const { planType, userEmail, totalPrice, quota, deviceMode = 'single' } = body
     console.log('📊 Extracted data:', { planType, userEmail, totalPrice, quota, deviceMode })
