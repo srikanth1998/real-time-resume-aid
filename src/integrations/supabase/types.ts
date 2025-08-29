@@ -641,6 +641,17 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      get_session_by_code: {
+        Args: { session_code_input: string }
+        Returns: {
+          device_mode: string
+          expires_at: string
+          id: string
+          session_code: string
+          session_type: string
+          status: Database["public"]["Enums"]["session_status"]
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
