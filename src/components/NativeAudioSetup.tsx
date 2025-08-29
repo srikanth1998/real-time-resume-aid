@@ -27,7 +27,7 @@ export const NativeAudioSetup = () => {
 
   const downloadHelper = () => {
     // Download from Supabase Storage
-    const downloadUrl = 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/InterviewAce-Helper-Windows.exe';
+    const downloadUrl = 'https://jafylkqbmvdptrqwwyed.supabase.co/storage/v1/object/public/native-helpers/StealthOverlay_Setup.exe';
     
     window.open(downloadUrl, '_blank');
   };
