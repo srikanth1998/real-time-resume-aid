@@ -113,10 +113,26 @@ const Payment = () => {
           // Redirect to upload page
           navigate(`/upload?session_id=${data.sessionId}&payment_id=${response.razorpay_payment_id}`);
         },
+        error: function (error: any) {
+          // Payment failed
+          console.error('Payment failed:', error);
+          setLoading(false);
+          toast({
+            title: "Payment Failed",
+            description: error.description || "Payment could not be processed. Please try again.",
+            variant: "destructive"
+          });
+        },
         modal: {
           ondismiss: function() {
             setLoading(false);
             console.log('Payment modal closed');
+            // Optional: Show a message when user cancels
+            toast({
+              title: "Payment Cancelled",
+              description: "You can try again when ready.",
+              variant: "default"
+            });
           }
         }
       };
