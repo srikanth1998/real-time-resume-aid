@@ -10,6 +10,11 @@ import { Brain, Clock, DollarSign, CheckCircle, Loader2, Mail, Download } from "
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 const Payment = () => {
   const [searchParams] = useSearchParams();
@@ -32,9 +37,15 @@ const Payment = () => {
   const totalPrice = isQuotaPayment ? parseFloat(totalFromParams) : (9.99 * hours);
   const displayPrice = isQuotaPayment ? totalPrice : (totalPrice * 83); // Only convert USD to INR for hourly
 
+  // Load Razorpay script
   useEffect(() => {
-    // No longer need to load Razorpay script
-    console.log('Payment component loaded - using Stripe checkout');
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
   }, []);
 
   const handleCheckout = async (e: React.FormEvent) => {
@@ -43,23 +54,32 @@ const Payment = () => {
     setLoading(true);
 
     try {
-      console.log('Creating Stripe checkout for', isQuotaPayment ? 'quota payment' : 'quick session');
+      console.log('Creating Razorpay order for', isQuotaPayment ? 'quota payment' : 'quick session');
       
-      const { data, error } = await supabase.functions.invoke('create-stripe-checkout', {
+      // USD to INR conversion rate (only used for hourly payments)
+      const usdToInrRate = 83;
+      // For quota payments, totalPrice is already in INR. For hourly, convert USD to INR.
+      const priceInINR = Math.round(isQuotaPayment ? totalPrice : (totalPrice * usdToInrRate));
+      
+      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: isQuotaPayment ? {
-          // Quota-based payment - totalPrice is already in INR paise
-          planType: planType,
+          // Quota-based payment - include all required fields
+          planType: planType, // This should be 'question-analysis' or 'coding-helper'
           userEmail: email || 'support@interviewaceguru.com',
-          deviceMode: 'single',
+          deviceMode: 'single', // Add required deviceMode field
           quota: parseInt(quota || '0'),
-          totalPrice: Math.round(totalPrice * 100), // Convert to paise
+          totalPrice: priceInINR * 100, // Convert to paise
+          // Add default values for other expected fields
+          priceAmount: priceInINR * 100,
+          planName: planType === 'question-analysis' ? 'Question Analysis Plan' : 'Coding Helper Plan',
+          duration: 0 // Not time-based for quota plans
         } : {
-          // Hourly payment - USD pricing
+          // Hourly payment (existing logic)
           planType: 'pay-as-you-go',
           userEmail: email || 'support@interviewaceguru.com',
           deviceMode: 'single',
           hours: hours,
-          totalPrice: totalPrice // Keep in USD for Stripe
+          totalPrice: priceInINR * 100 // Convert to paise
         }
       });
 
@@ -67,19 +87,64 @@ const Payment = () => {
         throw error;
       }
 
-      if (!data.checkout_url) {
-        throw new Error('No checkout URL received');
+      if (!data.order_id) {
+        throw new Error('No order ID received');
       }
 
-      // Redirect to Stripe Checkout
-      console.log('Redirecting to Stripe checkout:', data.checkout_url);
-      window.location.href = data.checkout_url;
+      // Initialize Razorpay checkout
+      const options = {
+        key: data.key_id,
+        amount: data.amount,
+        currency: data.currency,
+        name: data.name,
+        description: data.description,
+        order_id: data.order_id,
+        prefill: data.prefill,
+        theme: {
+          color: '#3B82F6'
+        },
+        handler: function (response: any) {
+          // Payment successful
+          console.log('Payment successful:', response);
+          toast({
+            title: "Payment Successful!",
+            description: "Redirecting to upload page...",
+          });
+          // Redirect to upload page
+          navigate(`/upload?session_id=${data.sessionId}&payment_id=${response.razorpay_payment_id}`);
+        },
+        error: function (error: any) {
+          // Payment failed
+          console.error('Payment failed:', error);
+          setLoading(false);
+          toast({
+            title: "Payment Failed",
+            description: error.description || "Payment could not be processed. Please try again.",
+            variant: "destructive"
+          });
+        },
+        modal: {
+          ondismiss: function() {
+            setLoading(false);
+            console.log('Payment modal closed');
+            // Optional: Show a message when user cancels
+            toast({
+              title: "Payment Cancelled",
+              description: "You can try again when ready.",
+              variant: "default"
+            });
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
 
     } catch (error: any) {
       console.error('Checkout error:', error);
       toast({
         title: "Payment Error",
-        description: error.message || "Failed to create Stripe checkout. Please try again.",
+        description: error.message || "Failed to create Razorpay order. Please try again.",
         variant: "destructive"
       });
       setLoading(false);
