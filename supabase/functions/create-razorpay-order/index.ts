@@ -7,14 +7,32 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION v5.0 - FRESH DEPLOYMENT')
+  console.log('🚀 EDGE FUNCTION v6.0 - DEBUG MODE')
   console.log('🕐 Timestamp:', new Date().toISOString())
   console.log('Method:', req.method)
+  console.log('🌍 URL:', req.url)
+  console.log('📋 Headers:', Object.fromEntries(req.headers.entries()))
   
   // Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
     console.log('OPTIONS request - returning CORS headers')
     return new Response('ok', { headers: corsHeaders })
+  }
+
+  // Add a simple test endpoint
+  if (req.method === 'GET') {
+    console.log('GET request - returning test response')
+    return new Response(
+      JSON.stringify({ 
+        status: 'Function is working!',
+        timestamp: new Date().toISOString(),
+        secrets_available: {
+          razorpay_key_id: !!Deno.env.get('RAZORPAY_KEY_ID'),
+          razorpay_secret: !!Deno.env.get('RAZORPAY_SECRET_KEY')
+        }
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   try {

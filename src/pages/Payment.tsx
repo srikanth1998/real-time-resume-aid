@@ -37,16 +37,37 @@ const Payment = () => {
   const totalPrice = isQuotaPayment ? parseFloat(totalFromParams) : (9.99 * hours);
   const displayPrice = isQuotaPayment ? totalPrice : (totalPrice * 83); // Only convert USD to INR for hourly
 
-  // Load Razorpay script
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
     document.body.appendChild(script);
+    
+    // Test the Razorpay function on page load
+    testRazorpayFunction();
+    
     return () => {
       document.body.removeChild(script);
     };
   }, []);
+
+  const testRazorpayFunction = async () => {
+    try {
+      console.log('Testing Razorpay function...');
+      const response = await fetch('https://jafylkqbmvdptrqwwyed.supabase.co/functions/v1/create-razorpay-order', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const result = await response.text();
+      console.log('✅ Razorpay function test result:', result);
+    } catch (error) {
+      console.error('❌ Razorpay function test error:', error);
+    }
+  };
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
