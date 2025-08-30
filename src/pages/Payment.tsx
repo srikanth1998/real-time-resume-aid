@@ -246,7 +246,7 @@ const Payment = () => {
                     <div>
                       <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
                       <div className="text-sm text-gray-600 space-y-1">
-                        <div>Base price: ₹{Math.round(basePriceINR)}</div>
+                        <div>Base price: ₹{basePriceINR.toFixed(2)}</div>
                         <div>Platform fee (2.5%): ₹{platformFee.toFixed(2)}</div>
                         <div>GST (18%): ₹{gstAmount.toFixed(2)}</div>
                         <div className="font-medium text-gray-800 border-t pt-1">
@@ -297,7 +297,7 @@ const Payment = () => {
                     <div className="text-sm text-blue-800 space-y-1">
                       <div className="flex justify-between">
                         <span>Base price:</span>
-                        <span>₹{Math.round(basePriceINR)}</span>
+                        <span>₹{basePriceINR.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Platform fee (2.5%):</span>
