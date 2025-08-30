@@ -7,11 +7,10 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION v6.0 - DEBUG MODE')
+  console.log('🚀 EDGE FUNCTION v7.0 - CLEAN VERSION')
   console.log('🕐 Timestamp:', new Date().toISOString())
   console.log('Method:', req.method)
   console.log('🌍 URL:', req.url)
-  console.log('📋 Headers:', Object.fromEntries(req.headers.entries()))
   
   // Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
