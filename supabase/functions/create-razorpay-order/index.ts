@@ -7,10 +7,18 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION v9.0 - SECRETS FIXED')
+  console.log('🚀 EDGE FUNCTION v10.0 - ENHANCED DEBUG')
   console.log('🕐 Timestamp:', new Date().toISOString())
   console.log('Method:', req.method)
   console.log('🌍 URL:', req.url)
+  
+  // Immediate secret check at start
+  const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
+  const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
+  console.log('🔍 IMMEDIATE SECRET CHECK:', {
+    keyId: razorpayKeyId ? `Present (${razorpayKeyId.substring(0, 10)}...)` : 'MISSING',
+    secretKey: razorpaySecretKey ? `Present (${razorpaySecretKey.substring(0, 10)}...)` : 'MISSING'
+  })
   
   // Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
