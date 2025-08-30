@@ -32,10 +32,27 @@ const Payment = () => {
   // Check if this is a quota-based payment (from quota adjustment page)
   const isQuotaPayment = quota && totalFromParams;
   
-  // For quota payments, price is already in INR. For hourly, it's in USD and needs conversion.
+  // Calculate pricing with platform fees and GST included
   const basePrice = isQuotaPayment ? parseFloat(totalFromParams) : 9.99;
-  const totalPrice = isQuotaPayment ? parseFloat(totalFromParams) : (9.99 * hours);
-  const displayPrice = isQuotaPayment ? totalPrice : (totalPrice * 83); // Only convert USD to INR for hourly
+  const baseTotalPrice = isQuotaPayment ? parseFloat(totalFromParams) : (9.99 * hours);
+  
+  // Convert to INR if needed (for hourly payments)
+  const basePriceINR = isQuotaPayment ? baseTotalPrice : (baseTotalPrice * 83);
+  
+  // Calculate platform fees and taxes (all charged to user)
+  const platformFeeRate = 0.025; // 2.5% platform fee
+  const gstRate = 0.18; // 18% GST
+  
+  // Calculate platform fee
+  const platformFee = basePriceINR * platformFeeRate;
+  
+  // Calculate GST on the total amount (base + platform fee)
+  const subtotal = basePriceINR + platformFee;
+  const gstAmount = subtotal * gstRate;
+  
+  // Final amount including all charges
+  const totalPrice = basePriceINR + platformFee + gstAmount;
+  const displayPrice = Math.round(totalPrice);
 
   // Load Razorpay script
   useEffect(() => {
@@ -56,10 +73,8 @@ const Payment = () => {
     try {
       console.log('Creating Razorpay order for', isQuotaPayment ? 'quota payment' : 'quick session');
       
-      // USD to INR conversion rate (only used for hourly payments)
-      const usdToInrRate = 83;
-      // For quota payments, totalPrice is already in INR. For hourly, convert USD to INR.
-      const priceInINR = Math.round(isQuotaPayment ? totalPrice : (totalPrice * usdToInrRate));
+      // Use the final totalPrice that includes all fees and taxes
+      const priceInINR = Math.round(totalPrice);
       
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: isQuotaPayment ? {
@@ -202,32 +217,48 @@ const Payment = () => {
               <CardContent>
                 <div className="space-y-4">
                   <div className="grid grid-cols-4 gap-3">
-                    {[1, 2, 3, 4].map((hour) => (
-                      <button
-                        key={hour}
-                        type="button"
-                        onClick={() => setHours(hour)}
-                        className={`p-3 rounded-lg border-2 transition-all ${
-                          hours === hour
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                       <div className="text-lg font-semibold">{hour}h</div>
-                        <div className="text-sm text-gray-500">₹{(9.99 * hour * 83).toFixed(0)}</div>
-                      </button>
-                    ))}
+                    {[1, 2, 3, 4].map((hour) => {
+                      // Calculate pricing for this specific hour with all fees included
+                      const hourBaseINR = 9.99 * hour * 83;
+                      const hourPlatformFee = hourBaseINR * platformFeeRate;
+                      const hourSubtotal = hourBaseINR + hourPlatformFee;
+                      const hourGST = hourSubtotal * gstRate;
+                      const hourTotal = Math.round(hourBaseINR + hourPlatformFee + hourGST);
+                      
+                      return (
+                        <button
+                          key={hour}
+                          type="button"
+                          onClick={() => setHours(hour)}
+                          className={`p-3 rounded-lg border-2 transition-all ${
+                            hours === hour
+                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="text-lg font-semibold">{hour}h</div>
+                          <div className="text-sm text-gray-500">₹{hourTotal}</div>
+                        </button>
+                      );
+                    })}
                   </div>
+                  
+                  {/* Price Breakdown */}
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium">Selected: {hours} hour{hours > 1 ? 's' : ''}</p>
-                       <p className="text-sm text-gray-600">
-                         ₹{(9.99 * 83).toFixed(0)}/hour × {hours} = ₹{Math.round(displayPrice)}
-                       </p>
-                     </div>
-                     <Badge variant="outline">
-                       ₹{Math.round(displayPrice)}
-                     </Badge>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>Base price: ₹{Math.round(basePriceINR)}</div>
+                        <div>Platform fee (2.5%): ₹{Math.round(platformFee)}</div>
+                        <div>GST (18%): ₹{Math.round(gstAmount)}</div>
+                        <div className="font-medium text-gray-800 border-t pt-1">
+                          Total: ₹{displayPrice}
+                        </div>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-lg">
+                      ₹{displayPrice}
+                    </Badge>
                   </div>
                 </div>
               </CardContent>
@@ -246,7 +277,7 @@ const Payment = () => {
                   Your selected plan and quota
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
@@ -258,11 +289,34 @@ const Payment = () => {
                       </p>
                     </div>
                      <Badge variant="default" className="text-lg py-2 px-4">
-                       ₹{Math.round(totalPrice)}
+                       ₹{displayPrice}
                      </Badge>
                   </div>
+                  
+                  {/* Price Breakdown for Quota Payments */}
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <p className="font-medium text-blue-900 mb-2">Price Breakdown</p>
+                    <div className="text-sm text-blue-800 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Base price:</span>
+                        <span>₹{Math.round(basePriceINR)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Platform fee (2.5%):</span>
+                        <span>₹{Math.round(platformFee)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>GST (18%):</span>
+                        <span>₹{Math.round(gstAmount)}</span>
+                      </div>
+                      <div className="flex justify-between font-medium text-blue-900 border-t border-blue-200 pt-1">
+                        <span>Total Amount:</span>
+                        <span>₹{displayPrice}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </CardContent>
+               </CardContent>
             </Card>
           )}
 
