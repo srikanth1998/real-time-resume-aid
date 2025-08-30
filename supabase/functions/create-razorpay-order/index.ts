@@ -6,7 +6,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION v12.0 - SECRETS UPDATED AGAIN')
+  console.log('🚀 EDGE FUNCTION v13.0 - NEW SECRET NAMES')
   console.log('🕐 Timestamp:', new Date().toISOString())
   console.log('Method:', req.method)
   console.log('🌍 URL:', req.url)
@@ -19,8 +19,8 @@ serve(async (req) => {
 
   try {
     // Immediate secret check
-    const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
-    const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
+    const razorpayKeyId = Deno.env.get('RZP_KEY_ID')
+    const razorpaySecretKey = Deno.env.get('RZP_SECRET_KEY')
     
     console.log('🔍 SECRET CHECK:', {
       keyId: razorpayKeyId ? `Present: ${razorpayKeyId.substring(0, 12)}...` : 'MISSING',
