@@ -72,8 +72,9 @@ const Payment = () => {
     try {
       console.log('Creating Razorpay order for', isQuotaPayment ? 'quota payment' : 'quick session');
       
-      // Use the final totalPrice that includes all fees and taxes
-      const priceInINR = Math.round(totalPrice);
+      // Use the exact totalPrice with proper decimal precision
+      const priceInINR = Math.round(totalPrice * 100) / 100; // Round to 2 decimal places
+      const priceInPaise = Math.round(priceInINR * 100); // Convert to paise for Razorpay
       
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: isQuotaPayment ? {
@@ -82,9 +83,9 @@ const Payment = () => {
           userEmail: email || 'support@interviewaceguru.com',
           deviceMode: 'single', // Add required deviceMode field
           quota: parseInt(quota || '0'),
-          totalPrice: priceInINR * 100, // Convert to paise
+          totalPrice: priceInPaise, // Convert to paise
           // Add default values for other expected fields
-          priceAmount: priceInINR * 100,
+          priceAmount: priceInPaise,
           planName: planType === 'question-analysis' ? 'Question Analysis Plan' : 'Coding Helper Plan',
           duration: 0 // Not time-based for quota plans
         } : {
@@ -93,7 +94,7 @@ const Payment = () => {
           userEmail: email || 'support@interviewaceguru.com',
           deviceMode: 'single',
           hours: hours,
-          totalPrice: priceInINR * 100 // Convert to paise
+          totalPrice: priceInPaise // Convert to paise
         }
       });
 
