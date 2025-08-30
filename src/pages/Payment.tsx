@@ -51,7 +51,7 @@ const Payment = () => {
   
   // Final amount including all charges
   const totalPrice = basePriceINR + platformFee + gstAmount;
-  const displayPrice = Math.round(totalPrice);
+  const displayPrice = totalPrice;
 
   // Load Razorpay script
   useEffect(() => {
@@ -221,7 +221,7 @@ const Payment = () => {
                       const hourBaseINR = 9.99 * hour * 83;
                       const hourPlatformFee = hourBaseINR * platformFeeRate;
                       const hourGST = hourPlatformFee * gstRate;
-                      const hourTotal = Math.round(hourBaseINR + hourPlatformFee + hourGST);
+                      const hourTotal = hourBaseINR + hourPlatformFee + hourGST;
                       
                       return (
                         <button
@@ -235,7 +235,7 @@ const Payment = () => {
                           }`}
                         >
                           <div className="text-lg font-semibold">{hour}h</div>
-                          <div className="text-sm text-gray-500">₹{hourTotal}</div>
+                          <div className="text-sm text-gray-500">₹{hourTotal.toFixed(2)}</div>
                         </button>
                       );
                     })}
@@ -250,12 +250,12 @@ const Payment = () => {
                         <div>Platform fee (2.5%): ₹{platformFee.toFixed(2)}</div>
                         <div>GST (18%): ₹{gstAmount.toFixed(2)}</div>
                         <div className="font-medium text-gray-800 border-t pt-1">
-                          Total: ₹{displayPrice}
+                           Total: ₹{displayPrice.toFixed(2)}
                         </div>
                       </div>
                     </div>
                     <Badge variant="outline" className="text-lg">
-                      ₹{displayPrice}
+                      ₹{displayPrice.toFixed(2)}
                     </Badge>
                   </div>
                 </div>
@@ -287,7 +287,7 @@ const Payment = () => {
                       </p>
                     </div>
                      <Badge variant="default" className="text-lg py-2 px-4">
-                       ₹{displayPrice}
+                       ₹{displayPrice.toFixed(2)}
                      </Badge>
                   </div>
                   
@@ -309,7 +309,7 @@ const Payment = () => {
                       </div>
                       <div className="flex justify-between font-medium text-blue-900 border-t border-blue-200 pt-1">
                         <span>Total Amount:</span>
-                        <span>₹{displayPrice}</span>
+                        <span>₹{displayPrice.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -415,7 +415,7 @@ const Payment = () => {
             ) : (
               <>
                 <DollarSign className="h-5 w-5 mr-2" />
-                Pay ₹{Math.round(displayPrice)} & Continue
+                Pay ₹{displayPrice.toFixed(2)} & Continue
               </>
             )}
           </Button>
