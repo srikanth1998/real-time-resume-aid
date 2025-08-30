@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,18 +6,10 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION v10.0 - ENHANCED DEBUG')
+  console.log('🚀 EDGE FUNCTION v11.0 - SIMPLIFIED TEST')
   console.log('🕐 Timestamp:', new Date().toISOString())
   console.log('Method:', req.method)
   console.log('🌍 URL:', req.url)
-  
-  // Immediate secret check at start
-  const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
-  const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
-  console.log('🔍 IMMEDIATE SECRET CHECK:', {
-    keyId: razorpayKeyId ? `Present (${razorpayKeyId.substring(0, 10)}...)` : 'MISSING',
-    secretKey: razorpaySecretKey ? `Present (${razorpaySecretKey.substring(0, 10)}...)` : 'MISSING'
-  })
   
   // Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
@@ -26,63 +17,53 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Add a simple test endpoint
-  if (req.method === 'GET') {
-    console.log('GET request - returning test response')
-    return new Response(
-      JSON.stringify({ 
-        status: 'Function is working!',
-        timestamp: new Date().toISOString(),
-        secrets_available: {
-          razorpay_key_id: !!Deno.env.get('RAZORPAY_KEY_ID'),
-          razorpay_secret: !!Deno.env.get('RAZORPAY_SECRET_KEY')
-        }
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
   try {
-    console.log('📥 Parsing request body...')
-    const body = await req.json()
-    console.log('✅ Request body parsed successfully')
-    
-    const { planType, userEmail, totalPrice, quota, deviceMode = 'single' } = body
-    console.log('📊 Request data:', { planType, userEmail, totalPrice, quota, deviceMode })
-
-    if (!userEmail) {
-      console.error('❌ No email provided')
-      throw new Error('User email is required')
-    }
-
-    // Get Razorpay credentials with detailed logging
-    console.log('🔑 Loading Razorpay credentials...')
+    // Immediate secret check
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
     const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
     
-    // Enhanced debugging
-    const envObject = Deno.env.toObject()
-    const razorpayVars = Object.keys(envObject).filter(key => key.includes('RAZORPAY'))
-    console.log('🔍 Available RAZORPAY variables:', razorpayVars)
-    
-    console.log('🔑 Credentials status:', {
-      keyId: razorpayKeyId ? `Present (${razorpayKeyId.length} chars)` : 'MISSING',
-      secretKey: razorpaySecretKey ? `Present (${razorpaySecretKey.length} chars)` : 'MISSING'
+    console.log('🔍 SECRET CHECK:', {
+      keyId: razorpayKeyId ? `Present: ${razorpayKeyId.substring(0, 12)}...` : 'MISSING',
+      keyIdLength: razorpayKeyId ? razorpayKeyId.length : 0,
+      secretKey: razorpaySecretKey ? `Present: ${razorpaySecretKey.substring(0, 8)}...` : 'MISSING',
+      secretKeyLength: razorpaySecretKey ? razorpaySecretKey.length : 0
     })
-    
-    if (!razorpayKeyId || !razorpaySecretKey) {
-      const errorMsg = `Missing Razorpay credentials: KeyID=${!!razorpayKeyId}, Secret=${!!razorpaySecretKey}`
-      console.error('❌', errorMsg)
-      throw new Error(errorMsg)
+
+    // Test endpoint for debugging
+    if (req.method === 'GET') {
+      return new Response(
+        JSON.stringify({ 
+          status: 'Function working',
+          timestamp: new Date().toISOString(),
+          secrets: {
+            keyId: razorpayKeyId ? `${razorpayKeyId.substring(0, 12)}...` : 'MISSING',
+            secretKey: razorpaySecretKey ? `${razorpaySecretKey.substring(0, 8)}...` : 'MISSING'
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
+
+    // Parse request body
+    console.log('📥 Parsing request body...')
+    const body = await req.json()
+    console.log('✅ Request body parsed:', body)
     
-    console.log('✅ Both Razorpay keys are available')
+    const { planType, userEmail, totalPrice, quota, deviceMode = 'single' } = body
+
+    if (!userEmail) {
+      throw new Error('User email is required')
+    }
+
+    if (!razorpayKeyId || !razorpaySecretKey) {
+      throw new Error(`Missing Razorpay credentials: KeyID=${!!razorpayKeyId}, Secret=${!!razorpaySecretKey}`)
+    }
 
     console.log('💰 Creating Razorpay order...')
     const orderData = {
-      amount: totalPrice || 100, // Default to 1 INR if no amount
+      amount: totalPrice || 100,
       currency: 'INR',
-      receipt: `test_${Date.now()}`,
+      receipt: `order_${Date.now()}`,
       notes: {
         plan_type: planType,
         user_email: userEmail
@@ -92,6 +73,7 @@ serve(async (req) => {
     console.log('📤 Order data:', orderData)
 
     const auth = btoa(`${razorpayKeyId}:${razorpaySecretKey}`)
+    console.log('🔐 Auth header created successfully')
     
     const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
@@ -113,7 +95,6 @@ serve(async (req) => {
     const razorpayOrder = await razorpayResponse.json()
     console.log('✅ Razorpay order created:', razorpayOrder.id)
 
-    console.log('🎉 SUCCESS - Returning order data')
     return new Response(
       JSON.stringify({ 
         order_id: razorpayOrder.id,
@@ -121,8 +102,8 @@ serve(async (req) => {
         currency: razorpayOrder.currency,
         key_id: razorpayKeyId,
         sessionId: 'test-session',
-        name: 'InterviewAce Test',
-        description: 'Test order',
+        name: 'InterviewAce',
+        description: 'Interview preparation session',
         prefill: {
           email: userEmail,
         }
@@ -141,26 +122,10 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     })
     
-    // Log additional context for debugging
-    console.error('🔍 Error Context:', {
-      hasRazorpayKeyId: !!Deno.env.get('RAZORPAY_KEY_ID'),
-      hasRazorpaySecretKey: !!Deno.env.get('RAZORPAY_SECRET_KEY'),
-      errorType: error.constructor.name,
-      isNetworkError: error.message.includes('fetch'),
-      isAuthError: error.message.includes('401') || error.message.includes('auth'),
-    })
-    
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        timestamp: new Date().toISOString(),
-        debug_info: {
-          error_type: error.name,
-          has_keys: {
-            key_id: !!Deno.env.get('RAZORPAY_KEY_ID'),
-            secret_key: !!Deno.env.get('RAZORPAY_SECRET_KEY')
-          }
-        }
+        timestamp: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
