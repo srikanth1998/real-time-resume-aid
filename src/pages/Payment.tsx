@@ -46,9 +46,8 @@ const Payment = () => {
   // Calculate platform fee
   const platformFee = basePriceINR * platformFeeRate;
   
-  // Calculate GST on the total amount (base + platform fee)
-  const subtotal = basePriceINR + platformFee;
-  const gstAmount = subtotal * gstRate;
+  // Calculate GST only on platform fees
+  const gstAmount = platformFee * gstRate;
   
   // Final amount including all charges
   const totalPrice = basePriceINR + platformFee + gstAmount;
@@ -221,8 +220,7 @@ const Payment = () => {
                       // Calculate pricing for this specific hour with all fees included
                       const hourBaseINR = 9.99 * hour * 83;
                       const hourPlatformFee = hourBaseINR * platformFeeRate;
-                      const hourSubtotal = hourBaseINR + hourPlatformFee;
-                      const hourGST = hourSubtotal * gstRate;
+                      const hourGST = hourPlatformFee * gstRate;
                       const hourTotal = Math.round(hourBaseINR + hourPlatformFee + hourGST);
                       
                       return (
