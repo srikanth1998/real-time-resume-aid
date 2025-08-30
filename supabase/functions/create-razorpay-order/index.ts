@@ -6,7 +6,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION v11.0 - SIMPLIFIED TEST')
+  console.log('🚀 EDGE FUNCTION v12.0 - SECRETS UPDATED AGAIN')
   console.log('🕐 Timestamp:', new Date().toISOString())
   console.log('Method:', req.method)
   console.log('🌍 URL:', req.url)
