@@ -111,6 +111,7 @@ serve(async (req) => {
     const { data: sessionData, error: sessionError } = await supabaseService
       .from('sessions')
       .insert({
+        user_email: userEmail, // Save user email for webhook processing
         plan_type: planType,
         device_mode: 'single',
         duration_minutes: 0,
