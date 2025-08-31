@@ -114,10 +114,12 @@ serve(async (req) => {
       .insert({
         session_code: sessionCode,
         user_email: userEmail,
-        plan_type: planType === 'pay-as-you-go' ? 'quick-session' : planType,
+        plan_type: planType === 'pay-as-you-go' ? 'quick-session' : 
+                   planType === 'question-analysis' ? 'question-analysis' :
+                   planType === 'coding-helper' ? 'coding-helper' : 'quick-session',
         device_mode: deviceMode,
         stripe_session_id: razorpayOrder.id,
-        status: 'pending',
+        status: 'pending_payment',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
         duration_minutes: durationMinutes,
         price_cents: totalPrice,
