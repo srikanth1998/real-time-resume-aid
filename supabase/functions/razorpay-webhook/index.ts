@@ -82,8 +82,8 @@ serve(async (req) => {
 
       console.log('Session updated to paid status:', session.id)
 
-      // Send email if user email is available
-      const userEmail = session.user_id ? null : 'support@interviewaceguru.com' // Get from session metadata if needed
+      // Get user email from session data
+      const userEmail = session.user_email || 'support@interviewaceguru.com'
       
       if (userEmail) {
         try {
@@ -92,7 +92,8 @@ serve(async (req) => {
               email: userEmail,
               sessionId: session.id,
               planType: session.plan_type,
-              deviceMode: session.device_mode
+              deviceMode: session.device_mode,
+              paymentId: payment.id
             }
           })
           console.log('Email sent successfully')

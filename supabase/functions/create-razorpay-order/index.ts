@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -95,13 +96,46 @@ serve(async (req) => {
     const razorpayOrder = await razorpayResponse.json()
     console.log('✅ Razorpay order created:', razorpayOrder.id)
 
+    // Create session in database
+    console.log('💾 Creating session in database...')
+    const supabaseService = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Generate session code
+    const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+    
+    const { data: session, error: sessionError } = await supabaseService
+      .from('sessions')
+      .insert({
+        session_code: sessionCode,
+        user_email: userEmail,
+        plan_type: planType,
+        device_mode: deviceMode,
+        stripe_session_id: razorpayOrder.id,
+        status: 'pending',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+        quota: quota || null
+      })
+      .select()
+      .single()
+
+    if (sessionError) {
+      console.error('❌ Error creating session:', sessionError)
+      throw new Error('Failed to create session in database')
+    }
+
+    console.log('✅ Session created:', session.id, 'with code:', sessionCode)
+
     return new Response(
       JSON.stringify({ 
         order_id: razorpayOrder.id,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
         key_id: razorpayKeyId,
-        sessionId: 'test-session',
+        sessionId: session.id,
+        sessionCode: sessionCode,
         name: 'InterviewAce',
         description: 'Interview preparation session',
         prefill: {
