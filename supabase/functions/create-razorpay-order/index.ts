@@ -106,16 +106,21 @@ serve(async (req) => {
     // Generate session code
     const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase()
     
+    // Calculate duration based on plan type
+    const durationMinutes = quota ? quota * 60 : 60; // quota * 60 minutes for quota plans, or 60 default
+    
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .insert({
         session_code: sessionCode,
         user_email: userEmail,
-        plan_type: planType,
+        plan_type: planType === 'pay-as-you-go' ? 'quick-session' : planType,
         device_mode: deviceMode,
         stripe_session_id: razorpayOrder.id,
         status: 'pending',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+        duration_minutes: durationMinutes,
+        price_cents: totalPrice,
         quota: quota || null
       })
       .select()
