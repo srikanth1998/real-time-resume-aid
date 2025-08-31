@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,7 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 SIMPLIFIED RAZORPAY - NO DATABASE')
+  console.log('🚀 RAZORPAY WITH DATABASE INTEGRATION')
   
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -86,14 +87,59 @@ serve(async (req) => {
     const razorpayOrder = await razorpayResponse.json()
     console.log('✅ Razorpay order created:', razorpayOrder.id)
 
-    // Return simplified response (no database session for now)
+    // Create Supabase client for database operations
+    console.log('💾 Creating session in database...')
+    const supabaseService = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Determine session details from totalPrice
+    let planType = 'question-analysis'
+    let questionsIncluded = 100
+    let codingSessions = 2
+    
+    if (totalPrice >= 50000) { // ₹500+
+      questionsIncluded = 200
+      codingSessions = 5
+    }
+
+    // Generate session code
+    const sessionCode = Math.floor(100000 + Math.random() * 900000).toString()
+
+    // Create session in database
+    const { data: sessionData, error: sessionError } = await supabaseService
+      .from('sessions')
+      .insert({
+        plan_type: planType,
+        device_mode: 'single',
+        duration_minutes: 0,
+        price_cents: totalPrice,
+        questions_included: questionsIncluded,
+        coding_sessions_included: codingSessions,
+        stripe_session_id: razorpayOrder.id, // Save Razorpay order ID here
+        session_code: sessionCode,
+        status: 'pending_payment',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+      })
+      .select()
+      .single()
+
+    if (sessionError) {
+      console.error('❌ Error creating session:', sessionError)
+      throw new Error(`Database error: ${sessionError.message}`)
+    }
+
+    console.log('✅ Session created:', sessionData.id)
+
+    // Return response for Razorpay checkout
     const response = {
       order_id: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
       key_id: razorpayKeyId,
-      sessionId: `temp_${Date.now()}`, // Temporary session ID
-      sessionCode: 'TEMP123', // Temporary session code
+      sessionId: sessionData.id,
+      sessionCode: sessionCode,
       name: 'InterviewAce',
       description: 'Interview preparation session',
       prefill: {
