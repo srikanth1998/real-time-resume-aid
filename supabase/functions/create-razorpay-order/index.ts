@@ -48,15 +48,25 @@ serve(async (req) => {
     // Parse request body
     console.log('📥 Parsing request body...')
     const body = await req.json()
-    console.log('✅ Request body parsed:', body)
+    console.log('✅ Request body parsed:', JSON.stringify(body, null, 2))
     
     const { planType, userEmail, totalPrice, quota, deviceMode = 'single' } = body
 
+    console.log('🔍 EXTRACTED VALUES:', {
+      planType,
+      userEmail,
+      totalPrice,
+      quota,
+      deviceMode
+    })
+
     if (!userEmail) {
+      console.error('❌ Missing userEmail')
       throw new Error('User email is required')
     }
 
     if (!razorpayKeyId || !razorpaySecretKey) {
+      console.error('❌ Missing Razorpay credentials')
       throw new Error(`Missing Razorpay credentials: KeyID=${!!razorpayKeyId}, Secret=${!!razorpaySecretKey}`)
     }
 
@@ -71,11 +81,12 @@ serve(async (req) => {
       }
     }
 
-    console.log('📤 Order data:', orderData)
+    console.log('📤 Order data to send to Razorpay:', JSON.stringify(orderData, null, 2))
 
     const auth = btoa(`${razorpayKeyId}:${razorpaySecretKey}`)
     console.log('🔐 Auth header created successfully')
     
+    console.log('🌐 Making request to Razorpay API...')
     const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
@@ -86,6 +97,7 @@ serve(async (req) => {
     })
 
     console.log('📥 Razorpay response status:', razorpayResponse.status)
+    console.log('📥 Razorpay response headers:', Object.fromEntries(razorpayResponse.headers.entries()))
 
     if (!razorpayResponse.ok) {
       const errorData = await razorpayResponse.text()
@@ -94,7 +106,7 @@ serve(async (req) => {
     }
 
     const razorpayOrder = await razorpayResponse.json()
-    console.log('✅ Razorpay order created:', razorpayOrder.id)
+    console.log('✅ Razorpay order created:', JSON.stringify(razorpayOrder, null, 2))
 
     // Create session in database
     console.log('💾 Creating session in database...')
@@ -103,37 +115,48 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    console.log('🔍 SUPABASE CONFIG:', {
+      url: Deno.env.get('SUPABASE_URL') ? 'Present' : 'MISSING',
+      serviceKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'Present' : 'MISSING'
+    })
+
     // Generate session code
     const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+    console.log('🎯 Generated session code:', sessionCode)
     
     // Calculate duration based on plan type
     const durationMinutes = quota ? quota * 60 : 60; // quota * 60 minutes for quota plans, or 60 default
+    console.log('⏱️ Calculated duration:', durationMinutes, 'minutes')
     
+    const sessionData = {
+      session_code: sessionCode,
+      user_email: userEmail,
+      plan_type: planType === 'pay-as-you-go' ? 'quick-session' : 
+                 planType === 'question-analysis' ? 'question-analysis' :
+                 planType === 'coding-helper' ? 'coding-helper' : 'quick-session',
+      device_mode: deviceMode,
+      stripe_session_id: razorpayOrder.id,
+      status: 'pending_payment',
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+      duration_minutes: durationMinutes,
+      price_cents: totalPrice,
+      quota: quota || null
+    }
+
+    console.log('📋 Session data to insert:', JSON.stringify(sessionData, null, 2))
+
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
-      .insert({
-        session_code: sessionCode,
-        user_email: userEmail,
-        plan_type: planType === 'pay-as-you-go' ? 'quick-session' : 
-                   planType === 'question-analysis' ? 'question-analysis' :
-                   planType === 'coding-helper' ? 'coding-helper' : 'quick-session',
-        device_mode: deviceMode,
-        stripe_session_id: razorpayOrder.id,
-        status: 'pending_payment',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-        duration_minutes: durationMinutes,
-        price_cents: totalPrice,
-        quota: quota || null
-      })
+      .insert(sessionData)
       .select()
       .single()
 
     if (sessionError) {
-      console.error('❌ Error creating session:', sessionError)
-      throw new Error('Failed to create session in database')
+      console.error('❌ Error creating session:', JSON.stringify(sessionError, null, 2))
+      throw new Error(`Failed to create session in database: ${sessionError.message}`)
     }
 
-    console.log('✅ Session created:', session.id, 'with code:', sessionCode)
+    console.log('✅ Session created successfully:', JSON.stringify(session, null, 2))
 
     return new Response(
       JSON.stringify({ 
