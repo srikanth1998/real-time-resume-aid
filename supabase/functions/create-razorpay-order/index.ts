@@ -7,31 +7,30 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION v13.0 - NEW SECRET NAMES')
-  console.log('🕐 Timestamp:', new Date().toISOString())
+  console.log('🚀 EDGE FUNCTION - FIXED VERSION')
   console.log('Method:', req.method)
-  console.log('🌍 URL:', req.url)
+  console.log('URL:', req.url)
   
-  // Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
     console.log('OPTIONS request - returning CORS headers')
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    console.log('✅ Function started successfully')
+    
     // Immediate secret check
     const razorpayKeyId = Deno.env.get('RZP_KEY_ID')
     const razorpaySecretKey = Deno.env.get('RZP_SECRET_KEY')
     
     console.log('🔍 SECRET CHECK:', {
       keyId: razorpayKeyId ? `Present: ${razorpayKeyId.substring(0, 12)}...` : 'MISSING',
-      keyIdLength: razorpayKeyId ? razorpayKeyId.length : 0,
-      secretKey: razorpaySecretKey ? `Present: ${razorpaySecretKey.substring(0, 8)}...` : 'MISSING',
-      secretKeyLength: razorpaySecretKey ? razorpaySecretKey.length : 0
+      secretKey: razorpaySecretKey ? `Present: ${razorpaySecretKey.substring(0, 8)}...` : 'MISSING'
     })
 
     // Test endpoint for debugging
     if (req.method === 'GET') {
+      console.log('GET request - returning test response')
       return new Response(
         JSON.stringify({ 
           status: 'Function working',
@@ -48,17 +47,10 @@ serve(async (req) => {
     // Parse request body
     console.log('📥 Parsing request body...')
     const body = await req.json()
-    console.log('✅ Request body parsed:', JSON.stringify(body, null, 2))
+    console.log('✅ Request body parsed successfully')
     
     const { planType, userEmail, totalPrice, quota, deviceMode = 'single' } = body
-
-    console.log('🔍 EXTRACTED VALUES:', {
-      planType,
-      userEmail,
-      totalPrice,
-      quota,
-      deviceMode
-    })
+    console.log('🔍 EXTRACTED VALUES:', { planType, userEmail, totalPrice, quota, deviceMode })
 
     if (!userEmail) {
       console.error('❌ Missing userEmail')
@@ -67,7 +59,7 @@ serve(async (req) => {
 
     if (!razorpayKeyId || !razorpaySecretKey) {
       console.error('❌ Missing Razorpay credentials')
-      throw new Error(`Missing Razorpay credentials: KeyID=${!!razorpayKeyId}, Secret=${!!razorpaySecretKey}`)
+      throw new Error(`Missing Razorpay credentials`)
     }
 
     console.log('💰 Creating Razorpay order...')
@@ -81,10 +73,8 @@ serve(async (req) => {
       }
     }
 
-    console.log('📤 Order data to send to Razorpay:', JSON.stringify(orderData, null, 2))
-
+    console.log('📤 Order data prepared')
     const auth = btoa(`${razorpayKeyId}:${razorpaySecretKey}`)
-    console.log('🔐 Auth header created successfully')
     
     console.log('🌐 Making request to Razorpay API...')
     const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
@@ -97,16 +87,15 @@ serve(async (req) => {
     })
 
     console.log('📥 Razorpay response status:', razorpayResponse.status)
-    console.log('📥 Razorpay response headers:', Object.fromEntries(razorpayResponse.headers.entries()))
 
     if (!razorpayResponse.ok) {
       const errorData = await razorpayResponse.text()
       console.error('❌ Razorpay API error:', errorData)
-      throw new Error(`Razorpay API failed: ${razorpayResponse.status} - ${errorData}`)
+      throw new Error(`Razorpay API failed: ${razorpayResponse.status}`)
     }
 
     const razorpayOrder = await razorpayResponse.json()
-    console.log('✅ Razorpay order created:', JSON.stringify(razorpayOrder, null, 2))
+    console.log('✅ Razorpay order created:', razorpayOrder.id)
 
     // Create session in database
     console.log('💾 Creating session in database...')
@@ -115,18 +104,12 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🔍 SUPABASE CONFIG:', {
-      url: Deno.env.get('SUPABASE_URL') ? 'Present' : 'MISSING',
-      serviceKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'Present' : 'MISSING'
-    })
-
     // Generate session code
     const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase()
     console.log('🎯 Generated session code:', sessionCode)
     
     // Calculate duration based on plan type
-    const durationMinutes = quota ? quota * 60 : 60; // quota * 60 minutes for quota plans, or 60 default
-    console.log('⏱️ Calculated duration:', durationMinutes, 'minutes')
+    const durationMinutes = quota ? quota * 60 : 60;
     
     const sessionData = {
       session_code: sessionCode,
@@ -137,14 +120,13 @@ serve(async (req) => {
       device_mode: deviceMode,
       stripe_session_id: razorpayOrder.id,
       status: 'pending_payment',
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       duration_minutes: durationMinutes,
       price_cents: totalPrice,
       quota: quota || null
     }
 
-    console.log('📋 Session data to insert:', JSON.stringify(sessionData, null, 2))
-
+    console.log('📋 Inserting session data...')
     const { data: session, error: sessionError } = await supabaseService
       .from('sessions')
       .insert(sessionData)
@@ -152,11 +134,11 @@ serve(async (req) => {
       .single()
 
     if (sessionError) {
-      console.error('❌ Error creating session:', JSON.stringify(sessionError, null, 2))
-      throw new Error(`Failed to create session in database: ${sessionError.message}`)
+      console.error('❌ Error creating session:', sessionError)
+      throw new Error(`Failed to create session: ${sessionError.message}`)
     }
 
-    console.log('✅ Session created successfully:', JSON.stringify(session, null, 2))
+    console.log('✅ Session created successfully:', session.id)
 
     return new Response(
       JSON.stringify({ 
@@ -175,15 +157,14 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
-      },
+      }
     )
 
   } catch (error) {
     console.error('💥 FATAL ERROR:', {
       message: error.message,
       stack: error.stack,
-      name: error.name,
-      timestamp: new Date().toISOString()
+      name: error.name
     })
     
     return new Response(
@@ -194,7 +175,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
-      },
+      }
     )
   }
 })
