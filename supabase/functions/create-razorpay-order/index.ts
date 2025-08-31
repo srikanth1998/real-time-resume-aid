@@ -25,10 +25,16 @@ serve(async (req) => {
 
   try {
     console.log('POST request received')
+    
+    // Try to parse the body to see what's being sent
+    const body = await req.json()
+    console.log('Request body:', JSON.stringify(body, null, 2))
+    
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Function is working'
+        message: 'Function is working',
+        receivedData: body
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -36,9 +42,13 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error processing request:', error.message)
+    console.error('Error stack:', error.stack)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: 'Error in POST request processing'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
