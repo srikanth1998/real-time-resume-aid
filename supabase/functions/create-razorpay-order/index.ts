@@ -46,8 +46,8 @@ serve(async (req) => {
     const body = await req.json()
     console.log('✅ Body parsed successfully')
     
-    const { userEmail, totalPrice } = body
-    console.log('🔍 Extracted:', { userEmail, totalPrice })
+    const { userEmail, totalPrice, planType: requestPlanType, quota } = body
+    console.log('🔍 Extracted:', { userEmail, totalPrice, requestPlanType, quota })
 
     if (!userEmail || !totalPrice) {
       throw new Error('Missing required fields')
@@ -94,15 +94,23 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Determine session details from totalPrice
-    let planType = 'question-analysis'
-    let questionsIncluded = 25  // Default: 25 questions as advertised
-    let codingSessions = 0      // Default: 0 coding sessions for question-analysis
+    // Determine session details from request body or fallback to defaults
+    let planType = requestPlanType || 'question-analysis'
+    let questionsIncluded = 25  // Default
+    let codingSessions = 0      // Default
     
-    if (totalPrice >= 50000) { // ₹500+ (premium plan)
-      questionsIncluded = 100
-      codingSessions = 2
+    // Use quota from frontend selection if available
+    if (quota && quota > 0) {
+      if (planType === 'question-analysis') {
+        questionsIncluded = parseInt(quota) // e.g., 25, 50, 100 images
+        codingSessions = 0
+      } else if (planType === 'coding-helper') {
+        questionsIncluded = 25 // Fixed for coding plans
+        codingSessions = parseInt(quota) // e.g., 3, 5, 10 sessions
+      }
     }
+    
+    console.log('📊 Session limits:', { planType, questionsIncluded, codingSessions })
 
     // Generate session code
     const sessionCode = Math.floor(100000 + Math.random() * 900000).toString()
