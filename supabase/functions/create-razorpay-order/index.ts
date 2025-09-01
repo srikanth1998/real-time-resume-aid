@@ -7,75 +7,66 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 EDGE FUNCTION v13.0 - NEW SECRET NAMES')
-  console.log('🕐 Timestamp:', new Date().toISOString())
-  console.log('Method:', req.method)
-  console.log('🌍 URL:', req.url)
+  console.log('🚀 RAZORPAY WITH DATABASE INTEGRATION')
   
-  // Handle CORS preflight requests first
   if (req.method === 'OPTIONS') {
-    console.log('OPTIONS request - returning CORS headers')
     return new Response('ok', { headers: corsHeaders })
   }
 
+  if (req.method === 'GET') {
+    console.log('GET request - test endpoint')
+    return new Response(
+      JSON.stringify({ 
+        status: 'working',
+        message: 'Simplified Razorpay function'
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   try {
-    // Immediate secret check
+    console.log('✅ POST request received')
+    
+    // Get secrets
     const razorpayKeyId = Deno.env.get('RZP_KEY_ID')
     const razorpaySecretKey = Deno.env.get('RZP_SECRET_KEY')
     
-    console.log('🔍 SECRET CHECK:', {
-      keyId: razorpayKeyId ? `Present: ${razorpayKeyId.substring(0, 12)}...` : 'MISSING',
-      keyIdLength: razorpayKeyId ? razorpayKeyId.length : 0,
-      secretKey: razorpaySecretKey ? `Present: ${razorpaySecretKey.substring(0, 8)}...` : 'MISSING',
-      secretKeyLength: razorpaySecretKey ? razorpaySecretKey.length : 0
+    console.log('🔍 Secrets check:', {
+      keyId: razorpayKeyId ? 'Present' : 'Missing',
+      secretKey: razorpaySecretKey ? 'Present' : 'Missing'
     })
 
-    // Test endpoint for debugging
-    if (req.method === 'GET') {
-      return new Response(
-        JSON.stringify({ 
-          status: 'Function working',
-          timestamp: new Date().toISOString(),
-          secrets: {
-            keyId: razorpayKeyId ? `${razorpayKeyId.substring(0, 12)}...` : 'MISSING',
-            secretKey: razorpaySecretKey ? `${razorpaySecretKey.substring(0, 8)}...` : 'MISSING'
-          }
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!razorpayKeyId || !razorpaySecretKey) {
+      console.error('❌ Missing Razorpay credentials')
+      throw new Error('Razorpay credentials not configured')
     }
 
     // Parse request body
     console.log('📥 Parsing request body...')
     const body = await req.json()
-    console.log('✅ Request body parsed:', body)
+    console.log('✅ Body parsed successfully')
     
-    const { planType, userEmail, totalPrice, quota, deviceMode = 'single' } = body
+    const { userEmail, totalPrice, planType: requestPlanType, quota } = body
+    console.log('🔍 Extracted:', { userEmail, totalPrice, requestPlanType, quota })
 
-    if (!userEmail) {
-      throw new Error('User email is required')
+    if (!userEmail || !totalPrice) {
+      throw new Error('Missing required fields')
     }
 
-    if (!razorpayKeyId || !razorpaySecretKey) {
-      throw new Error(`Missing Razorpay credentials: KeyID=${!!razorpayKeyId}, Secret=${!!razorpaySecretKey}`)
-    }
-
-    console.log('💰 Creating Razorpay order...')
+    // Create REAL Razorpay order
+    console.log('💰 Creating Razorpay order for:', totalPrice)
+    
     const orderData = {
-      amount: totalPrice || 100,
+      amount: totalPrice,
       currency: 'INR',
       receipt: `order_${Date.now()}`,
-      notes: {
-        plan_type: planType,
-        user_email: userEmail
-      }
     }
 
     console.log('📤 Order data:', orderData)
 
     const auth = btoa(`${razorpayKeyId}:${razorpaySecretKey}`)
-    console.log('🔐 Auth header created successfully')
     
+    console.log('🌐 Making API call to Razorpay...')
     const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
@@ -88,88 +79,106 @@ serve(async (req) => {
     console.log('📥 Razorpay response status:', razorpayResponse.status)
 
     if (!razorpayResponse.ok) {
-      const errorData = await razorpayResponse.text()
-      console.error('❌ Razorpay API error:', errorData)
-      throw new Error(`Razorpay API failed: ${razorpayResponse.status} - ${errorData}`)
+      const errorText = await razorpayResponse.text()
+      console.error('❌ Razorpay API error:', errorText)
+      throw new Error(`Razorpay API failed: ${razorpayResponse.status}`)
     }
 
     const razorpayOrder = await razorpayResponse.json()
     console.log('✅ Razorpay order created:', razorpayOrder.id)
 
-    // Create session in database
+    // Create Supabase client for database operations
     console.log('💾 Creating session in database...')
     const supabaseService = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Determine session details from request body or fallback to defaults
+    let planType = requestPlanType || 'question-analysis'
+    let questionsIncluded = 25  // Default
+    let codingSessions = 0      // Default
+    
+    // Use quota from frontend selection if available
+    if (quota && quota > 0) {
+      if (planType === 'question-analysis') {
+        questionsIncluded = parseInt(quota) // e.g., 25, 50, 100 images
+        codingSessions = 0
+      } else if (planType === 'coding-helper') {
+        questionsIncluded = 25 // Fixed for coding plans
+        codingSessions = parseInt(quota) // e.g., 3, 5, 10 sessions
+      }
+    }
+    
+    console.log('📊 Session limits:', { planType, questionsIncluded, codingSessions })
+
     // Generate session code
-    const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase()
-    
-    // Calculate duration based on plan type
-    const durationMinutes = quota ? quota * 60 : 60; // quota * 60 minutes for quota plans, or 60 default
-    
-    const { data: session, error: sessionError } = await supabaseService
+    const sessionCode = Math.floor(100000 + Math.random() * 900000).toString()
+
+    // Create session in database
+    const { data: sessionData, error: sessionError } = await supabaseService
       .from('sessions')
       .insert({
-        session_code: sessionCode,
-        user_email: userEmail,
-        plan_type: planType === 'pay-as-you-go' ? 'quick-session' : planType,
-        device_mode: deviceMode,
-        stripe_session_id: razorpayOrder.id,
-        status: 'pending',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-        duration_minutes: durationMinutes,
+        user_email: userEmail, // Save user email for webhook processing
+        plan_type: planType,
+        device_mode: 'single',
+        duration_minutes: 0,
         price_cents: totalPrice,
-        quota: quota || null
+        questions_included: questionsIncluded,
+        coding_sessions_included: codingSessions,
+        stripe_session_id: razorpayOrder.id, // Save Razorpay order ID here
+        session_code: sessionCode,
+        status: 'pending_payment',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
       })
       .select()
       .single()
 
     if (sessionError) {
       console.error('❌ Error creating session:', sessionError)
-      throw new Error('Failed to create session in database')
+      throw new Error(`Database error: ${sessionError.message}`)
     }
 
-    console.log('✅ Session created:', session.id, 'with code:', sessionCode)
+    console.log('✅ Session created:', sessionData.id)
 
+    // Return response for Razorpay checkout
+    const response = {
+      order_id: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      key_id: razorpayKeyId,
+      sessionId: sessionData.id,
+      sessionCode: sessionCode,
+      name: 'InterviewAce',
+      description: 'Interview preparation session',
+      prefill: {
+        email: userEmail,
+      }
+    }
+
+    console.log('✅ Returning response')
     return new Response(
-      JSON.stringify({ 
-        order_id: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
-        key_id: razorpayKeyId,
-        sessionId: session.id,
-        sessionCode: sessionCode,
-        name: 'InterviewAce',
-        description: 'Interview preparation session',
-        prefill: {
-          email: userEmail,
-        }
-      }),
+      JSON.stringify(response),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
-      },
+      }
     )
 
   } catch (error) {
-    console.error('💥 FATAL ERROR:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      timestamp: new Date().toISOString()
-    })
+    console.error('❌ Error:', error.message)
+    console.error('Stack:', error.stack)
     
     return new Response(
       JSON.stringify({ 
         error: error.message,
+        stack: error.stack,
         timestamp: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
-      },
+      }
     )
   }
 })

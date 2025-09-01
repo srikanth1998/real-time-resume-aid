@@ -42,9 +42,9 @@ const Interview = () => {
   const speechRecognition = useSpeechRecognition(handleSpeechTranscription);
   const { capabilities: nativeCapabilities } = useNativeAudio(sessionId);
 
-  // Supabase configuration from environment variables
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  // Supabase configuration with actual values
+  const SUPABASE_URL = 'https://jafylkqbmvdptrqwwyed.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY';
 
   // Generate streaming answer from AI
   const generateStreamingAnswer = async (question: string) => {

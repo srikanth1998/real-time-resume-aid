@@ -76,29 +76,47 @@ const Payment = () => {
       const priceInINR = Math.round(totalPrice * 100) / 100; // Round to 2 decimal places
       const priceInPaise = Math.round(priceInINR * 100); // Convert to paise for Razorpay
       
-      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
-        body: isQuotaPayment ? {
-          // Quota-based payment - include all required fields
-          planType: planType, // This should be 'question-analysis' or 'coding-helper'
-          userEmail: email || 'support@interviewaceguru.com',
-          deviceMode: 'single', // Add required deviceMode field
-          quota: parseInt(quota || '0'),
-          totalPrice: priceInPaise, // Convert to paise
-          // Add default values for other expected fields
-          priceAmount: priceInPaise,
-          planName: planType === 'question-analysis' ? 'Question Analysis Plan' : 'Coding Helper Plan',
-          duration: 0 // Not time-based for quota plans
-        } : {
-          // Hourly payment (existing logic)
-          planType: 'pay-as-you-go',
-          userEmail: email || 'support@interviewaceguru.com',
-          deviceMode: 'single',
-          hours: hours,
-          totalPrice: priceInPaise // Convert to paise
-        }
+      console.log('🔍 PAYMENT DEBUG:', {
+        totalPrice,
+        priceInINR,
+        priceInPaise,
+        planType,
+        email,
+        isQuotaPayment,
+        quota
       });
+      
+      const requestBody = isQuotaPayment ? {
+        // Quota-based payment - include all required fields
+        planType: planType, // This should be 'question-analysis' or 'coding-helper'
+        userEmail: email || 'support@interviewaceguru.com',
+        deviceMode: 'single', // Add required deviceMode field
+        quota: parseInt(quota || '0'),
+        totalPrice: priceInPaise, // Convert to paise
+        // Add default values for other expected fields
+        priceAmount: priceInPaise,
+        planName: planType === 'question-analysis' ? 'Question Analysis Plan' : 'Coding Helper Plan',
+        duration: 0 // Not time-based for quota plans
+      } : {
+        // Hourly payment (existing logic)
+        planType: 'pay-as-you-go',
+        userEmail: email || 'support@interviewaceguru.com',
+        deviceMode: 'single',
+        hours: hours,
+        totalPrice: priceInPaise // Convert to paise
+      };
+      
+      console.log('📤 REQUEST BODY:', JSON.stringify(requestBody, null, 2));
+      console.log('🚀 Calling supabase.functions.invoke...');
+      
+      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+        body: requestBody
+      });
+      
+      console.log('📥 RESPONSE:', { data, error });
 
       if (error) {
+        console.error('❌ SUPABASE FUNCTION ERROR:', error);
         throw error;
       }
 

@@ -19,10 +19,10 @@ interface CaptureSession {
   error?: string;
 }
 
-// Supabase configuration from environment variables
+// Supabase configuration with actual values
 const SUPABASE_CONFIG = {
-  url: import.meta.env.VITE_SUPABASE_URL,
-  key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  url: 'https://jafylkqbmvdptrqwwyed.supabase.co',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY'
 };
 
 export const useNativeAudio = (sessionId: string | null) => {
