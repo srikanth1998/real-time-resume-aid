@@ -96,12 +96,12 @@ serve(async (req) => {
 
     // Determine session details from totalPrice
     let planType = 'question-analysis'
-    let questionsIncluded = 100
-    let codingSessions = 2
+    let questionsIncluded = 25  // Default: 25 questions as advertised
+    let codingSessions = 0      // Default: 0 coding sessions for question-analysis
     
-    if (totalPrice >= 50000) { // ₹500+
-      questionsIncluded = 200
-      codingSessions = 5
+    if (totalPrice >= 50000) { // ₹500+ (premium plan)
+      questionsIncluded = 100
+      codingSessions = 2
     }
 
     // Generate session code
