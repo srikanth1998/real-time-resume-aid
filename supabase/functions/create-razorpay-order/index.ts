@@ -14,12 +14,38 @@ serve(async (req) => {
   }
 
   if (req.method === 'GET') {
-    console.log('GET request - test endpoint')
+    console.log('GET request - testing Razorpay credentials')
+    
+    const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
+    const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
+    const webhookSecret = Deno.env.get('RAZORPAY_WEBHOOK_SECRET')
+    
+    const status = {
+      razorpayKeyId: {
+        exists: !!razorpayKeyId,
+        length: razorpayKeyId?.length || 0,
+        startsWithRzp: razorpayKeyId?.startsWith('rzp_') || false,
+        preview: razorpayKeyId ? `${razorpayKeyId.substring(0, 8)}...` : 'NOT_SET'
+      },
+      razorpaySecretKey: {
+        exists: !!razorpaySecretKey,
+        length: razorpaySecretKey?.length || 0,
+        preview: razorpaySecretKey ? `${razorpaySecretKey.substring(0, 8)}...` : 'NOT_SET'
+      },
+      webhookSecret: {
+        exists: !!webhookSecret,
+        length: webhookSecret?.length || 0
+      },
+      allRazorpayEnvVars: Object.keys(Deno.env.toObject()).filter(key => key.includes('RAZOR'))
+    }
+    
     return new Response(
       JSON.stringify({ 
-        status: 'working',
-        message: 'Simplified Razorpay function'
-      }),
+        status: 'Razorpay credentials check',
+        timestamp: new Date().toISOString(),
+        credentials: status,
+        ready: status.razorpayKeyId.exists && status.razorpaySecretKey.exists
+      }, null, 2),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
