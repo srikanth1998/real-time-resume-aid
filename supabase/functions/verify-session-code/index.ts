@@ -74,13 +74,12 @@ serve(async (req) => {
       )
     }
 
-    // First, look up the session by session_code to get the session ID
+    // First, look up the session by session_code to get the session ID (allow reused sessions)
     const { data: sessionLookup, error: lookupError } = await supabaseClient
       .from('sessions')
       .select('id, expires_at, started_at')
       .eq('session_code', session_code)
       .in('status', ['assets_received', 'in_progress'])
-      .is('started_at', null)
       .single()
 
     if (lookupError || !sessionLookup) {
@@ -99,9 +98,9 @@ serve(async (req) => {
       )
     }
 
-    // Now use the start_session function to mark the session as started and prevent reuse
+    // Now use the start_session function to mark the session as started (allow reuse for testing)
     const { data: startResult, error: startError } = await supabaseClient
-      .rpc('start_session', { session_uuid: sessionLookup.id })
+      .rpc('start_session', { session_uuid: sessionLookup.id, allow_reuse: true })
 
     if (startError) {
       console.error('Start session error:', startError)
