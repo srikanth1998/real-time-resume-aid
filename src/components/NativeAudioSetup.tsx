@@ -26,8 +26,8 @@ export const NativeAudioSetup = () => {
   };
 
   const downloadHelper = () => {
-    // Use actual Supabase URL
-    const supabaseUrl = 'https://jafylkqbmvdptrqwwyed.supabase.co';
+    // Download from Supabase Storage using environment variable
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const downloadUrl = `${supabaseUrl}/storage/v1/object/public/native-helpers/StealthOverlay_Setup.exe`;
     
     window.open(downloadUrl, '_blank');

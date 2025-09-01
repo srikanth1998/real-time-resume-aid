@@ -493,7 +493,6 @@ export type Database = {
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
           updated_at: string
-          user_email: string | null
           user_id: string | null
         }
         Insert: {
@@ -519,7 +518,6 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           updated_at?: string
-          user_email?: string | null
           user_id?: string | null
         }
         Update: {
@@ -545,7 +543,6 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           updated_at?: string
-          user_email?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -668,9 +665,7 @@ export type Database = {
         Returns: undefined
       }
       start_session: {
-        Args:
-          | { allow_reuse?: boolean; session_uuid: string }
-          | { session_uuid: string }
+        Args: { session_uuid: string }
         Returns: Json
       }
     }

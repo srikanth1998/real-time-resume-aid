@@ -65,11 +65,11 @@ serve(async (req) => {
         return new Response('Session not found', { status: 400 })
       }
 
-      // Update session status to assets_received (waiting for user uploads)
+      // Update session status to paid
       const { error: updateError } = await supabaseService
         .from('sessions')
         .update({
-          status: 'assets_received',
+          status: 'paid',
           stripe_payment_intent_id: payment.id,
           updated_at: new Date().toISOString()
         })
@@ -80,7 +80,7 @@ serve(async (req) => {
         return new Response('Error updating session', { status: 500 })
       }
 
-      console.log('Session updated to assets_received status:', session.id)
+      console.log('Session updated to paid status:', session.id)
 
       // Get user email from session data
       const userEmail = session.user_email || 'support@interviewaceguru.com'

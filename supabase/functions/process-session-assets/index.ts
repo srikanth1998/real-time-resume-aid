@@ -50,8 +50,8 @@ serve(async (req) => {
 
     console.log('Session status:', session.status)
 
-    // Allow processing for pending_payment, pending_assets, and assets_received status
-    if (session.status !== 'pending_assets' && session.status !== 'pending_payment' && session.status !== 'assets_received') {
+    // Allow processing for both pending_payment and pending_assets status
+    if (session.status !== 'pending_assets' && session.status !== 'pending_payment') {
       console.error('Session not in valid status for asset processing:', session.status)
       throw new Error('Session not ready for assets')
     }

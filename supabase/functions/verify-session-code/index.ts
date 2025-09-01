@@ -20,13 +20,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get client IP for rate limiting - handle comma-separated IPs
-    const rawClientIP = req.headers.get('x-forwarded-for') || 
-                       req.headers.get('x-real-ip') || 
-                       '127.0.0.1';
-    
-    // Extract first IP from comma-separated list
-    const clientIP = rawClientIP.split(',')[0].trim();
+    // Get client IP for rate limiting
+    const clientIP = req.headers.get('x-forwarded-for') || 
+                    req.headers.get('x-real-ip') || 
+                    'unknown';
     
     console.log('[VERIFY] Client IP:', clientIP);
 
@@ -77,10 +74,10 @@ serve(async (req) => {
     // First, look up the session by session_code to get the session ID
     const { data: sessionLookup, error: lookupError } = await supabaseClient
       .from('sessions')
-      .select('id, expires_at, started_at')
+      .select('id, expires_at')
       .eq('session_code', session_code)
-      .in('status', ['assets_received', 'in_progress'])
-      .single()
+      .in('status', ['assets_received', 'lobby_ready', 'in_progress'])
+      .maybeSingle()
 
     if (lookupError || !sessionLookup) {
       console.error('Session lookup error:', lookupError)
@@ -98,7 +95,7 @@ serve(async (req) => {
       )
     }
 
-    // Now use the start_session function to mark the session as started (single-use only)
+    // Now use the start_session function to mark the session as started and prevent reuse
     const { data: startResult, error: startError } = await supabaseClient
       .rpc('start_session', { session_uuid: sessionLookup.id })
 
