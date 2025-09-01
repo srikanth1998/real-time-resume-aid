@@ -28,8 +28,8 @@ serve(async (req) => {
     console.log('✅ POST request received')
     
     // Get secrets
-    const razorpayKeyId = Deno.env.get('RZP_KEY_ID')
-    const razorpaySecretKey = Deno.env.get('RZP_SECRET_KEY')
+    const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
+    const razorpaySecretKey = Deno.env.get('RAZORPAY_SECRET_KEY')
     
     console.log('🔍 Secrets check:', {
       keyId: razorpayKeyId ? 'Present' : 'Missing',
