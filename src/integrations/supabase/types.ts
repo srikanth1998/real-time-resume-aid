@@ -668,9 +668,7 @@ export type Database = {
         Returns: undefined
       }
       start_session: {
-        Args:
-          | { allow_reuse?: boolean; session_uuid: string }
-          | { session_uuid: string }
+        Args: { allow_reuse?: boolean; session_uuid: string }
         Returns: Json
       }
     }
