@@ -7,7 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('🚀 RAZORPAY WITH DATABASE INTEGRATION')
+  console.log('🚀 RAZORPAY TEST MODE WITH DATABASE INTEGRATION')
   
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
