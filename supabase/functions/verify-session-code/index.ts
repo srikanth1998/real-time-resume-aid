@@ -20,10 +20,13 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get client IP for rate limiting
-    const clientIP = req.headers.get('x-forwarded-for') || 
-                    req.headers.get('x-real-ip') || 
-                    'unknown';
+    // Get client IP for rate limiting - handle comma-separated IPs
+    const rawClientIP = req.headers.get('x-forwarded-for') || 
+                       req.headers.get('x-real-ip') || 
+                       '127.0.0.1';
+    
+    // Extract first IP from comma-separated list
+    const clientIP = rawClientIP.split(',')[0].trim();
     
     console.log('[VERIFY] Client IP:', clientIP);
 
@@ -74,10 +77,11 @@ serve(async (req) => {
     // First, look up the session by session_code to get the session ID
     const { data: sessionLookup, error: lookupError } = await supabaseClient
       .from('sessions')
-      .select('id, expires_at')
+      .select('id, expires_at, started_at')
       .eq('session_code', session_code)
-      .in('status', ['assets_received', 'lobby_ready', 'in_progress'])
-      .maybeSingle()
+      .in('status', ['assets_received', 'in_progress'])
+      .is('started_at', null)
+      .single()
 
     if (lookupError || !sessionLookup) {
       console.error('Session lookup error:', lookupError)
