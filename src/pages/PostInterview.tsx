@@ -30,7 +30,7 @@ const PostInterview = () => {
       size: "2.3 MB"
     },
     {
-      title: "AI Insights Summary", 
+      title: "Smart Insights Summary", 
       description: "Personalized analysis of your responses and suggested improvements",
       icon: <BarChart3 className="h-6 w-6" />,
       format: "PDF",
@@ -164,7 +164,7 @@ const PostInterview = () => {
             <Card className="backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 text-center">
               <Lightbulb className="h-8 w-8 text-yellow-400 mx-auto mb-2" />
               <h3 className="text-2xl font-bold text-white">{sessionStats.suggestions}</h3>
-              <p className="text-white/70">AI Suggestions</p>
+              <p className="text-white/70">Smart Suggestions</p>
             </Card>
             <Card className="backdrop-blur-md bg-glass border border-glass-border rounded-2xl p-6 text-center">
               <Star className="h-8 w-8 text-purple-400 mx-auto mb-2" />

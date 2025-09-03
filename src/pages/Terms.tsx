@@ -26,7 +26,7 @@ const Terms = () => {
             <section>
               <h3 className="text-lg font-semibold text-white mb-3">1. Service Description</h3>
               <p>
-                InterviewAce is designed to assist with interview preparation through AI-powered interview assistance, 
+                InterviewAce is designed to assist with interview preparation through smart interview assistance, 
                 real-time audio processing, transcription, and intelligent response generation. Our service includes 
                 browser extensions, desktop applications, and web-based tools to help users during interviews. 
                 We do not guarantee specific employment outcomes, job offers, or interview success.
@@ -39,7 +39,7 @@ const Terms = () => {
               <ul className="list-disc pl-6 space-y-1">
                 <li>Audio recordings during interview sessions</li>
                 <li>Transcribed text from audio content</li>
-                <li>Generated AI responses and suggestions</li>
+                <li>Generated smart responses and suggestions</li>
                 <li>Usage analytics and session metadata</li>
                 <li>Payment and billing information</li>
               </ul>
@@ -64,12 +64,12 @@ const Terms = () => {
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold text-white mb-3">4. AI & Machine Learning Disclosures</h3>
+              <h3 className="text-lg font-semibold text-white mb-3">4. Smart Technology & Machine Learning Disclosures</h3>
               <p>
-                Our service uses artificial intelligence to generate interview responses. AI-generated content 
-                should be reviewed and customized before use. AI responses may occasionally produce inaccurate, 
+                Our service uses intelligent technology to generate interview responses. Smart-generated content 
+                should be reviewed and customized before use. Smart responses may occasionally produce inaccurate, 
                 biased, or inappropriate content. Users should independently verify information before relying on it. 
-                We do not guarantee the accuracy or appropriateness of AI suggestions. Users are responsible for 
+                We do not guarantee the accuracy or appropriateness of smart suggestions. Users are responsible for 
                 their own interview performance and responses.
               </p>
             </section>
@@ -84,7 +84,7 @@ const Terms = () => {
                 <li>Attempt to reverse engineer or hack our systems</li>
                 <li>Use the service to harm others or spread misinformation</li>
                 <li>Share accounts or resell the service to third parties</li>
-                <li>Use automated scraping or misuse AI outputs for commercial purposes</li>
+                <li>Use automated scraping or misuse smart technology outputs for commercial purposes</li>
               </ul>
             </section>
 

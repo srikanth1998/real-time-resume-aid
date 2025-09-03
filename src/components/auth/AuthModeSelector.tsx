@@ -109,7 +109,7 @@ export const AuthModeSelector = ({ onModeSelect, className }: AuthModeSelectorPr
 
             <Alert className="bg-green-900/20 border-green-700 text-green-200">
               <AlertDescription className="text-xs">
-                Build your interview performance over time with AI insights.
+                Build your interview performance over time with smart insights.
               </AlertDescription>
             </Alert>
 
@@ -131,7 +131,7 @@ export const AuthModeSelector = ({ onModeSelect, className }: AuthModeSelectorPr
           <div>
             <h4 className="text-gray-300 font-medium mb-2">Core Features</h4>
             <ul className="text-gray-400 space-y-1">
-              <li>✅ Real-time AI assistance</li>
+              <li>✅ Real-time smart assistance</li>
               <li>✅ Stealth overlay</li>
               <li>✅ Audio capture</li>
               <li>✅ Session transcripts</li>
@@ -152,7 +152,7 @@ export const AuthModeSelector = ({ onModeSelect, className }: AuthModeSelectorPr
               <li>📚 Resume library</li>
               <li>📊 Performance analytics</li>
               <li>🔄 Cross-device sync</li>
-              <li>🧠 AI learning</li>
+              <li>🧠 Smart learning</li>
             </ul>
           </div>
         </div>

@@ -157,7 +157,7 @@ export const CrossDeviceStatus = ({ sessionId, deviceType, className }: CrossDev
 
           {connectionStatus === 'waiting' && (
             <p className="text-xs text-gray-600">
-              Open your interview session on desktop to see AI answers here in real-time.
+              Open your interview session on desktop to see smart answers here in real-time.
             </p>
           )}
 

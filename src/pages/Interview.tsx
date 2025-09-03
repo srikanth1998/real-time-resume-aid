@@ -46,7 +46,7 @@ const Interview = () => {
   const SUPABASE_URL = 'https://jafylkqbmvdptrqwwyed.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphZnlsa3FibXZkcHRycXd3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU1MzQsImV4cCI6MjA2NDMwMTUzNH0.dNNXK4VWW9vBOcTt9Slvm2FX7BuBUJ1uR5vdSULwgeY';
 
-  // Generate streaming answer from AI
+  // Generate streaming answer from Smart System
   const generateStreamingAnswer = async (question: string) => {
     if (isGeneratingAnswer || !question.trim()) return;
     
@@ -126,7 +126,7 @@ const Interview = () => {
 
       toast({
         title: "✅ Response Generated",
-        description: "AI has provided a tailored answer using streaming.",
+        description: "Smart has provided a tailored answer using streaming.",
       });
 
     } catch (error: any) {

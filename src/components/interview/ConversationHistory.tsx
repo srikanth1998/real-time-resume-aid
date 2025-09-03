@@ -44,11 +44,11 @@ export const ConversationHistory = ({
                 Your conversation history will appear here as you ask questions.
               </p>
               <div className="text-xs md:text-sm text-blue-400 bg-blue-900/20 p-3 md:p-4 rounded-lg">
-                <p className="font-medium mb-2">🚀 AI Interview Assistant</p>
+                <p className="font-medium mb-2">🚀 Smart Interview Assistant</p>
                 <p>• Choose your input method above</p>
                 <p>• Voice recognition or manual text input</p>
                 <p>• Native audio capture with stealth overlay</p>
-                <p>• Real-time AI answer streaming ✅</p>
+                <p>• Real-time smart answer streaming ✅</p>
               </div>
             </div>
           ) : (
@@ -59,7 +59,7 @@ export const ConversationHistory = ({
                   <p className="text-white text-sm">{entry.question}</p>
                 </div>
                 <div className="mb-2">
-                  <p className="text-gray-400 text-xs md:text-sm">AI Answer:</p>
+                  <p className="text-gray-400 text-xs md:text-sm">Smart Answer:</p>
                   <p className="text-gray-200 text-xs md:text-sm leading-relaxed">{entry.answer}</p>
                 </div>
                 <p className="text-gray-500 text-xs">

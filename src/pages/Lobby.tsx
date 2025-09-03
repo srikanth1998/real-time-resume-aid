@@ -370,7 +370,7 @@ const Lobby = () => {
                     <span>Mobile Companion</span>
                   </CardTitle>
                   <CardDescription>
-                    Open this link on your mobile device to receive AI answers
+                    Open this link on your mobile device to receive smart answers
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -477,7 +477,7 @@ const Lobby = () => {
                 <h3 className="font-semibold mb-3">During Your Interview</h3>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li>• Speak clearly and at normal pace</li>
-                  <li>• AI answers will appear in real-time</li>
+                  <li>• Smart answers will appear in real-time</li>
                   <li>• Use answers as talking points, not scripts</li>
                   <li>• Timer will be visible throughout</li>
                   {session.device_mode === 'cross' && (

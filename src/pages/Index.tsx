@@ -44,7 +44,7 @@ const Index = () => {
       answer: "Supervised learning uses labeled data to predict outcomes, while unsupervised learning finds patterns in unlabeled data through clustering or dimensionality reduction." 
     },
     { 
-      domain: "AI", 
+      domain: "Smart", 
       question: "What are transformers in deep learning?", 
       answer: "Transformers use self-attention mechanisms to process sequential data in parallel, revolutionizing NLP by enabling models like GPT and BERT to understand context better." 
     },
@@ -201,7 +201,7 @@ const Index = () => {
             <div>
               <h1 className="text-5xl lg:text-6xl font-bold font-poppins text-white mb-6 leading-tight">
                 Ace Your Next Interview with 
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-400"> AI</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-400"> Smart</span>
               </h1>
               <p className="text-xl text-white/80 font-inter mb-8 leading-relaxed">
                 Get real-time clarity reminders during live interviews with our transparent overlay system. 
@@ -285,7 +285,7 @@ const Index = () => {
                     </motion.div>
                   </AnimatePresence>
 
-                  {/* AI Suggestion Overlay - White and Transparent Background Only */}
+                  {/* Smart Suggestion Overlay - White and Transparent Background Only */}
                   <motion.div
                     className="rounded-lg p-4 border border-white/50 relative"
                     style={{ 
@@ -295,7 +295,7 @@ const Index = () => {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
                         <div className="text-xs text-blue-600 font-medium">
-                          {technicalQuestions[currentSubtitle].domain} - AI Suggestion:
+                          {technicalQuestions[currentSubtitle].domain} - Smart Suggestion:
                         </div>
                       </div>
                       <Eye className="h-3 w-3 text-blue-600" />

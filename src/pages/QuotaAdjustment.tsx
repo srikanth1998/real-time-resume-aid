@@ -17,13 +17,13 @@ const QuotaAdjustment = () => {
       name: 'Coding Helper',
       basePrice: 199,
       type: 'coding',
-      description: 'AI coding assistance and hints'
+      description: 'Smart coding assistance and hints'
     },
     'question-analysis': {
       name: 'Question Analysis',
       basePrice: 99,
       type: 'question',
-      description: 'Get AI help to answer interview questions perfectly'
+      description: 'Get smart help to answer interview questions perfectly'
     },
     'pay-as-you-go': {
       name: 'Pay As You Go',
@@ -195,12 +195,12 @@ const QuotaAdjustment = () => {
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3 mb-4">
                     <Code className="h-6 w-6 text-primary" />
-                    <h3 className="text-xl font-semibold text-foreground">AI Help for Interview Questions</h3>
+                    <h3 className="text-xl font-semibold text-foreground">Smart Help for Interview Questions</h3>
                   </div>
                   
                   <div className="flex items-center justify-between bg-secondary/20 rounded-lg p-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">AI answers you'll get</p>
+                      <p className="text-sm text-muted-foreground">Smart answers you'll get</p>
                       <p className="text-2xl font-bold text-foreground">{imageQuota}</p>
                     </div>
                     

@@ -33,7 +33,7 @@ export const InterviewHeader = ({
           <span className="font-semibold text-sm md:text-base">InterviewAce</span>
           {isStreaming && (
             <span className="bg-blue-800 text-blue-200 text-xs px-2 py-1 rounded animate-pulse">
-              🧠 AI Responding
+              🧠 Smart Responding
             </span>
           )}
         </div>

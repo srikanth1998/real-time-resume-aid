@@ -217,7 +217,7 @@ const MobileCompanion = () => {
               <h3 className="font-medium text-gray-900 mb-2">Ready for Questions</h3>
               <p className="text-gray-600 text-sm">
                 {session.status === 'in_progress' 
-                  ? 'AI answers will appear here as questions are asked in your interview.'
+                  ? 'Smart answers will appear here as questions are asked in your interview.'
                   : 'Start your interview and questions will appear here in real-time.'
                 }
               </p>
@@ -246,11 +246,11 @@ const MobileCompanion = () => {
                 </p>
               </div>
 
-              {/* AI Answer */}
+              {/* Smart Answer */}
               <div className="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-400">
                 <div className="flex items-center space-x-2 mb-2">
                   <Brain className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-800">AI Answer</span>
+                  <span className="text-sm font-medium text-blue-800">Smart Answer</span>
                 </div>
                 <p className="text-blue-900 leading-relaxed text-sm">
                   {transcript.generated_answer}

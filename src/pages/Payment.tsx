@@ -405,7 +405,7 @@ const Payment = () => {
             <CardContent>
               <div className="space-y-2">
                 {[
-                  'Real-time AI coaching overlay',
+                  'Real-time smart coaching overlay',
                   'Invisible to screen sharing',
                   'Technical & behavioral question support',
                   'Session recording & report',
@@ -441,7 +441,7 @@ const Payment = () => {
         </form>
 
         <div className="text-center mt-6 text-sm text-gray-500">
-          After payment, you'll upload your resume and job details to prepare your AI coach
+          After payment, you'll upload your resume and job details to prepare your smart coach
         </div>
       </div>
     </div>

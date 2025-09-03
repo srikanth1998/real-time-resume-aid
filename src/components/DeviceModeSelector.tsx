@@ -38,7 +38,7 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
           <CardContent className="space-y-3">
             <Badge variant="secondary">Recommended</Badge>
             <p className="text-sm text-gray-600">
-              Use voice recognition or manual text input. AI answers appear directly in your browser during the interview.
+              Use voice recognition or manual text input. Smart answers appear directly in your browser during the interview.
             </p>
             <div className="space-y-2">
               <div className="flex items-center space-x-2 text-xs text-gray-500">
@@ -51,7 +51,7 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
               </div>
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>Real-time AI responses</span>
+                <span>Real-time smart responses</span>
               </div>
             </div>
           </CardContent>
@@ -76,7 +76,7 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
           <CardContent className="space-y-3">
             <Badge variant="outline">Advanced</Badge>
             <p className="text-sm text-gray-600">
-              Native audio capture with mobile device for viewing AI answers discreetly during interviews.
+              Native audio capture with mobile device for viewing smart answers discreetly during interviews.
             </p>
             <div className="space-y-2">
               <div className="flex items-center space-x-2 text-xs text-gray-500">
@@ -103,7 +103,7 @@ export const DeviceModeSelector = ({ value, onChange, className }: DeviceModeSel
             <div>
               <p className="font-medium text-purple-800">Cross-Device Setup</p>
               <p className="text-sm text-purple-700 mt-1">
-                Install the native helper for advanced audio capture and use a mobile device to view AI answers discreetly.
+                Install the native helper for advanced audio capture and use a mobile device to view smart answers discreetly.
               </p>
             </div>
           </div>

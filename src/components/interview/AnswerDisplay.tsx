@@ -24,7 +24,7 @@ export const AnswerDisplay = ({
     <Card className="bg-gray-800 border-gray-700">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between text-white text-base md:text-lg">
-          <span>AI-Generated Answer {isStreaming && <span className="text-blue-400">(Streaming...)</span>}</span>
+          <span>Smart-Generated Answer {isStreaming && <span className="text-blue-400">(Streaming...)</span>}</span>
           <div className="flex space-x-1 md:space-x-2">
             <Button
               onClick={onCopy}
@@ -50,7 +50,7 @@ export const AnswerDisplay = ({
       <CardContent>
         <div className="bg-gray-900 p-3 md:p-4 rounded-lg min-h-[120px] md:min-h-[200px] max-h-60 md:max-h-none overflow-y-auto">
           <p className="text-white leading-relaxed text-sm md:text-base">
-            {currentAnswer || "Ask a question to get an AI-generated response tailored to your resume and job description."}
+            {currentAnswer || "Ask a question to get a smart-generated response tailored to your resume and job description."}
           </p>
           {isGeneratingAnswer && !isStreaming && (
             <div className="flex items-center space-x-2 mt-4 text-blue-400">
