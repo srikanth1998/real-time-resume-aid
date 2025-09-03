@@ -22,17 +22,17 @@ const HowItWorks = () => {
     {
       number: "02", 
       title: "Download Helper",
-      description: "One-click install for your computer",
+      description: "Install and run as administrator",
       icon: <Download className="h-8 w-8" />,
-      details: "Lightweight application that runs locally on your device. No complex setup or configuration required.",
-      time: "1 minute"
+      details: "IMPORTANT: Always install in Admin Mode and run as Administrator. Right-click the installer → 'Run as Administrator', then right-click the app → 'Run as Administrator' each time you use it.",
+      time: "2 minutes"
     },
     {
       number: "03",
-      title: "Get Session Link",
-      description: "Unique URL for each interview",
+      title: "Get Session Code",
+      description: "Unique 6-digit code for each interview",
       icon: <Play className="h-8 w-8" />,
-      details: "Receive your private session link that activates your invisible coaching overlay during any video interview.",
+      details: "Receive your private 6-digit session code. Enter this code in the helper app to activate your invisible coaching overlay during any video interview.",
       time: "Instant"
     }
   ];
