@@ -23,7 +23,7 @@ const QuotaAdjustment = () => {
       name: 'Question Analysis',
       basePrice: 99,
       type: 'question',
-      description: 'AI question analysis and assistance'
+      description: 'Get AI help to answer interview questions perfectly'
     },
     'pay-as-you-go': {
       name: 'Pay As You Go',
@@ -127,10 +127,10 @@ const QuotaAdjustment = () => {
             className="mb-4 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Plans
+            Choose Different Plan
           </Button>
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {isPlanType('question') ? 'Customize Your Question Analysis' : `Customize Your ${currentPlan.name}`}
+            {isPlanType('question') ? 'How Many Questions Do You Need Help With?' : `Customize Your ${currentPlan.name}`}
           </h1>
           <p className="text-muted-foreground">{currentPlan.description}</p>
         </motion.div>
@@ -195,12 +195,12 @@ const QuotaAdjustment = () => {
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3 mb-4">
                     <Code className="h-6 w-6 text-primary" />
-                    <h3 className="text-xl font-semibold text-foreground">Question Analysis</h3>
+                    <h3 className="text-xl font-semibold text-foreground">AI Help for Interview Questions</h3>
                   </div>
                   
                   <div className="flex items-center justify-between bg-secondary/20 rounded-lg p-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Questions included</p>
+                      <p className="text-sm text-muted-foreground">AI answers you'll get</p>
                       <p className="text-2xl font-bold text-foreground">{imageQuota}</p>
                     </div>
                     
